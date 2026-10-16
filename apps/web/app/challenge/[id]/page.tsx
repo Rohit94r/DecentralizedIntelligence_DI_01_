@@ -9,13 +9,14 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowRight, Lightbulb, Loader2, MapPin, Pause, Play, RotateCcw, Send, Sparkles, StepBack, StepForward, History } from "lucide-react";
+import { ArrowRight, Lightbulb, Loader2, MapPin, MessageCircleQuestion, Pause, Play, RotateCcw, Send, Sparkles, StepBack, StepForward, History, Video } from "lucide-react";
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { CodeEditor } from "@/components/app/CodeEditor";
 import { Card, LEVEL_STYLE, MasteryBar, OutcomeChip, Prose, TagBadge } from "@/components/app/bits";
 import { api, type Challenge, type HintResult, type LearnerView, type Outcome, type SubmitResult, type TraceResult } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { cn } from "@/lib/utils";
+import { clearChatContext, openChat, setChatContext } from "@/lib/chat-context";
 
 const RUNG_NAMES = ["", "nudge", "specific", "mechanism", "built-in"];
 
@@ -100,6 +101,14 @@ function Workspace() {
       })
       .catch(() => {});
   }, [search]);
+
+  // "Ask Priya" knows which problem this is and sees the learner's current code (never the hidden tests)
+  useEffect(() => {
+    if (!challenge) return;
+    const t = setTimeout(() => setChatContext({ page: "challenge", challenge_id: challenge.id, title: challenge.title, code }), 250);
+    return () => clearTimeout(t);
+  }, [challenge, code]);
+  useEffect(() => () => clearChatContext(), []);
 
   const saveDraft = (v: string) => {
     setCode(v);
@@ -420,6 +429,16 @@ function Workspace() {
                     {!passed && (
                       <button onClick={() => runReplay()} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-4 text-[13px] font-semibold text-neutral-800 hover:border-neutral-950">
                         <History className="size-3.5" /> Watch it run
+                      </button>
+                    )}
+                    {!passed && (
+                      <Link href={`/mentoring?challenge=${result.challenge_id}&join=1`} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#1a73e8] px-4 text-[13px] font-semibold text-white hover:bg-[#1765cc]">
+                        <Video className="size-3.5" /> Talk it through with Priya
+                      </Link>
+                    )}
+                    {!passed && (
+                      <button onClick={() => openChat("What's wrong with my code?")} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-4 text-[13px] font-semibold text-neutral-800 hover:border-neutral-950">
+                        <MessageCircleQuestion className="size-3.5" /> Ask in chat
                       </button>
                     )}
                     {nextUp && (
