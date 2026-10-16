@@ -72,6 +72,8 @@ export function seedBounty(store: LayerflowStore, now = Date.now()): void {
   k("campus-jwt-decode", "campusconnect", 90, "JWT is decoded but never verified", "requireUser uses jwt.decode, which does not check the signature. Anyone can make a token with role admin and the server accepts it.", "critical");
   k("campus-mass-assignment", "campusconnect", 80, "Students can set their own role to admin", "PUT /api/profile copies the whole request body onto the user with Object.assign, including role. Sending role: admin promotes the account.", "high");
   k("campus-xss", "campusconnect", 70, "Stored XSS through the profile bio", "ProfileCard renders user.bio with dangerouslySetInnerHTML. A bio with an img tag and an onerror handler runs script for every visitor.", "high");
+  k("paylite-self-transfer", "paylite", 62, "Sending money to yourself creates money", "store.get_wallet returns a fresh copy each call, so when sender and receiver are the same wallet the sender copy is debited and the stale receiver copy is credited and saved last. Your balance goes up by the amount.", "high");
+  k("paylite-pin-log", "paylite", 58, "Wallet PIN is written to the log in plain text", "authenticate() logs the wallet id and the PIN it was given before comparing them, so every PIN is sitting in the service log in clear text.", "medium");
 
   // riya — in the middle: one confirmed bug and one miss
   builtIn("riya", "shopkart", "shopkart-paging", 50, {
@@ -126,7 +128,7 @@ export function seedBounty(store: LayerflowStore, now = Date.now()): void {
     at: at(5),
   });
 
-  for (const l of ["rohan", "riya", "khushi"]) syncStreakPoints(store, l);
+  for (const l of ["yash", "riya", "khushi"]) syncStreakPoints(store, l);
 
   // khushi has already redeemed: a goodie on its way, and a (demo) cash-out paid
   const g = store.createRedemption({

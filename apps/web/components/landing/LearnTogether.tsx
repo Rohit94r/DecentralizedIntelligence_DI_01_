@@ -24,7 +24,7 @@ function MeetMock() {
           <span className="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-[#202124]/70">
             <MicOff className="size-2.5 text-white" />
           </span>
-          <span className="absolute bottom-1 left-1.5 text-[9px] font-medium text-white">Rohan (You)</span>
+          <span className="absolute bottom-1 left-1.5 text-[9px] font-medium text-white">Yash (You)</span>
         </div>
       </div>
       <div className="mx-auto mt-2 max-w-[90%] rounded bg-black/70 px-2 py-1 text-center text-[9.5px] leading-tight text-white">Look closely — step 3, on line 4. That's where it goes off track…</div>

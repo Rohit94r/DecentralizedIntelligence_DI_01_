@@ -41,7 +41,7 @@ This section answers: *"of 13 statements, why this one?"* — the decision I loc
 | **The crowd is not there** | Your friend took DI-06; every model's favourite pick is DI-06 (it's the most "web-dev approachable"). Teams read DI-01's words — *sandbox, red team, hidden-test secrecy, taxonomy, 15 hostile programs* — and flinch. **Crowd = 1.** |
 | **Depth over breadth** | The statement itself says: *"one programming language your team can support well."* It is the only statement that explicitly rewards doing **one thing perfectly** instead of everything half-done. |
 | **No external dependency** | No GPU, no blockchain, no faucet, no sponsor API, no leaderboard race, no baseline to beat. The only external thing is an LLM API key — and any model is allowed. |
-| **The emotion is theirs, not mine** | The story (Rohan) is written *by the judges*. I don't have to sell them a feeling they don't have; I finish the story they started. |
+| **The emotion is theirs, not mine** | The story (Yash) is written *by the judges*. I don't have to sell them a feeling they don't have; I finish the story they started. |
 
 **What I gave up by choosing it:** the biggest business story on the board is OP-03 AI Lead Desk (fees · job fears · family approval). But it's Open-track, so **TechSummitTrainers owns the submission** (clauses 1/2/5), it's panel-judged, and it's 7 subsystems — the exact "everything half-done" I refuse. Full reasoning in `compare.md §4.2`.
 
@@ -63,7 +63,7 @@ The rules require us to *"log every prompt and response; judges may ask to see t
 The secrecy requirement ("never reveal a hidden input, expected output, program output or exception message") is usually met by *hiding fields in JSON*. We met it by **architecture**: the hidden test table lives **only in the server's memory**. The sandboxed child process never receives an expected value, never has the test file on disk, and the browser never receives hidden data. **The learner cannot leak what we never gave them.** This passes the red-team, the secrecy check, and the "trick the harness" attacks *by construction*.
 
 ### 2.4 Mistake-driven curriculum, not mistake reporting
-Every tutor shows "you got this wrong." We go further: we **detect the category of mistake deterministically** (not via an LLM guessing), **prove recurrence only across different challenges**, and **auto-serve the next challenge that targets the learner's recurring mistake, with the reason.** The system doesn't report that Rohan struggles with boundaries — it *cures* them.
+Every tutor shows "you got this wrong." We go further: we **detect the category of mistake deterministically** (not via an LLM guessing), **prove recurrence only across different challenges**, and **auto-serve the next challenge that targets the learner's recurring mistake, with the reason.** The system doesn't report that Yash struggles with boundaries — it *cures* them.
 
 > **The innovation sentence for the viva:** *"Everyone else built a tutor that explains. We built a tutor with an enforced conscience, an auditable memory, and a closed loop that makes a specific mistake disappear."*
 
@@ -96,7 +96,7 @@ One sentence: **a practice environment that runs learner code safely, explains f
 - **Completeness:** all 6 scoring rows are directly, mechanically demonstrable.
 - **Innovation:** §2.
 - **Design:** a learner UI + counsellor dashboard + Ledger.
-- **Presentation:** Rohan's story, live red-team, live recurrence reveal.
+- **Presentation:** Yash's story, live red-team, live recurrence reveal.
 
 ---
 
@@ -104,8 +104,8 @@ One sentence: **a practice environment that runs learner code safely, explains f
 
 This is the *"what problems your students are already facing"* section — the real, human problem, sourced from the statement's own story and problem overview.
 
-### 4.1 The core failure loop (Rohan's loop, verbatim from the statement)
-> Rohan's function passes all three examples he can see and fails **test 5** — a test he can't see. Yesterday's feedback was `IndexError: list index out of range`, which told him *where* it died but not *why*. So he pasted the question into a chatbot, copied the answer, and submitted: **Accepted.** Next week the exam has the same kind of loop — and there is no chatbot in the exam hall.
+### 4.1 The core failure loop (Yash's loop, verbatim from the statement)
+> Yash's function passes all three examples he can see and fails **test 5** — a test he can't see. Yesterday's feedback was `IndexError: list index out of range`, which told him *where* it died but not *why*. So he pasted the question into a chatbot, copied the answer, and submitted: **Accepted.** Next week the exam has the same kind of loop — and there is no chatbot in the exam hall.
 
 **The loop, named:** *visible tests pass → hidden test fails → error message locates but doesn't explain → paste into chatbot → "Accepted" → submit → learn nothing → repeat → can't reproduce the skill under exam conditions.*
 
@@ -115,7 +115,7 @@ This is the *"what problems your students are already facing"* section — the r
 |---|---|---|---|
 | **Feedback that locates but doesn't explain** | A traceback says *where* it died, not *what to look at*. A learner can't tell a boundary bug from an index bug from a mutation bug. | `IndexError: list index out of range` | *"3 visible pass, 3 hidden fail — all cases where k > len(marks). Your loop starts negative."* |
 | **Pass/fail with no location** | "Wrong answer on test 5" gives no direction. The learner guesses and re-guesses. | pass/fail per test | the same, plus a targeted next action |
-| **Early answers kill the struggle** | A chatbot that gives the code removes the exact friction that makes debugging stick. Rohan *learned to copy* because copying worked. | full solution in 4 seconds | a **ladder** that sharpens but never completes the solution |
+| **Early answers kill the struggle** | A chatbot that gives the code removes the exact friction that makes debugging stick. Yash *learned to copy* because copying worked. | full solution in 4 seconds | a **ladder** that sharpens but never completes the solution |
 | **Running learner code is dangerous** | Code from an unknown author must not read files, hit the network, or eat resources. Naive runners get killed by one hostile paste. | unsafe `eval` / fragile subprocess | contained-by-construction, labelled honestly |
 | **The same mistake, forever** | Without a memory of *which* mistakes recur, a learner never faces the one that actually blocks them. | per-problem score | recurrence across challenges → a next challenge that **targets it, with the reason** |
 
@@ -123,7 +123,7 @@ This is the *"what problems your students are already facing"* section — the r
 The student problem isn't laziness — it's **the appearance of not knowing.** A beginner won't ask for help because asking costs them the one thing they can't afford in front of peers. So they hide confusion, copy an answer, and fake competence until the exam. **Debug Dojo gives support that doesn't embarrass:** it never says "you're wrong," it says "look here, and if you're still stuck, look there too." That's the emotional core — and it's the judges' own story.
 
 ### 4.4 The institutional version (why institutions pay)
-Colleges face Rohan at scale: ChatGPT broke the take-home assignment, faculty can't tell who learned vs. pasted, and nobody can certify a skill. Debug Dojo is not a *detector* — it's a **teacher** whose Hint Ledger doubles as proof that assistance was bounded. Institutions buy **"did they actually learn it?"** answered and provable.
+Colleges face Yash at scale: ChatGPT broke the take-home assignment, faculty can't tell who learned vs. pasted, and nobody can certify a skill. Debug Dojo is not a *detector* — it's a **teacher** whose Hint Ledger doubles as proof that assistance was bounded. Institutions buy **"did they actually learn it?"** answered and provable.
 
 ---
 
@@ -170,7 +170,7 @@ This is the **required deliverables checklist** — what must exist on/with the 
 | 5 | **A 5-minute demo, then a viva** | "demo + viva" | §12 script; rehearsed 3× |
 | 6 | **One programming language only** | "one programming language your team can support well" | Python, declared on the README front page |
 | 7 | **Log every LLM prompt + response, browsable** | "log every prompt and response; judges may ask to see them" | Hint Ledger page + `/api/ledger` |
-| 8 | **Pseudonymous learner data only; no real student data** | "pseudonymous accounts only" | seed learners are `rohan`, `meera`, `kabir`; stated on README |
+| 8 | **Pseudonymous learner data only; no real student data** | "pseudonymous accounts only" | seed learners are `yash`, `riya`, `khushi`; stated on README |
 
 ### 6.2 The API shapes (must match the Example exactly — judges script against it)
 
@@ -178,7 +178,7 @@ This is the **required deliverables checklist** — what must exist on/with the 
 ```json
 {
   "submission_id": "s_0142",
-  "learner_id": "rohan",
+  "learner_id": "yash",
   "challenge_id": "last-k-total",
   "visible": [
     {"test": 1, "call": "last_k_total([10, 20, 30, 40], 2)", "expected": "70", "got": "70", "outcome": "passed"},
@@ -345,7 +345,7 @@ Open on **their** story, then let the product finish it.
 
 | Time | Beat |
 |---|---|
-| 0:00–0:25 | *"Rohan's function passed all three examples and failed hidden test 5."* Submit it live. |
+| 0:00–0:25 | *"Yash's function passed all three examples and failed hidden test 5."* Submit it live. |
 | 0:25–1:30 | Show **3 visible passing / hidden failing** + the explanation — names the *kind* of input, **no values**. |
 | 1:30–2:30 | The **hint ladder**, 4 rungs live. Then ask *"give me the answer"* → still one rung. Then the **Hint Ledger** proving zero code in any hint. |
 | 2:30–3:30 | **The wow:** open `GET /api/learner` — *"you keep making `unhandled_short_input` across 3 different challenges, so here's the next problem and why."* Mastery per concept updating. |
@@ -418,7 +418,7 @@ Open on **their** story, then let the product finish it.
 
 ---
 
-> *"Rohan never needed the answer. He needed someone to point him to the right place to look."*
+> *"Yash never needed the answer. He needed someone to point him to the right place to look."*
 >
 > **Debug Dojo** — we never gave the answer. We gave the place to look.
 

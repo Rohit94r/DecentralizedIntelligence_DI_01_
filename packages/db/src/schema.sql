@@ -7,7 +7,7 @@
 --    every hidden test — enforced by a CHECK constraint, not by good intentions.
 
 CREATE TABLE IF NOT EXISTS learners (
-  id         TEXT PRIMARY KEY,                 -- pseudonymous: rohan, meera, kabir
+  id         TEXT PRIMARY KEY,                 -- pseudonymous: yash, riya, khushi
   created_at TEXT NOT NULL
 );
 

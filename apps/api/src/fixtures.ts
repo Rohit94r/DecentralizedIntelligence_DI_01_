@@ -170,15 +170,32 @@ const ALL_SOLVED: ScriptStep[] = [
 
 /**
  * The three demo learners, one per stage:
- *   rohan  — first visit: nothing yet (the empty, first-time experience)
- *   riya   — in the middle: the statement's story — two recurring mistakes,
- *            one one-off slip, hinted passes, a clear "why this next"
+ *   yash   — first visit: nothing yet (the empty, first-time experience)
+ *   riya   — in the middle, about 60% done: the statement's story — two
+ *            recurring mistakes, one one-off slip, hinted passes, then a run
+ *            of clean passes. SCRIPTED_LEARNER + 3 more solved → 7 of 11.
  *   khushi — finished every problem on a 12-day streak (plus one today);
  *            her bug-bounty finds put enough points in her wallet to cash out
  */
+
+/**
+ * riya in the demo seed, a little further on than the T5 test script.
+ * The T5 harness imports SCRIPTED_LEARNER directly and asserts the recurrence
+ * and "why this next" shape, so that array stays exactly as it is — only the
+ * seeded learner gets these extra CLEAN passes. No new failures, so the two
+ * planted recurring tags and the one-off slip are unchanged.
+ */
+const RIYA_SEED: ScriptStep[] = [
+  ...SCRIPTED_LEARNER,
+  { challenge: "count-vowels", code: REFERENCE["count-vowels"], plant: "clean pass" },
+  { challenge: "sum-of-digits", code: REFERENCE["sum-of-digits"], plant: "clean pass" },
+  { challenge: "grade-letter", code: REFERENCE["grade-letter"], plant: "clean pass" },
+  { challenge: "is-leap-year", code: REFERENCE["is-leap-year"], plant: "clean pass" },
+];
+
 export const SEED_LEARNERS: { id: string; days: number; steps: ScriptStep[]; today?: ScriptStep[] }[] = [
-  { id: "rohan", days: 0, steps: [] },
-  { id: "riya", days: 4, steps: SCRIPTED_LEARNER },
+  { id: "yash", days: 0, steps: [] },
+  { id: "riya", days: 7, steps: RIYA_SEED },
   {
     id: "khushi",
     days: 12,

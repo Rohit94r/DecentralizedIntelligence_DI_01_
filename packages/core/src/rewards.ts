@@ -150,7 +150,7 @@ export function validateCashOut(points: number, balance: number, upi: string | u
   return null;
 }
 
-/** "rohan.k@okicici" → "ro•••k@okicici" — never send the full UPI ID back to the browser. */
+/** "yash.k@okicici" → "ro•••k@okicici" — never send the full UPI ID back to the browser. */
 export function maskUpi(upi: string | null): string | null {
   if (!upi) return null;
   const [user, bank] = upi.split("@");

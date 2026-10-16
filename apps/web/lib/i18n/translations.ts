@@ -100,7 +100,7 @@ const en = {
     primary: "Open the judges' page",
     secondary: "Browse the Hint Ledger",
   },
-  footer: { rights: "© {year} Layerflow · Kurukshetra 2026 · DI-01", builtBy: "Built by", quote: "Rohan never needed the answer. He needed someone to point him to the right place to look." },
+  footer: { rights: "© {year} Layerflow · Kurukshetra 2026 · DI-01", builtBy: "Built by", quote: "Yash never needed the answer. He needed someone to point him to the right place to look." },
   app: {
     practice: "Practice",
     mentoring: "Mentoring",

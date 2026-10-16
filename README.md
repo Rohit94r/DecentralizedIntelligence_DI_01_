@@ -19,7 +19,7 @@ Then open **http://localhost:3000** (learners) and **http://localhost:3000/judge
 Requirements: **Node 22.13+** (uses the built-in `node:sqlite` and `--permission`). No Docker, no database server, no Python install, **no API key**, no internet at runtime.
 Optional: free keys for **Groq**, **Gemini** and **ElevenLabs** in a git-ignored `.env` make Priya smarter and give her a real voice — see [Optional AI keys](#optional-ai-keys).
 
-- First run builds the web app once (~1 min) and seeds three pseudonymous demo learners (`rohan`, `meera`, `kabir`) by running their scripts through the real sandbox.
+- First run builds the web app once (~1 min) and seeds three pseudonymous demo learners (`yash`, `riya`, `khushi`) by running their scripts through the real sandbox.
 - `npm run dev` — the same with hot reload · `npm run url` — public URL via `ngrok http 3000`
 - `npm run seed` — reset the demo data · `npm run harness` — run the judges' checks on ourselves
 
@@ -27,13 +27,13 @@ Optional: free keys for **Groq**, **Gemini** and **ElevenLabs** in a git-ignored
 
 | Where | What you can verify |
 |---|---|
-| **`/judges`** | The 4 judge challenges as one-click **Try it** · **Break it**: run any of the 15 hostile programs (+ 9 escape attempts) live and watch it contained, the server stay up and the next good submission pass · Rohan's recurrence story · the isolation diagram · copy-paste `curl` for every endpoint · reset button |
-| **`/challenge/last-k-total`** | The statement's own example: Rohan's starter → 3/3 visible, hidden `passed, passed, runtime_error, wrong_output, wrong_output, passed`, tag `unhandled_short_input`, the explanation word for word, the **Line Map** on line 3, the hint ladder (ask for the answer — still one rung), the **Time-Travel Replay** |
-| **`/dashboard?learner=rohan`** | Two recurring mistakes, one one-off slip, mastery bars + timeline, “why this next” with its reason, history |
+| **`/judges`** | The 4 judge challenges as one-click **Try it** · **Break it**: run any of the 15 hostile programs (+ 9 escape attempts) live and watch it contained, the server stay up and the next good submission pass · Yash's recurrence story · the isolation diagram · copy-paste `curl` for every endpoint · reset button |
+| **`/challenge/last-k-total`** | The statement's own example: Yash's starter → 3/3 visible, hidden `passed, passed, runtime_error, wrong_output, wrong_output, passed`, tag `unhandled_short_input`, the explanation word for word, the **Line Map** on line 3, the hint ladder (ask for the answer — still one rung), the **Time-Travel Replay** |
+| **`/dashboard?learner=yash`** | Two recurring mistakes, one one-off slip, mastery bars + timeline, “why this next” with its reason, history |
 | **`/ledger`** | Every prompt and response, and the guardrail's **rejection** count (drafts that quoted code — logged, never shown) |
 | **`/taxonomy`** | Hand-in #3 — also [TAXONOMY.md](TAXONOMY.md) |
 | **`/bug-factory`** | A buggy program generated from the learner's top mistake: find the line, then fix it |
-| **`/mentoring?learner=rohan`** | Every problem Rohan tried and what went wrong → **Join session** → the Meet-style call: Priya speaks (captions on), **✨ Summarise** plays the animated replay of his code, ask her anything by voice or chat |
+| **`/mentoring?learner=yash`** | Every problem Yash tried and what went wrong → **Join session** → the Meet-style call: Priya speaks (captions on), **✨ Summarise** plays the animated replay of his code, ask her anything by voice or chat |
 | **`/repo`** | Click **This project (works offline)** — score, layers, findings with why + fix, roadmap, the shape to aim for, Ask Priya |
 | **`/community`** | Teachers' accepted answers, Priya's first-nudge replies, a blurred spoiler; switch to **Teacher view** for the Teacher desk |
 
@@ -50,13 +50,13 @@ Optional: free keys for **Groq**, **Gemini** and **ElevenLabs** in a git-ignored
 
 ```bash
 curl -s localhost:3000/api/submit -H 'content-type: application/json' \
-  -d '{"learner_id":"rohan","challenge_id":"last-k-total","code":"def last_k_total(marks, k):\n    total = 0\n    for i in range(len(marks) - k, len(marks)):\n        total += marks[i]\n    return total\n"}'
+  -d '{"learner_id":"yash","challenge_id":"last-k-total","code":"def last_k_total(marks, k):\n    total = 0\n    for i in range(len(marks) - k, len(marks)):\n        total += marks[i]\n    return total\n"}'
 ```
 
 ```json
 {
   "submission_id": "s_0020",
-  "learner_id": "rohan",
+  "learner_id": "yash",
   "challenge_id": "last-k-total",
   "visible": [
     { "test": 1, "call": "last_k_total([10, 20, 30, 40], 2)", "expected": "70", "got": "70", "outcome": "passed" },
@@ -163,7 +163,7 @@ Every model reply on a problem must pass `guardReply` (no code, no answer, no hi
 
 ## Data & privacy
 
-Pseudonymous learner ids only (`rohan`, `meera`, `kabir`, or any nickname) — no accounts, no real student data. The camera and microphone in Mentoring are only switched on when you click them; video never leaves the browser, and audio is only sent for transcription when you tap the mic. One SQLite file at `apps/api/data/layerflow.db` (gitignored); delete it or run `npm run seed` to reset.
+Pseudonymous learner ids only (`yash`, `riya`, `khushi`, or any nickname) — no accounts, no real student data. The camera and microphone in Mentoring are only switched on when you click them; video never leaves the browser, and audio is only sent for transcription when you tap the mic. One SQLite file at `apps/api/data/layerflow.db` (gitignored); delete it or run `npm run seed` to reset.
 
 ## Credits
 

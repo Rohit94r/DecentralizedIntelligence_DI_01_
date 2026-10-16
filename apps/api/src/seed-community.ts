@@ -1,6 +1,6 @@
 /**
  * Demo community: three teachers, the AI mentor, the three demo learners
- * (rohan — new, riya — in the middle, khushi — finished everything) and two
+ * (yash — new, riya — in the middle, khushi — finished everything) and two
  * classmates, with everyday threads: a boundary question with an accepted
  * teacher answer, tips, a class discussion, a showcase, a first-day hello,
  * a bug-bounty thread, and a solution that stays blurred until you've solved
@@ -23,7 +23,7 @@ export function seedCommunity(store: LayerflowStore, now = Date.now()): void {
   store.upsertProfile({ id: "teacher_michael", display_name: "Michael Brown", role: "teacher", avatar: "/people/michael.jpg", bio: "Senior engineer. Reviews student repos on Fridays.", at: at(397) });
   store.upsertProfile({ id: "khushi", display_name: "Khushi", role: "student", bio: "Final-year CS · solved every Layerflow problem", at: at(300) });
   store.upsertProfile({ id: "riya", display_name: "Riya", role: "student", bio: "Second year · learning Python one bug at a time", at: at(110) });
-  store.upsertProfile({ id: "rohan", display_name: "Rohan", role: "student", bio: "Day one — just joined!", at: at(2) });
+  store.upsertProfile({ id: "yash", display_name: "Yash", role: "student", bio: "Day one — just joined!", at: at(2) });
   store.upsertProfile({ id: "aarav", display_name: "Aarav", role: "student", bio: "Robotics club · Python for sensors", at: at(160) });
   store.upsertProfile({ id: "sneha", display_name: "Sneha", role: "student", bio: "BCA first year", at: at(140) });
 
@@ -114,13 +114,13 @@ export function seedCommunity(store: LayerflowStore, now = Date.now()): void {
 
   // 7 · a first-day hello
   const p7 = post({
-    author: "rohan",
+    author: "yash",
     kind: "question",
     title: "First day here — where should I start?",
     body: "Hi everyone, I just joined. I know a little Python (loops, if/else). Which problem should I try first?",
     h: 1.5,
   });
-  reply(p7, MENTOR.id, "Welcome, Rohan! Start with Count Passes on the Practice page — it's short and teaches the most common bug (boundaries). Solve one problem a day and your streak starts earning points.", 1.4, undefined, true);
+  reply(p7, MENTOR.id, "Welcome, Yash! Start with Count Passes on the Practice page — it's short and teaches the most common bug (boundaries). Solve one problem a day and your streak starts earning points.", 1.4, undefined, true);
   reply(p7, "khushi", "Welcome! Count Passes first, then First N Squares. Don't skip reading the task sentence — most bugs hide there.", 1);
   reply(p7, "teacher_sarah", "Welcome to the class! When something fails, read the plain-English explanation first, then try a hint.", 0.8);
   votes("post", p7, ["khushi", "riya"]);
@@ -135,7 +135,7 @@ export function seedCommunity(store: LayerflowStore, now = Date.now()): void {
   });
   const a8 = reply(p8, "teacher_michael", "Hidden tests check cases you didn't think of — empty lists, one item, values right on a boundary. If you could see them, you'd write code for those exact numbers instead of the real rule. You still get told WHAT kind of case failed, just not the values.", 29);
   store.acceptReply(p8, a8);
-  votes("post", p8, ["sneha", "rohan"]);
+  votes("post", p8, ["sneha", "yash"]);
 
   // 9 · a tip
   const p9 = post({
@@ -182,5 +182,5 @@ export function seedCommunity(store: LayerflowStore, now = Date.now()): void {
   });
   reply(p12, "sneha", "So cool. How long did it take to get 1,500 points?", 2.5);
   reply(p12, "khushi", "About two weeks of streak days plus a few bug-bounty finds.", 2.2);
-  votes("post", p12, ["riya", "sneha", "aarav", "rohan"]);
+  votes("post", p12, ["riya", "sneha", "aarav", "yash"]);
 }

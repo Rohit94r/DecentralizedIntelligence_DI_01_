@@ -10,7 +10,7 @@ import { P } from "../apps/api/src/fixtures.ts";
 import { check, connect, isMain, printSuite, type Check, type SuiteResult } from "./lib.ts";
 
 const FAILURES = [
-  { challenge: "last-k-total", code: P.lastKStarter, label: "Rohan's starter (k larger than the list)" },
+  { challenge: "last-k-total", code: P.lastKStarter, label: "Yash's starter (k larger than the list)" },
   { challenge: "count-passes", code: P.countPassesBoundary, label: "> 40 instead of >= 40" },
   { challenge: "first-n-squares", code: P.squaresOffByOne, label: "range(1, n + 2)" },
   { challenge: "middle-three", code: P.middlePrints, label: "prints instead of returning" },

@@ -160,7 +160,7 @@ CHILD:  gets code + inputs. No expected values. No test file. No host FS.
 ```json
 {
   "submission_id": "s_0142",
-  "learner_id": "rohan",
+  "learner_id": "yash",
   "challenge_id": "last-k-total",
   "visible": [
     {"test":1,"call":"last_k_total([10, 20, 30, 40], 2)","expected":"70","got":"70","outcome":"passed"}
@@ -422,7 +422,7 @@ EventLog   { ts, prompt, response, model, rejection_count }
 BugSeed    { mistake_tag, buggy_code, culprit_line, hint }
 ```
 
-- [ ] Pseudonymous learners only (`rohan`, `meera`, `kabir`) — **no real student data**
+- [ ] Pseudonymous learners only (`yash`, `riya`, `khushi`) — **no real student data**
 - [ ] JSON file persistence; no database
 
 ---
@@ -537,6 +537,6 @@ BugSeed    { mistake_tag, buggy_code, culprit_line, hint }
 
 ---
 
-> *"Rohan never needed the answer. He needed someone to point him to the right place to look."*
+> *"Yash never needed the answer. He needed someone to point him to the right place to look."*
 
 **OB1 points at the place. OB2 shows why. OB3 makes him stop doing it. F6 makes sure he never gets the answer.** 🏆

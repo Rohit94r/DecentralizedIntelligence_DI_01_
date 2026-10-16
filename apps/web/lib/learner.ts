@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 
 const KEY = "layerflow-learner";
 const EVENT = "layerflow-learner-change";
-export const DEMO_LEARNERS = ["rohan", "riya", "khushi"];
+export const DEMO_LEARNERS = ["yash", "riya", "khushi"];
 
 function freshGuest(): string {
   return `guest-${Math.random().toString(36).slice(2, 6)}`;

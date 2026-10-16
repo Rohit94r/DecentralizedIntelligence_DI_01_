@@ -31,7 +31,7 @@ const reseed = () => (seeding ??= seedAll(rt, (s) => console.log(s)).finally(() 
 const app = await buildApp({ ...rt, pool: rt.pool, reseed, log: (s) => console.log(s) });
 
 if (rt.store.learners().length === 0 || process.env.LAYERFLOW_RESEED === "1") {
-  console.log("[layerflow] first boot — seeding demo learners (rohan, riya, khushi) through the real sandbox…");
+  console.log("[layerflow] first boot — seeding demo learners (yash, riya, khushi) through the real sandbox…");
   const t0 = Date.now();
   await reseed();
   console.log(`[layerflow] seed done in ${((Date.now() - t0) / 1000).toFixed(1)} s`);

@@ -3,7 +3,7 @@
  * the REAL engine and sandbox (no hand-written rows), so what the judges see
  * on the dashboard is exactly what the product computes.
  *
- * rohan  — first visit: no history yet (the first-time experience).
+ * yash  — first visit: no history yet (the first-time experience).
  * riya   — in the middle: the statement's story — two recurring mistakes,
  *          one one-off slip, a non-empty "why this next" reason.
  * khushi — finished every problem on a 12-day streak; with her bug-bounty

@@ -135,7 +135,7 @@ Must include these **five, kept distinct** (you may add more):
 ```json
 {
   "submission_id": "s_0142",
-  "learner_id": "rohan",
+  "learner_id": "yash",
   "challenge_id": "last-k-total",
   "visible": [
     {"test":1,"call":"last_k_total([10, 20, 30, 40], 2)","expected":"70","got":"70","outcome":"passed"}
@@ -371,7 +371,7 @@ Open on **their own story** — the judges wrote it, so they will feel it:
 
 | Time | Beat |
 |---|---|
-| 0:00–0:25 | Lead with the speech in §13.2 — then: *"Rohan's function passed all three examples and failed hidden test 5."* Submit it live. |
+| 0:00–0:25 | Lead with the speech in §13.2 — then: *"Yash's function passed all three examples and failed hidden test 5."* Submit it live. |
 | 0:25–1:30 | Submit the buggy `last_k_total`. Show **3 visible passing / hidden failing**, then the explanation — plain language, names the *kind* of input, **no values**. |
 | 1:30–2:30 | The **hint ladder**, four rungs live. Then ask *"give me the answer"* → still one rung at a time. Then show the **Hint Ledger** proving zero code in every hint. |
 | 2:30–3:30 | **The wow:** open `GET /api/learner` — *"you keep making `unhandled_short_input` across three different challenges, so here's the next problem and why."* Mastery per concept updating. |
@@ -388,7 +388,7 @@ Open on **their own story** — the judges wrote it, so they will feel it:
 >
 > So tonight he will paste his question into a chatbot. It will hand him the answer in four seconds. He will submit it, he will move on, and tomorrow he will not be able to do the thing he just handed in.
 >
-> The judges wrote that story into this problem statement. We think every faculty member in this room has met Rohan — the boy who learned to copy instead of learn, because nobody taught him the thing that comes *before* the answer.
+> The judges wrote that story into this problem statement. We think every faculty member in this room has met Yash — the boy who learned to copy instead of learn, because nobody taught him the thing that comes *before* the answer.
 >
 > We did not build another chatbot that gives answers faster. We built the one that refuses —
 >
@@ -402,7 +402,7 @@ Open on **their own story** — the judges wrote it, so they will feel it:
 - Never say "AI-powered" or "leverage." Say *student*, *hint*, *mastery*, *refuses*.
 
 **The closer (last 20 seconds of the demo):**
-> Rohan never needed the answer. He needed someone to show him where to look — and then to get out of the way.
+> Yash never needed the answer. He needed someone to show him where to look — and then to get out of the way.
 >
 > Every hint we have ever written is in that ledger, and not one of them contains a line of code. The endpoints are live. Ask us anything.
 
@@ -503,6 +503,6 @@ DELIVER    : repo + one command · live URL AND laptop · taxonomy one-pager
 
 ---
 
-> *"Rohan never needed the answer. He needed someone to point him to the right place to look."*
+> *"Yash never needed the answer. He needed someone to point him to the right place to look."*
 
 That sentence is from the judges' own problem statement. Finish the story they started — give them the ending, and let them watch it work.

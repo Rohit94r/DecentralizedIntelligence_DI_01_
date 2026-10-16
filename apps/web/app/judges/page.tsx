@@ -193,7 +193,7 @@ export default function JudgesPage() {
         <span className="ml-auto font-mono text-[12px] text-neutral-500">{origin}</span>
         <button
           onClick={async () => {
-            if (!confirm("Reset the demo data (rohan, riya, khushi) to its seeded state?")) return;
+            if (!confirm("Reset the demo data (yash, riya, khushi) to its seeded state?")) return;
             setResetting(true);
             await api.reset().catch(() => {});
             setResetting(false);
