@@ -8,25 +8,43 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, Bug, BookOpenText, Gavel, LayoutDashboard, ListChecks, Menu, ScrollText, X, Check, Plus } from "lucide-react";
+import { ArrowUpRight, Bug, BookOpenText, FolderTree, Gavel, LayoutDashboard, ListChecks, Menu, MessagesSquare, ScrollText, Video, X, Check, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { DEMO_LEARNERS, sanitizeLearner, useLearner } from "@/lib/learner";
 import { api } from "@/lib/api";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 
 export function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return <p className={cn("text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400", className)}>{children}</p>;
 }
 
-const NAV = [
-  { href: "/practice", key: "app.practice", Icon: ListChecks },
-  { href: "/bug-factory", key: "app.bugFactory", Icon: Bug },
-  { href: "/dashboard", key: "app.dashboard", Icon: LayoutDashboard },
-  { href: "/ledger", key: "app.ledger", Icon: ScrollText },
-  { href: "/taxonomy", key: "app.taxonomy", Icon: BookOpenText },
-  { href: "/judges", key: "app.judges", Icon: Gavel },
+const NAV: { section?: string; items: { href: string; key: string; Icon: typeof ListChecks; fresh?: boolean }[] }[] = [
+  {
+    items: [
+      { href: "/practice", key: "app.practice", Icon: ListChecks },
+      { href: "/mentoring", key: "app.mentoring", Icon: Video, fresh: true },
+      { href: "/dashboard", key: "app.dashboard", Icon: LayoutDashboard },
+      { href: "/bug-factory", key: "app.bugFactory", Icon: Bug },
+    ],
+  },
+  {
+    section: "app.learnTogether",
+    items: [
+      { href: "/repo", key: "app.repo", Icon: FolderTree, fresh: true },
+      { href: "/community", key: "app.community", Icon: MessagesSquare, fresh: true },
+    ],
+  },
+  {
+    section: "app.tools",
+    items: [
+      { href: "/ledger", key: "app.ledger", Icon: ScrollText },
+      { href: "/taxonomy", key: "app.taxonomy", Icon: BookOpenText },
+      { href: "/judges", key: "app.judges", Icon: Gavel },
+    ],
+  },
 ];
 
 function LearnerPicker() {
@@ -97,13 +115,13 @@ function LearnerPicker() {
 
 function SandboxStatus() {
   const { t } = useI18n();
-  const [h, setH] = useState<{ ok: boolean; llm: string | null; warm?: number } | null>(null);
+  const [h, setH] = useState<{ ok: boolean; llm: string | null; ai?: string | null; warm?: number } | null>(null);
   useEffect(() => {
     let alive = true;
     const poll = () =>
       api
         .health()
-        .then((r) => alive && setH({ ok: r.ok, llm: r.llm, warm: r.sandbox?.warm }))
+        .then((r) => alive && setH({ ok: r.ok, llm: r.llm, ai: r.ai, warm: r.sandbox?.warm }))
         .catch(() => alive && setH({ ok: false, llm: null }));
     poll();
     const id = setInterval(poll, 10_000);
@@ -115,7 +133,7 @@ function SandboxStatus() {
   return (
     <div className="flex items-center gap-2 text-[11px] font-medium text-neutral-400">
       <span className={cn("size-1.5 rounded-full", h === null ? "bg-neutral-300" : h.ok ? "bg-[#359462]" : "bg-[#c64e27]")} />
-      <span className="tabular-nums">{h === null ? "…" : h.ok ? `${t("app.sandboxUp")}${h.warm !== undefined ? ` · ${h.warm} warm` : ""}${h.llm ? " · LLM tier on" : " · no API key needed"}` : t("app.sandboxDown")}</span>
+      <span className="tabular-nums">{h === null ? "…" : h.ok ? `${t("app.sandboxUp")}${h.warm !== undefined ? ` · ${h.warm} warm` : ""}${h.ai ? " · AI mentor on" : h.llm ? " · LLM tier on" : " · no API key needed"}` : t("app.sandboxDown")}</span>
     </div>
   );
 }
@@ -146,24 +164,30 @@ export function AppShell({ title, subtitle, actions, children, wide = false }: {
           </button>
         </div>
         <div className="scroll-fade flex-1 space-y-7 overflow-y-auto px-4 pb-6">
-          <nav className="space-y-0.5">
-            {NAV.map(({ href, key, Icon }) => {
-              const active = path === href || (href === "/practice" && path.startsWith("/challenge"));
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-[13.5px] font-semibold tracking-[-0.01em] transition-colors",
-                    active ? "bg-[#bbf451] text-black" : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950",
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {t(key)}
-                </Link>
-              );
-            })}
+          <nav className="space-y-4">
+            {NAV.map((group, gi) => (
+              <div key={gi} className="space-y-0.5">
+                {group.section && <SectionLabel className="mb-1.5 px-3">{t(group.section)}</SectionLabel>}
+                {group.items.map(({ href, key, Icon, fresh }) => {
+                  const active = path === href || (href === "/practice" && path.startsWith("/challenge"));
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-[13.5px] font-semibold tracking-[-0.01em] transition-colors",
+                        active ? "bg-[#bbf451] text-black" : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950",
+                      )}
+                    >
+                      <Icon className="size-4" />
+                      {t(key)}
+                      {fresh && !active && <span className="ml-auto rounded-full bg-[#eeffe8] px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.06em] text-[#2f7c53]">{t("app.newBadge")}</span>}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
           <LearnerPicker />
           <section>
@@ -175,6 +199,7 @@ export function AppShell({ title, subtitle, actions, children, wide = false }: {
                 ["Host files", "none (permission model)"],
                 ["Hidden tests", "API memory only"],
                 ["Hints", "prose-only, validated"],
+                ["Mentor & chat", "same no-code guardrail"],
               ].map(([k, v], i) => (
                 <div key={k} className={cn("flex items-center justify-between gap-3 px-3.5 py-2", i % 2 ? "bg-neutral-50/70" : "bg-white")}>
                   <dt className="text-neutral-500">{k}</dt>
@@ -212,8 +237,9 @@ export function AppShell({ title, subtitle, actions, children, wide = false }: {
             <ThemeToggle variant="chat" />
           </div>
         </header>
-        <main className={cn("mx-auto w-full flex-1 px-4 py-6 sm:px-6 sm:py-8", wide ? "max-w-[90rem]" : "max-w-6xl")}>{children}</main>
+        <main className={cn("mx-auto w-full flex-1 px-4 py-6 pb-24 sm:px-6 sm:py-8 sm:pb-24", wide ? "max-w-[90rem]" : "max-w-6xl")}>{children}</main>
       </div>
+      <ChatWidget />
     </div>
   );
 }
