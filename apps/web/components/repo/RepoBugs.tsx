@@ -114,6 +114,163 @@ function BugCard({ b, report, open, onToggle, onAsk }: { b: RepoBug; report: Rep
   );
 }
 
+/** The code around the bug, like a debugger stopped on a breakpoint: a red dot on the bad line, amber dots on other lines with the same problem. */
+function DebugCode({ b }: { b: RepoBug }) {
+  const also = new Set(b.also ?? []);
+  return (
+    <div className="no-scrollbar overflow-x-auto rounded-xl border border-[#23262d] bg-[#111318] py-2 font-mono text-[12.5px] leading-[22px]">
+      <div className="min-w-max">
+        {b.snippet.lines.map((l, i) => {
+          const n = b.snippet.start + i;
+          const hit = n === b.line;
+          const same = also.has(n);
+          return (
+            <div key={n} className={cn("flex pr-5", hit ? "bg-[#c64e27]/20" : same && "bg-[#f59e0b]/10")}>
+              <span className="flex w-6 shrink-0 items-center justify-center">{hit ? <span className="size-2.5 rounded-full bg-[#ef4444] shadow-[0_0_0_3px_rgba(239,68,68,0.25)]" /> : same ? <span className="size-2 rounded-full bg-[#f59e0b]" /> : null}</span>
+              <span className={cn("w-10 shrink-0 select-none pr-3 text-right tabular-nums", hit ? "font-semibold text-[#fca5a5]" : "text-[#5b616b]")}>{n}</span>
+              <span className={cn("whitespace-pre", hit ? "text-white" : "text-[#c3c7cd]", /^… \(line hidden/.test(l) && "italic text-[#90959e]")}>{l || " "}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Inspector({ b, report, onAsk }: { b: RepoBug; report: RepoReport; onAsk: (q: string) => void }) {
+  const s = SEV[b.severity];
+  const parts = b.file.split("/");
+  const href = githubUrl(report, b.file, b.line);
+  const where = `${b.file}:${b.line}`;
+  return (
+    <div className="min-w-0 rounded-2xl border border-neutral-200/80 bg-white">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-neutral-100 px-4 py-2.5 text-[12px]">
+        <FileCode className="size-3.5 shrink-0 text-neutral-400" />
+        <span className="min-w-0 truncate font-mono text-neutral-500">
+          {parts.slice(0, -1).join(" / ")}
+          {parts.length > 1 ? " / " : ""}
+          <b className="font-semibold text-neutral-900">{parts[parts.length - 1]}</b>
+        </span>
+        <span className="font-mono text-neutral-400">line {b.line}</span>
+        {href && (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-1 font-semibold text-neutral-600 hover:text-neutral-950">
+            Open on GitHub <ExternalLink className="size-3" />
+          </a>
+        )}
+      </div>
+      <div className="space-y-4 p-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={cn("rounded-full border px-2 py-px text-[10.5px] font-bold", s.chip)}>{s.bug}</span>
+            {b.confidence === "likely" ? <span className="rounded-full bg-neutral-950 px-2 py-px text-[10.5px] font-bold text-white">Likely bug</span> : <span className="rounded-full border border-dashed border-neutral-300 px-2 py-px text-[10.5px] font-semibold text-neutral-600">Possible — check it</span>}
+            <span className="rounded-full bg-neutral-100 px-2 py-px text-[10.5px] font-semibold text-neutral-600">{CATEGORY[b.category]}</span>
+          </div>
+          <p className="mt-2 text-[17px] font-semibold leading-[1.3] tracking-[-0.02em] text-neutral-950">{b.title}</p>
+        </div>
+        <DebugCode b={b} />
+        {b.also && b.also.length > 0 && (
+          <p className="flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
+            <span className="size-2 rounded-full bg-[#f59e0b]" /> Same problem on line{b.also.length === 1 ? "" : "s"}
+            {b.also.map((n) => {
+              const u = githubUrl(report, b.file, n);
+              return u ? (
+                <a key={n} href={u} target="_blank" rel="noopener noreferrer" className="rounded-md bg-neutral-100 px-1.5 py-px font-mono text-[11px] text-neutral-700 hover:bg-neutral-200">
+                  {n}
+                </a>
+              ) : (
+                <code key={n} className="rounded-md bg-neutral-100 px-1.5 py-px font-mono text-[11px] text-neutral-700">
+                  {n}
+                </code>
+              );
+            })}
+          </p>
+        )}
+        <div className="grid gap-4 text-[13px] leading-[1.55] 2xl:grid-cols-2">
+          <div>
+            <Label>Why it's a bug</Label>
+            <p className="mt-0.5 text-neutral-700">{b.why}</p>
+          </div>
+          <div>
+            <Label>How to fix it</Label>
+            <p className="mt-0.5 text-neutral-800">{b.fix}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-3">
+          <button onClick={() => onAsk(`Explain the bug "${b.title}" in ${where} — why is it a problem and how do I fix it?`)} className="inline-flex items-center gap-1 rounded-full bg-neutral-950 px-3 py-1 text-[11.5px] font-semibold text-white">
+            <Sparkles className="size-3" /> Ask Priya about this bug
+          </button>
+          {b.practice && (
+            <Link href={b.practice.href} className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-3 py-1 text-[11.5px] font-semibold text-neutral-700 hover:border-neutral-950">
+              {b.practice.label} <ArrowRight className="size-3" />
+            </Link>
+          )}
+          <span className="inline-flex items-center gap-1 text-[11.5px] text-neutral-500">
+            <BookOpen className="size-3" /> Learn: {b.learn}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Problems grouped by file — click one (or use ↑ ↓) to inspect it. */
+function DebuggerView({ bugs, report, onAsk }: { bugs: RepoBug[]; report: RepoReport; onAsk: (q: string) => void }) {
+  const [sel, setSel] = useState(bugs[0]?.id ?? null);
+  const current = bugs.find((b) => b.id === sel) ?? bugs[0];
+  const files = useMemo(() => {
+    const m = new Map<string, RepoBug[]>();
+    for (const b of bugs) m.set(b.file, [...(m.get(b.file) ?? []), b]);
+    return [...m];
+  }, [bugs]);
+  const order = files.flatMap(([, bs]) => bs);
+  const move = (d: number) => {
+    const i = order.findIndex((b) => b.id === current?.id);
+    const next = order[Math.min(order.length - 1, Math.max(0, i + d))];
+    if (next) setSel(next.id);
+  };
+  if (!current) return null;
+  return (
+    <div
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowDown" || e.key === "j") (e.preventDefault(), move(1));
+        if (e.key === "ArrowUp" || e.key === "k") (e.preventDefault(), move(-1));
+      }}
+      className="grid grid-cols-[300px_minmax(0,1fr)] items-start gap-3 outline-none"
+    >
+      <div className="overflow-hidden rounded-2xl border border-neutral-200/80 bg-white">
+        <p className="flex items-center justify-between border-b border-neutral-100 px-3.5 py-2.5 text-[11.5px] font-semibold text-neutral-500">
+          <span>
+            Problems · {bugs.length} in {files.length} file{files.length === 1 ? "" : "s"}
+          </span>
+          <span className="font-normal text-neutral-400">↑ ↓ to move</span>
+        </p>
+        <div className="max-h-[640px] overflow-y-auto py-1">
+          {files.map(([file, bs]) => (
+            <div key={file} className="py-1">
+              <p className="flex items-center gap-1.5 px-3.5 py-1 text-[11.5px] text-neutral-500">
+                <FileCode className="size-3 shrink-0" />
+                <span className="min-w-0 truncate font-mono" title={file}>
+                  {file}
+                </span>
+                <span className="ml-auto shrink-0 rounded-full bg-neutral-100 px-1.5 text-[10px] font-bold text-neutral-600">{bs.length}</span>
+              </p>
+              {bs.map((b) => (
+                <button key={b.id} onClick={() => setSel(b.id)} className={cn("flex w-full items-start gap-2 py-1.5 pl-7 pr-3 text-left", b.id === current.id ? "bg-neutral-950 text-white" : "hover:bg-neutral-50")}>
+                  <span className="mt-[5px] size-2 shrink-0 rounded-full" style={{ backgroundColor: SEV[b.severity].dot }} />
+                  <span className={cn("min-w-0 flex-1 text-[12.5px] leading-[1.35]", b.id === current.id ? "text-white" : "text-neutral-800")}>{b.title}</span>
+                  <span className={cn("shrink-0 font-mono text-[11px]", b.id === current.id ? "text-white/60" : "text-neutral-400")}>:{b.line}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <Inspector key={current.id} b={current} report={report} onAsk={onAsk} />
+    </div>
+  );
+}
+
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
@@ -219,7 +376,13 @@ export function RepoBugs({ report, onAsk }: { report: RepoReport; onAsk: (q: str
         )}
       </div>
 
-      <div className="space-y-2.5">
+      {shown.length > 0 && (
+        <div className="hidden xl:block">
+          <DebuggerView key={`${sev}-${cat}-${likelyOnly}`} bugs={shown} report={report} onAsk={onAsk} />
+        </div>
+      )}
+
+      <div className="space-y-2.5 xl:hidden">
         {shown.map((b) => (
           <BugCard
             key={b.id}

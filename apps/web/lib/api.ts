@@ -269,6 +269,8 @@ export interface RepoBug {
   file: string;
   line: number;
   snippet: { start: number; lines: string[] };
+  /** other lines in the same file with the same problem */
+  also?: number[];
   why: string;
   fix: string;
   learn: string;
