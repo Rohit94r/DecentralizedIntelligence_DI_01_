@@ -12,3 +12,7 @@ export * from "./taxonomy.ts";
 export * from "./redteam.ts";
 export * from "./engine.ts";
 export * from "./public.ts";
+export * from "./mentor.ts";
+export * from "./chatbot.ts";
+export * from "./repo-analysis.ts";
+export * from "./community.ts";
