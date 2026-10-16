@@ -1,7 +1,7 @@
 # 🛠️ DEBUG DOJO — features.md (the complete build spec)
 
 > **DI-01 · "A coding coach that helps you find the bug without handing you the answer."**
-> **Scored out of 100 points** · Full statement text in `dojo.md` · Event rules in `README.md`
+> **Scored out of 100 points** · Full statement text in `dojo.md` · Event rules in `docs/EVENT-MANUAL.md` · Product README in `README.md`
 
 ---
 

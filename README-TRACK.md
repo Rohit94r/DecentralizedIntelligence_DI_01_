@@ -3,7 +3,7 @@
 > **Written:** 16 Oct 2026, 14:20 IST · **Finalised:** 14:40 IST · **Kickoff:** 15:30 IST · **Freeze:** 17 Oct 15:30 IST
 > **Status: 🔒 FINAL — do not re-open the track decision.** Read §13.2 (your speech), then §14 (next 55 minutes).
 > **Wall clock:** 24h · **Your real build budget: 13–14 hours** (see §1) · **Team: proper-sized** (§12)
-> **Companion:** `README.md` — event manual, rules, prize status, venue timeline
+> **Companion:** `docs/EVENT-MANUAL.md` — event manual, rules, prize status, venue timeline
 
 ---
 
@@ -326,7 +326,7 @@ Mastery must be **per concept** (concept tags on every challenge), visible in `G
 | 15:30–17:00 | **Pyodide child runner**: execute code, catch exceptions, wall-clock timeout, byte cap | |
 | 17:00–18:00 | **Classifier: 12/12 on the label corpus** + 5 hostile programs | |
 | **18:15** | Eval 1 prep: one-page architecture diagram (parent holds hidden tests — draw it) | |
-| **18:30** | **Eval 1** — present architecture + isolation story. Ask the 3 questions in `README.md` §3.3 | |
+| **18:30** | **Eval 1** — present architecture + isolation story. Ask the 3 questions in `docs/EVENT-MANUAL.md` §3.3 | |
 | 18:30–20:00 | Remaining 10 hostile programs → **T1 green** | |
 | 20:00–21:00 | 12 challenges authored with full test sets | |
 | **21:00** | **Run the full harness (T1–T5).** Record the score. Everything red is tonight's backlog | |

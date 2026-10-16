@@ -6,7 +6,7 @@
 > **The one-line thesis:** every other AI tutor gives the answer. Debug Dojo is the one that **refuses** — and can *prove* it never gave it.
 
 **Document status:** FINAL · locked decision · **Kickoff 15:30 16 Oct** · **Freeze 15:30 17 Oct**
-**Companions:** `README.md` (event manual) · `README-TRACK.md` (build plan + timeline) · `compare.md` (all 13 statements compared)
+**Companions:** `docs/EVENT-MANUAL.md` (event manual) · `README.md` (the product) · `README-TRACK.md` (build plan + timeline) · `compare.md` (all 13 statements compared)
 
 ---
 
