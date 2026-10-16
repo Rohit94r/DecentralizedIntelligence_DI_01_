@@ -339,6 +339,95 @@ test("repo URL parsing accepts links, .git and owner/name", () => {
   assert.equal(parseRepoUrl("not a repo"), null);
 });
 
+test("repo bugs: a mutable default argument and an async forEach are found on the exact line", () => {
+  const r = analyzeRepo({
+    source: "github",
+    owner: "student",
+    name: "marks",
+    files: [
+      { path: "app/grades.py", size: 120 },
+      { path: "web/save.js", size: 90 },
+    ],
+    contents: {
+      "app/grades.py": "def add_mark(mark, marks=[]):\n    marks.append(mark)\n    return marks\n",
+      "web/save.js": "async function saveAll(items) {\n  items.forEach(async (item) => {\n    await save(item);\n  });\n}\n",
+    },
+  });
+  const md = r.bugs.find((b) => b.id.startsWith("mutable-default:"));
+  const af = r.bugs.find((b) => b.id.startsWith("async-foreach:"));
+  assert.ok(md && md.file === "app/grades.py" && md.line === 1 && md.practice?.href === "/bug-factory", JSON.stringify(md));
+  assert.ok(af && af.file === "web/save.js" && af.line === 2, JSON.stringify(af));
+  assert.ok(af.snippet.lines[af.line - af.snippet.start].includes("forEach(async"), "the snippet highlights the bug line");
+});
+
+test("repo bugs: a line holding a key is never copied into a snippet (the bug next to it still is)", () => {
+  const key = "sk-" + "Z9y8X7w6V5u4T3s2R1q0P9o8N7m6";
+  const r = analyzeRepo({
+    source: "github",
+    name: "leaky",
+    files: [{ path: "server.js", size: 200 }],
+    contents: { "server.js": `const app = require("express")();\nconst OPENAI_KEY = "${key}";\nusers.forEach(async (u) => notify(u));\napp.listen(3000);\n` },
+  });
+  assert.ok(r.bugs.some((b) => b.id.startsWith("async-foreach:")), "the bug beside the key is still reported");
+  assert.ok(!JSON.stringify(r.bugs).includes(key) && !JSON.stringify(r.overview).includes(key), "the key never appears in bugs or the overview");
+  for (const b of r.bugs) for (const l of b.snippet.lines) assert.ok(l.length <= 200, "snippet lines are clipped");
+});
+
+test("repo bugs: deliberate practice code and our own highlighters are not reported", () => {
+  const r = analyzeRepo({
+    source: "local",
+    name: "x",
+    files: [
+      { path: "packages/core/src/bounty-programs.ts", size: 200 },
+      { path: "apps/api/src/fixtures.ts", size: 100 },
+      { path: "web/Code.tsx", size: 100 },
+    ],
+    contents: {
+      "packages/core/src/bounty-programs.ts": "export const P = 1;\nconst v = jwt.decode(token);\nif (user.password === req.body.password) ok();\n",
+      "apps/api/src/fixtures.ts": "items.forEach(async (x) => x);\n",
+      "web/Code.tsx": "export const L = ({ l }) => <span dangerouslySetInnerHTML={{ __html: highlightLine(l) }} />;\n",
+    },
+  });
+  assert.deepEqual(r.bugs, [], JSON.stringify(r.bugs.map((b) => b.id)));
+});
+
+test("repo overview: a Next.js + Express repo has a frontend and a backend, with languages and commands", () => {
+  const r = analyzeRepo({
+    source: "github",
+    owner: "student",
+    name: "shop",
+    files: [
+      { path: "README.md", size: 300 },
+      { path: "package.json", size: 120 },
+      { path: "client/package.json", size: 200 },
+      { path: "client/app/page.tsx", size: 400 },
+      { path: "client/components/Cart.tsx", size: 900 },
+      { path: "server/package.json", size: 200 },
+      { path: "server/index.js", size: 700 },
+      { path: "server/routes/cart.js", size: 500 },
+      { path: "server/models/cart.js", size: 300 },
+    ],
+    contents: {
+      "README.md": "# Shop\n\nA small shopping cart app built to learn full-stack web development.\n",
+      "package.json": JSON.stringify({ name: "shop", scripts: { dev: "concurrently npm:dev:*", test: "vitest" } }),
+      "client/package.json": JSON.stringify({ dependencies: { next: "15.0.0", react: "19.0.0" } }),
+      "server/package.json": JSON.stringify({ dependencies: { express: "4.0.0", mongoose: "8.0.0" } }),
+      "server/index.js": "const app = require('express')();\napp.use('/cart', require('./routes/cart'));\napp.listen(process.env.PORT);\n",
+    },
+  });
+  const ids = r.overview.parts.map((p) => p.id);
+  for (const id of ["frontend", "backend", "database"]) assert.ok(ids.includes(id as never), `missing ${id} in ${ids}`);
+  const fe = r.overview.parts.find((p) => p.id === "frontend")!;
+  const be = r.overview.parts.find((p) => p.id === "backend")!;
+  assert.ok(fe.languages.includes("TypeScript") && fe.tech.includes("Next.js"), JSON.stringify(fe));
+  assert.ok(be.languages.includes("JavaScript") && be.tech.includes("Express"), JSON.stringify(be));
+  assert.ok(r.overview.languages.length >= 2 && r.overview.languages.every((l) => l.what.length > 10));
+  assert.ok(r.overview.start_here.some((s) => s.path === "server/index.js") && r.overview.start_here.every((s) => r.overview.start_here.length <= 6));
+  assert.ok(r.overview.how_it_runs.length >= 3 && r.overview.how_it_runs.some((s) => s.includes("server/")), r.overview.how_it_runs.join(" / "));
+  assert.ok(r.overview.commands.some((c) => c.cmd === "npm run dev"), JSON.stringify(r.overview.commands));
+  assert.ok(r.overview.summary.startsWith("A small shopping cart app"), r.overview.summary);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {
