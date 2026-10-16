@@ -54,7 +54,11 @@ function RedemptionRow({ r, onDone }: { r: AdminRedemption; onDone: () => void }
   return (
     <motion.div layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-neutral-200/80 bg-white p-4">
       <div className="flex flex-wrap items-start gap-3">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-2xl">{r.kind === "cash" ? "💸" : (r.item_emoji ?? "🎁")}</span>
+        {r.item_image ? (
+          <img src={r.item_image} alt="" loading="lazy" className="size-11 shrink-0 rounded-2xl bg-[#dfdcd9] object-cover" />
+        ) : (
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-2xl">{r.kind === "cash" ? "💸" : (r.item_emoji ?? "🎁")}</span>
+        )}
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-semibold text-neutral-950">
             {r.kind === "cash" ? `${r.inr} cash-out` : `${r.item_name}${r.size ? ` · size ${r.size}` : ""}`} <span className="font-normal text-neutral-500">· {r.learner_id}</span>

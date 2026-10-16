@@ -65,6 +65,36 @@ export function solveDays(store: LayerflowStore, learnerId: string): Map<string,
   return days;
 }
 
+/** How many solves (passing submissions + confirmed bug reports) on each local day. */
+export function solveCounts(store: LayerflowStore, learnerId: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  const add = (at: string) => {
+    const d = dayKey(at, TZ());
+    counts.set(d, (counts.get(d) ?? 0) + 1);
+  };
+  for (const h of store.history(learnerId)) if (h.passed) add(h.at);
+  for (const t of store.validReportTimes(learnerId)) add(t);
+  return counts;
+}
+
+/**
+ * A GitHub-style year: 53 columns of Sunday→Saturday, ending with this week.
+ * Days after today are marked `future` (drawn empty).
+ */
+export function yearCalendar(counts: Map<string, number>, today: string): { day: string; count: number; future: boolean }[] {
+  const t = new Date(`${today}T00:00:00Z`);
+  const start = new Date(t);
+  start.setUTCDate(t.getUTCDate() - t.getUTCDay() - 52 * 7);
+  const out: { day: string; count: number; future: boolean }[] = [];
+  for (let i = 0; i < 53 * 7; i++) {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i);
+    const k = d.toISOString().slice(0, 10);
+    out.push({ day: k, count: counts.get(k) ?? 0, future: k > today });
+  }
+  return out;
+}
+
 /** Credits 100 points for every solve day not yet credited. Returns how many were new. */
 export function syncStreakPoints(store: LayerflowStore, learnerId: string): number {
   let added = 0;
@@ -95,6 +125,7 @@ function publicRedemption(r: RedemptionRow) {
     item_id: r.item_id,
     item_name: g?.name ?? null,
     item_emoji: g?.emoji ?? null,
+    item_image: g?.image ?? null,
     size: r.size,
     points: r.points,
     inr: rupees(r.points),
@@ -112,17 +143,7 @@ export function rewardsPage(store: LayerflowStore, learnerId: string) {
   syncStreakPoints(store, learnerId);
   const streak = streakFor(store, learnerId);
   const totals = store.pointsTotals(learnerId);
-  const days = solveDays(store, learnerId);
-  // the last 20 weeks, oldest first — the calendar on the Rewards page
-  const today = streak.today;
-  const calendar: { day: string; done: boolean }[] = [];
-  const d = new Date(`${today}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 7 * 20 + 1);
-  for (let i = 0; i < 7 * 20; i++) {
-    const k = d.toISOString().slice(0, 10);
-    calendar.push({ day: k, done: days.has(k) });
-    d.setUTCDate(d.getUTCDate() + 1);
-  }
+  const calendar = yearCalendar(solveCounts(store, learnerId), streak.today);
   const next = nextChallenge(store.history(learnerId), store.mastery(learnerId));
   return {
     learner_id: learnerId,

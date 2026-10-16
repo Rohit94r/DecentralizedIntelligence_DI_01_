@@ -400,6 +400,7 @@ export interface Goodie {
   blurb: string;
   points: number;
   emoji: string;
+  image?: string;
   sizes?: string[];
   tint: "green" | "purple" | "orange" | "sky" | "amber";
   inr: string;
@@ -414,6 +415,7 @@ export interface Redemption {
   item_id: string | null;
   item_name: string | null;
   item_emoji: string | null;
+  item_image: string | null;
   size: string | null;
   points: number;
   inr: string;
@@ -429,7 +431,8 @@ export interface Redemption {
 export interface RewardsView {
   learner_id: string;
   streak: StreakView;
-  calendar: { day: string; done: boolean }[];
+  /** a GitHub-style year: 53 weeks × Sun→Sat, solves per day */
+  calendar: { day: string; count: number; future: boolean }[];
   points: { balance: number; earned: number; streak: number; bounty: number; redeemed: number; inr: string; earned_inr: string };
   rules: { points_per_day: number; points_per_rupee: number; min_cash_points: number; cash_step_points: number; day_counts_when: string; timezone_offset_min: number; payouts: "demo" | "manual" };
   today_pick: { challenge_id: string; title: string; reason: string };
@@ -683,7 +686,8 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
 
 export const api = {
   health: () => req<{ ok: boolean; llm: string | null; ai?: string | null; challenges: number; sandbox: { warm: number; live: number } | null }>("GET", "/api/health"),
-  challenges: () => req<{ challenges: ChallengeSummary[]; judge_challenges: string[]; concept_labels: Record<string, string> }>("GET", "/api/challenges"),
+  /** all = also the Bug Factory (training range) programs */
+  challenges: (all = false) => req<{ challenges: ChallengeSummary[]; judge_challenges: string[]; concept_labels: Record<string, string> }>("GET", `/api/challenges${all ? "?all=1" : ""}`),
   challenge: (id: string) => req<Challenge>("GET", `/api/challenges/${encodeURIComponent(id)}`),
   submit: (learner_id: string, challenge_id: string, code: string) => req<SubmitResult>("POST", "/api/submit", { learner_id, challenge_id, code }),
   hint: (submission_id: string, message?: string) => req<HintResult>("POST", "/api/hint", { submission_id, message }),

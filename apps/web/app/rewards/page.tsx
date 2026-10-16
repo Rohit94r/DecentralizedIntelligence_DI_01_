@@ -14,6 +14,7 @@ import { ArrowRight, Bug, Check, Flame, Gift, History, IndianRupee, LoaderCircle
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { Card, PageHeading } from "@/components/app/bits";
 import { Portal } from "@/components/app/Portal";
+import { ActivityMap } from "@/components/app/ActivityMap";
 import { usePin } from "@/components/rewards/PinDialog";
 import { PayoutTracker, Withdraw, type PayoutResult } from "@/components/rewards/Withdraw";
 import { api, refreshPoints, timeAgo, type Goodie, type Redemption, type RewardsView, type Shipping } from "@/lib/api";
@@ -38,15 +39,14 @@ function StreakCard({ r }: { r: RewardsView }) {
   const s = r.streak;
   const pct = Math.min(100, Math.round((s.current / s.next_milestone) * 100));
   return (
-    <Card className="relative overflow-hidden">
-      <div className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-[#f59e0b]/15 blur-2xl" />
+    <Card>
       <div className="flex items-start justify-between gap-4">
         <div>
           <SectionLabel>Your streak</SectionLabel>
           <div className="mt-2 flex items-end gap-2">
-            <motion.span initial={{ scale: 0.6, rotate: -12 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 200, damping: 12 }} className={cn("text-5xl leading-none", !s.today_done && "grayscale-[0.7]")}>
-              🔥
-            </motion.span>
+            <span className={cn("mb-1 flex size-11 items-center justify-center rounded-2xl", s.today_done ? "bg-[#f59e0b]/15 text-[#e8792b]" : "bg-neutral-100 text-neutral-400")}>
+              <Flame className={cn("size-6", s.today_done && "fill-[#f59e0b]/30")} />
+            </span>
             <span className="text-[56px] font-medium leading-[0.9] tracking-[-0.05em] text-neutral-950 tabular-nums">
               <NumberFlow value={s.current} />
             </span>
@@ -89,7 +89,7 @@ function StreakCard({ r }: { r: RewardsView }) {
           </span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-neutral-100">
-          <motion.div className="h-full rounded-full bg-gradient-to-r from-[#f59e0b] to-[#e8792b]" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.9 }} />
+          <motion.div className="h-full rounded-full bg-[#f59e0b]" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.9 }} />
         </div>
       </div>
 
@@ -110,7 +110,6 @@ function WalletCard({ r }: { r: RewardsView }) {
   const p = r.points;
   return (
     <Card className="relative overflow-hidden !bg-neutral-950 !border-neutral-900 text-white">
-      <div className="pointer-events-none absolute -bottom-16 -right-10 size-48 rounded-full bg-[#bbf451]/20 blur-3xl" />
       <div className="flex items-center gap-2 text-white/60">
         <Wallet className="size-4" />
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em]">Wallet</span>
@@ -169,62 +168,75 @@ function HowItWorks({ r }: { r: RewardsView }) {
   );
 }
 
-function Calendar({ days, today }: { days: RewardsView["calendar"]; today: string }) {
-  const weeks: RewardsView["calendar"][] = [];
-  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
-  const count = days.filter((d) => d.done).length;
+function StreakMap({ r }: { r: RewardsView }) {
   return (
     <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <SectionLabel>Streak calendar · last 20 weeks</SectionLabel>
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <SectionLabel>Streak map</SectionLabel>
         <span className="text-[12px] text-neutral-500">
-          <b className="text-neutral-900">{count}</b> solve day{count === 1 ? "" : "s"}
+          Current <b className="text-neutral-900">{r.streak.current}</b> · longest <b className="text-neutral-900">{r.streak.longest}</b> day{r.streak.longest === 1 ? "" : "s"}
         </span>
       </div>
-      <div className="mt-3 overflow-x-auto pb-1">
-        <div className="grid min-w-[420px] gap-[4px]" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
-          {weeks.map((w, i) => (
-            <div key={i} className="flex flex-col gap-[4px]">
-              {w.map((d) => (
-                <span key={d.day} title={`${d.day}${d.done ? " · solved" : ""}`} className={cn("aspect-square w-full rounded-[4px]", d.done ? "bg-[#f59e0b]" : "bg-neutral-100", d.day === today && "ring-2 ring-neutral-950 ring-offset-1")} />
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
+      <ActivityMap days={r.calendar} today={r.streak.today} />
     </Card>
   );
 }
 
-function GoodieCard({ g, balance, onRedeem }: { g: Goodie; balance: number; onRedeem: () => void }) {
+/** The product photo (public/goodies), or the emoji when an item has no photo yet. */
+function GoodieImage({ g, className }: { g: Pick<Goodie, "image" | "emoji" | "name">; className?: string }) {
+  return g.image ? (
+    <img src={g.image} alt={g.name} loading="lazy" decoding="async" className={cn("object-cover", className)} />
+  ) : (
+    <span className={cn("flex items-center justify-center bg-neutral-100 text-6xl", className)}>{g.emoji}</span>
+  );
+}
+
+function GoodieCard({ g, balance, onRedeem, i }: { g: Goodie; balance: number; onRedeem: () => void; i: number }) {
   const pct = Math.min(100, Math.round((balance / g.points) * 100));
   return (
-    <Card tint={g.tint} className="flex flex-col !p-5">
-      <div className="flex items-start justify-between">
-        <motion.span whileHover={{ rotate: [0, -8, 8, 0] }} className="text-[44px] leading-none">
-          {g.emoji}
-        </motion.span>
-        <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[11.5px] font-bold tabular-nums text-neutral-800">{g.inr}</span>
-      </div>
-      <p className="mt-3 text-[15px] font-semibold tracking-[-0.01em] text-[#151515]">{g.name}</p>
-      <p className="mt-1 flex-1 text-[12.5px] leading-[1.45] text-neutral-600">{g.blurb}</p>
-      <div className="mt-4">
-        <div className="mb-1.5 flex items-center justify-between text-[12px]">
-          <span className="inline-flex items-center gap-1 font-bold tabular-nums text-neutral-900">
-            <Zap className="size-3.5 fill-[#bbf451] text-[#4d7c0f]" /> {g.points.toLocaleString("en-IN")}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: i * 0.05 }}
+      className="group flex flex-col overflow-hidden rounded-3xl border border-neutral-200/80 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.02)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_44px_-26px_rgba(16,15,25,0.45)]"
+    >
+      <button type="button" onClick={onRedeem} disabled={!g.affordable} className="relative block aspect-[4/3] overflow-hidden bg-[#dfdcd9] disabled:cursor-default" aria-label={`${g.name} — ${g.affordable ? "redeem" : "not enough points yet"}`}>
+        <GoodieImage g={g} className="size-full transition-transform duration-500 ease-out group-hover:scale-[1.045]" />
+        <span className="absolute right-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11.5px] font-bold tabular-nums text-neutral-900 shadow-sm backdrop-blur">{g.inr}</span>
+        {g.sizes && <span className="absolute left-3 top-3 rounded-full bg-neutral-950/80 px-2 py-0.5 text-[10.5px] font-semibold text-white">{`${g.sizes[0]}–${g.sizes[g.sizes.length - 1]}`}</span>}
+        {g.affordable && (
+          <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 rounded-full bg-[#bbf451] px-2.5 py-0.5 text-[11px] font-bold text-[#1a2e05] shadow-sm">
+            <Check className="size-3" strokeWidth={3} /> You can redeem this
           </span>
-          {!g.affordable && <span className="text-neutral-500">{(g.points - balance).toLocaleString("en-IN")} to go</span>}
-        </div>
-        {!g.affordable && (
-          <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-white/80">
-            <div className="h-full rounded-full bg-neutral-900" style={{ width: `${pct}%` }} />
-          </div>
         )}
-        <button onClick={onRedeem} disabled={!g.affordable} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-full bg-neutral-950 text-[13px] font-semibold text-white transition-opacity disabled:opacity-35">
-          <Gift className="size-3.5" /> {g.affordable ? "Redeem" : "Keep the streak going"}
-        </button>
+      </button>
+      <div className="flex flex-1 flex-col p-5">
+        <p className="text-[15.5px] font-semibold tracking-[-0.01em] text-neutral-950">{g.name}</p>
+        <p className="mt-1 flex-1 text-[12.5px] leading-[1.5] text-neutral-600">{g.blurb}</p>
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center justify-between text-[12px]">
+            <span className="inline-flex items-center gap-1 font-bold tabular-nums text-neutral-900">
+              <Zap className="size-3.5 fill-[#bbf451] text-[#4d7c0f]" /> {g.points.toLocaleString("en-IN")} points
+            </span>
+            {!g.affordable && <span className="tabular-nums text-neutral-500">{pct}%</span>}
+          </div>
+          {!g.affordable && (
+            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-neutral-100">
+              <motion.div className="h-full rounded-full bg-gradient-to-r from-[#359462] to-[#bbf451]" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8, delay: 0.1 + i * 0.05 }} />
+            </div>
+          )}
+          {g.affordable ? (
+            <button onClick={onRedeem} className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-full bg-neutral-950 text-[13px] font-semibold text-white transition-colors hover:bg-neutral-800">
+              <Gift className="size-3.5" /> Redeem
+            </button>
+          ) : (
+            <p className="flex h-10 w-full items-center justify-center gap-1.5 rounded-full bg-neutral-100 text-[12.5px] font-semibold text-neutral-500">
+              <Flame className="size-3.5" /> {(g.points - balance).toLocaleString("en-IN")} points to go
+            </p>
+          )}
+        </div>
       </div>
-    </Card>
+    </motion.div>
   );
 }
 
@@ -251,17 +263,18 @@ function GoodieSheet({ g, onClose, onConfirm, busy, error }: { g: Goodie; onClos
           }}
           className="max-h-[92svh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl"
         >
-          <div className="flex items-start gap-4">
-            <span className="text-5xl">{g.emoji}</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[18px] font-semibold tracking-[-0.02em] text-neutral-950">{g.name}</p>
-              <p className="text-[13px] text-neutral-500">
-                {g.points.toLocaleString("en-IN")} points · worth {g.inr} · free delivery in India
-              </p>
-            </div>
-            <button type="button" onClick={onClose} className="flex size-8 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100" aria-label="Close">
+          <div className="relative -mx-6 -mt-6 mb-5 overflow-hidden bg-[#dfdcd9] sm:rounded-t-3xl">
+            <GoodieImage g={g} className="aspect-[16/9] w-full" />
+            <button type="button" onClick={onClose} className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-full bg-white/90 text-neutral-600 shadow-sm hover:bg-white" aria-label="Close">
               <X className="size-4" />
             </button>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[18px] font-semibold tracking-[-0.02em] text-neutral-950">{g.name}</p>
+            <p className="mt-0.5 text-[13px] text-neutral-500">
+              {g.points.toLocaleString("en-IN")} points · worth {g.inr} · free delivery in India
+            </p>
+            <p className="mt-1.5 text-[12.5px] leading-[1.5] text-neutral-600">{g.blurb}</p>
           </div>
           {g.sizes && (
             <div className="mt-5">
@@ -364,7 +377,7 @@ export default function RewardsPage() {
 
   return (
     <AppShell title="Rewards" subtitle="Keep the streak · earn points · redeem them">
-      <PageHeading eyebrow="Rewards" title="Keep the streak." accent="Get rewarded for it." body="Solve one problem a day and your streak grows — every streak day pays 100 points, and 100 points are worth ₹10. Spend them on Layerflow goodies or cash them out to UPI." />
+      <PageHeading title="Rewards" body="Solve at least one problem a day to keep your streak. Each streak day gives you 100 points, and 100 points are worth ₹10. Spend them on goodies or withdraw them to UPI." />
       {err && <Card className="mb-4 text-[13px] text-[#a8401f]">{err}</Card>}
       {!r ? (
         <div className="grid gap-4 lg:grid-cols-3">
@@ -379,7 +392,7 @@ export default function RewardsPage() {
             <WalletCard r={r} />
             <HowItWorks r={r} />
           </div>
-          <Calendar days={r.calendar} today={r.streak.today} />
+          <StreakMap r={r} />
 
           {/* redeem */}
           <section>
@@ -406,10 +419,11 @@ export default function RewardsPage() {
             <AnimatePresence mode="wait">
               <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
                 {tab === "goodies" ? (
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {r.goodies.map((g) => (
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    {r.goodies.map((g, i) => (
                       <GoodieCard
                         key={g.id}
+                        i={i}
                         g={g}
                         balance={r.points.balance}
                         onRedeem={() => {
@@ -432,7 +446,11 @@ export default function RewardsPage() {
               <div className="mt-3 divide-y divide-neutral-100">
                 {r.redemptions.map((x) => (
                   <div key={x.id} className="flex flex-wrap items-center gap-3 py-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-xl">{x.kind === "cash" ? "💸" : (x.item_emoji ?? "🎁")}</span>
+                    {x.item_image ? (
+                      <img src={x.item_image} alt="" loading="lazy" className="size-10 shrink-0 rounded-2xl bg-[#dfdcd9] object-cover" />
+                    ) : (
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-xl">{x.kind === "cash" ? "💸" : (x.item_emoji ?? "🎁")}</span>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13.5px] font-semibold text-neutral-900">
                         {x.kind === "cash" ? `${x.inr} to ${x.upi}` : `${x.item_name}${x.size ? ` · ${x.size}` : ""}`}

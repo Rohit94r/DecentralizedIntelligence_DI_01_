@@ -98,18 +98,20 @@ export interface Goodie {
   blurb: string;
   points: number;
   emoji: string;
+  /** product photo served by the web app (public/goodies) */
+  image?: string;
   /** clothing sizes, when the item has them */
   sizes?: string[];
   tint: "green" | "purple" | "orange" | "sky" | "amber";
 }
 
 export const GOODIES: Goodie[] = [
-  { id: "sticker-pack", name: "Bug Hunter sticker pack", blurb: "12 die-cut vinyl stickers — off-by-one, print vs return and friends.", points: 1500, emoji: "🐞", tint: "green" },
-  { id: "notebook", name: "Trace-table notebook", blurb: "A5 dotted notebook with trace-table pages for debugging by hand.", points: 2500, emoji: "📓", tint: "sky" },
-  { id: "cap", name: "Layerflow cap", blurb: "Black cotton cap with the lime L. One size.", points: 3500, emoji: "🧢", tint: "purple" },
-  { id: "mug", name: "“It works on my machine” mug", blurb: "350 ml ceramic. Dishwasher-safe, bug-proof.", points: 4000, emoji: "☕", tint: "orange" },
-  { id: "tshirt", name: "Layerflow T-shirt", blurb: "Soft cotton tee — “Find the bug. Keep the skill.”", points: 6000, emoji: "👕", sizes: ["S", "M", "L", "XL", "XXL"], tint: "amber" },
-  { id: "hoodie", name: "Bug Bounty hoodie", blurb: "Heavyweight hoodie for hunters with 5+ confirmed bugs (or the points).", points: 12000, emoji: "🧥", sizes: ["S", "M", "L", "XL", "XXL"], tint: "purple" },
+  { id: "sticker-pack", name: "Bug Hunter sticker pack", blurb: "14 die-cut vinyl stickers — Bug Hunter, find_bug() fix() learn(), Ctrl + Learn and more.", points: 1500, emoji: "🐞", image: "/goodies/sticker-pack.webp", tint: "green" },
+  { id: "notebook", name: "Trace-table notebook", blurb: "Spiral A5 dot-grid notebook with an elastic band and pen loop — for tracing code by hand.", points: 2500, emoji: "📓", image: "/goodies/notebook.webp", tint: "sky" },
+  { id: "cap", name: "LayerFlow cap", blurb: "Black cotton cap with the embroidered lime logo. One size.", points: 3500, emoji: "🧢", image: "/goodies/cap.webp", tint: "purple" },
+  { id: "mug", name: "LayerFlow mug", blurb: "350 ml ceramic, black inside — “Trace. Learn. Repeat.” Dishwasher-safe.", points: 4000, emoji: "☕", image: "/goodies/mug.webp", tint: "orange" },
+  { id: "tshirt", name: "LayerFlow T-shirt", blurb: "Soft off-white cotton tee with “Trace. Learn. Repeat.” on the sleeve.", points: 6000, emoji: "👕", image: "/goodies/tshirt.webp", sizes: ["S", "M", "L", "XL", "XXL"], tint: "amber" },
+  { id: "hoodie", name: "Bug Bounty hoodie", blurb: "Heavyweight black hoodie with lime details — for hunters with 5+ confirmed bugs (or the points).", points: 12000, emoji: "🧥", image: "/goodies/hoodie.webp", sizes: ["S", "M", "L", "XL", "XXL"], tint: "purple" },
 ];
 
 export function getGoodie(id: string): Goodie | undefined {
