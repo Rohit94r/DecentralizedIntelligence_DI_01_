@@ -996,6 +996,329 @@ export const BUG_RULES: BugRule[] = [
         return true;
       }),
   },
+  // ── security & reliability: the bugs bug-bounty hunters and code reviewers look for first ──
+  {
+    id: "sql-injection",
+    kinds: ["js", "py", "java"],
+    severity: "high",
+    confidence: "likely",
+    category: "security",
+    title: "An SQL query is built by gluing text together (SQL injection)",
+    why: "The value is pasted straight into the SQL. If it comes from a user, they can type ' OR 1=1 -- and read, change or delete any row in the database.",
+    fix: 'Use placeholders and pass the values separately: db.query("SELECT * FROM users WHERE id = ?", [id]) · cursor.execute("… WHERE id = %s", (id,)) · a PreparedStatement with ? in Java. ORMs like Prisma and SQLAlchemy do this for you.',
+    learn: "SQL injection",
+    practice: "bounty",
+    find: (f) => {
+      const SQL = String.raw`\b(?:SELECT\b[^"'\x60]*\bFROM|INSERT\s+INTO|UPDATE\s+[\w"\x60.\[\]]+\s+SET|DELETE\s+FROM)\b`;
+      const tpl = new RegExp(String.raw`\x60[^\x60]*${SQL}[^\x60]*\$\{`, "i");
+      const glue = new RegExp(String.raw`["'][^"']*${SQL}[^"']*["']\s*\+\s*[A-Za-z_$]`, "i");
+      const glueAfter = new RegExp(String.raw`["'][^"']*(?:${SQL}|\bWHERE\b)[^"']*["']\s*\+\s*[A-Za-z_$]`, "i");
+      // inside a string opened with ", a ' is just text (and the other way round)
+      const pyF = new RegExp(String.raw`\b[rR]?[fF][rR]?("""|'''|"|')(?:(?!\1).)*?${SQL}(?:(?!\1).)*?\{`, "i");
+      const pyFmt = new RegExp(String.raw`("""|'''|"|')(?:(?!\1).)*?${SQL}(?:(?!\1).)*?\1\s*(%\s*[\w(]|\+\s*\w|\.format\()`, "i");
+      return f.raw.flatMap((raw, i): Hit[] => {
+        if (raw.length > 1500 || !f.code[i].trim()) return [];
+        const chunk = [raw, f.raw[i + 1] ?? "", f.raw[i + 2] ?? ""].join(" ");
+        let hit = false;
+        if (f.kind === "js") {
+          const tick = raw.indexOf("\x60");
+          // the template literal that opens on this line (it may run onto the next two)
+          const close = tick >= 0 ? chunk.indexOf("\x60", tick + 1) : -1;
+          const lit = tick >= 0 ? chunk.slice(tick, close > tick ? close + 1 : undefined) : "";
+          hit = (!!lit && tpl.test(lit)) || glue.test(raw);
+          if (hit && lit && !glue.test(raw)) {
+            // ${placeholders} / ${table} / ${columns} are usually code-built, not user input
+            const holes = [...lit.matchAll(/\$\{([^}]*)\}/g)].map((m) => m[1].trim());
+            if (holes.length && holes.every((h) => /^[A-Z0-9_]+$|placeholder|table|column|cols|fields|order(By)?|dir(ection)?|qs\b|marks|\.join\(/i.test(h))) return [];
+          }
+        } else if (f.kind === "py") {
+          // the string must start on this line
+          hit = [pyF.exec(chunk), pyFmt.exec(chunk)].some((m) => !!m && m.index < raw.length);
+        } else hit = glueAfter.test(raw);
+        return hit ? [{ line: i + 1 }] : [];
+      });
+    },
+  },
+  {
+    id: "eval",
+    kinds: ["js", "py"],
+    severity: "high",
+    confidence: "possible",
+    category: "security",
+    title: "Text is run as code (eval / exec / new Function)",
+    why: "eval runs whatever string it's given as real code. If any part of that string comes from a user, a file or the network, they can run anything — read secrets, delete data, take over the server.",
+    fix: "Don't run text as code. Parse data with JSON.parse / json.loads (or ast.literal_eval for Python literals), and use a lookup table instead of building code or function names.",
+    learn: "Code injection",
+    practice: "bounty",
+    find: (f) => {
+      const literalArg = (rest: string) => /^\s*(["'])[^"'$]*\1\s*\)/.test(rest);
+      const fromUser = (s: string) => /req\.|request\.|input\(|params|query|body|argv|location|message|data/i.test(s);
+      if (f.kind === "py")
+        return each(f, /(?<![\w.])(eval|exec)\s*\(/, (i, m) => {
+          const rest = f.raw[i].slice(m.index + m[0].length);
+          if (literalArg(rest) || /^\s*def\b/.test(f.code[i])) return false;
+          return fromUser(rest) ? { line: 0, confidence: "likely" } : true;
+        });
+      return each(f, /(?<![\w$.])eval\s*\(|\bnew\s+Function\s*\(|\bset(?:Timeout|Interval)\s*\(\s*["'\x60]/, (i, m) => {
+        const rest = f.raw[i].slice(m.index + m[0].length);
+        if (/^set/.test(m[0])) return { line: 0, severity: "medium", title: "setTimeout / setInterval is given a string of code" };
+        if (literalArg(rest)) return false;
+        return fromUser(rest) ? { line: 0, confidence: "likely" } : true;
+      });
+    },
+  },
+  {
+    id: "empty-catch",
+    kinds: ["js", "java"],
+    severity: "medium",
+    confidence: "likely",
+    category: "crash",
+    title: "An error is caught and silently ignored",
+    why: "An empty catch hides the error completely: the code carries on with missing or half-saved data, and nobody ever finds out why — the hardest kind of bug to track down.",
+    fix: "At least log it (console.error(err) / logger.warn(…)), show the user a message, or let it bubble up. If ignoring really is right, say why in a comment inside the catch.",
+    learn: "Error handling",
+    practice: "practice",
+    find: (f) =>
+      each(f, /(?<![\w$.])catch\s*(\([^)]*\))?\s*\{/, (i, m) => {
+        const after = f.code[i].slice(m.index + m[0].length);
+        if (/\/\/|\/\*/.test(f.raw[i].slice(m.index + m[0].length))) return false; // a comment says why
+        if (/^\s*\}/.test(after)) return true;
+        if (after.trim()) return false;
+        let j = i + 1;
+        while (j < f.code.length && j < i + 4 && !f.code[j].trim()) {
+          if (/\/\/|\/\*|\*/.test(f.raw[j])) return false;
+          j++;
+        }
+        return /^\s*\}/.test(f.code[j] ?? "") && !/\/\/|\/\*/.test(f.raw[j] ?? "");
+      }),
+  },
+  {
+    id: "except-pass",
+    kinds: ["py"],
+    severity: "medium",
+    confidence: "likely",
+    category: "crash",
+    title: "An error is caught and silently ignored (except: pass)",
+    why: "except …: pass throws the error away. The program carries on with missing data and nobody learns what went wrong — and a bare except: even swallows Ctrl+C and typos in your own code.",
+    fix: "Catch only the error you expect (except ValueError:) and log or handle it: logger.warning(\"bad row %s\", row). If skipping really is right, say why in a comment.",
+    learn: "Error handling",
+    practice: "practice",
+    find: (f) =>
+      each(f, /^\s*except\b[^:]*:\s*(pass|\.\.\.)?\s*$/, (i) => {
+        const body = pyBlock(f.code, i, 3);
+        const inline = /:\s*(pass|\.\.\.)\s*$/.test(f.code[i]);
+        const between = f.raw.slice(i, (body[0] ?? i) + 1).join("\n");
+        if (/#/.test(between.replace(/(["'])(?:(?!\1).)*\1/g, ""))) return false; // a comment explains it
+        const onlyPass = inline || (body.length === 1 && /^\s*(pass|\.\.\.)\s*$/.test(f.code[body[0]]));
+        if (onlyPass) return true;
+        if (/^\s*except\s*:/.test(f.code[i])) return { line: 0, severity: "low", title: "A bare except: catches every error — even Ctrl+C", why: "except: with no error type also catches KeyboardInterrupt, SystemExit and mistakes in your own code (like a NameError from a typo), so real bugs hide behind it." };
+        return false;
+      }),
+  },
+  {
+    id: "debug-mode",
+    kinds: ["py"],
+    severity: "high",
+    confidence: "likely",
+    category: "security",
+    title: "The app runs with debug mode on",
+    why: "Flask's debugger lets anyone who can trigger an error page run Python on your server. Django's DEBUG = True shows settings, file paths and SQL to every visitor.",
+    fix: 'Read it from the environment and keep it off in production: app.run(debug=os.getenv("FLASK_DEBUG") == "1") · DEBUG = os.getenv("DJANGO_DEBUG") == "1".',
+    learn: "Production settings",
+    practice: "bounty",
+    find: (f) =>
+      each(f, /\.run\([^)]*\bdebug\s*=\s*True\b|^\s*DEBUG\s*=\s*True\b/, (i) => (/^\s*DEBUG/.test(f.code[i]) ? (/settings/i.test(f.path) ? { line: 0, severity: "medium", confidence: "possible", title: "DEBUG = True in the Django settings" } : false) : true)),
+  },
+  {
+    id: "cors-credentials",
+    kinds: ["js", "py"],
+    severity: "high",
+    confidence: "likely",
+    category: "security",
+    title: "CORS lets any website make logged-in requests",
+    why: "With credentials allowed and the origin set to * or true (copy whatever origin asks), any website your user visits can call your API with their cookies and read the answers — their data, their account.",
+    fix: 'List the exact origins you trust: cors({ origin: ["https://app.example.com"], credentials: true }) · CORS(app, origins=["https://app.example.com"], supports_credentials=True).',
+    learn: "CORS",
+    practice: "bounty",
+    find: (f) =>
+      each(f, f.kind === "py" ? /\bCORS\s*\(/ : /\bcors\s*\(\s*\{/, (i, m) => {
+        const call = callText(f.raw, i, m.index, 10);
+        if (f.kind === "py") return /supports_credentials\s*=\s*True/.test(call) && (!/origins\s*=/.test(call) || /origins\s*=\s*["']\*["']/.test(call));
+        return /credentials\s*:\s*true/.test(call) && /origin\s*:\s*(true|["'\x60]\*["'\x60])/.test(call);
+      }),
+  },
+  {
+    id: "token-localstorage",
+    kinds: ["js"],
+    severity: "medium",
+    confidence: "possible",
+    category: "security",
+    title: "A login token is kept in localStorage",
+    why: "Every script on the page can read localStorage — so one XSS bug (or one hacked npm package) is enough to steal the token and log in as the user from anywhere.",
+    fix: "Keep session tokens in an HttpOnly, Secure, SameSite cookie set by the server — JavaScript can't read those. If it must live in the browser, keep it short-lived.",
+    learn: "Storing sessions safely",
+    practice: "bounty",
+    find: (f) => each(f, /\b(?:local|session)Storage\.setItem\(/, (i, m) => /token|jwt|auth|session|access|refresh|password|secret/i.test(f.raw[i].slice(m.index + m[0].length).split(",")[0])),
+  },
+  {
+    id: "open-redirect",
+    kinds: ["js", "py"],
+    severity: "medium",
+    confidence: "likely",
+    category: "security",
+    title: "Redirects to any address taken from the request (open redirect)",
+    why: "An attacker can send a real-looking link to your site — yoursite.com/login?next=https://evil.example — and your server forwards the victim to their fake page. Perfect for phishing.",
+    fix: 'Only redirect to your own pages: accept the value only if it starts with a single "/" (not "//"), or check it against a list of allowed addresses — otherwise go to the home page.',
+    learn: "Open redirects",
+    practice: "bounty",
+    find: (f) => (f.kind === "py" ? each(f, /\bredirect\(\s*request\.(args|form|values|GET|POST)\b/) : each(f, /\bres\.redirect\(\s*(\d+\s*,\s*)?req\.(query|body|params)\b/)),
+  },
+  {
+    id: "path-traversal",
+    kinds: ["js", "py"],
+    severity: "high",
+    confidence: "possible",
+    category: "security",
+    title: "A file path comes straight from the request (path traversal)",
+    why: "If the name comes from the user, ../../.env or ../../../etc/passwd walks out of the folder you meant — and the server reads (or overwrites) any file it can reach.",
+    fix: "Never use the raw value as a path. Keep only the file name (path.basename / werkzeug's secure_filename), join it to your folder, and check the result still starts with that folder — or look files up by an id from your database.",
+    learn: "Path traversal",
+    practice: "bounty",
+    find: (f) =>
+      f.kind === "py"
+        ? each(f, /(?<![\w.])open\(|\bsend_file\(|\bos\.path\.join\(/, (i, m) => {
+            const c = callText(f.code, i, m.index, 4);
+            return /request\.(args|form|values|files|GET|POST|json)\b/.test(c) && !/secure_filename|basename/.test(c);
+          })
+        : each(f, /\b(?:sendFile|readFile|readFileSync|createReadStream|unlink|unlinkSync|writeFile|writeFileSync|download)\s*\(|\bpath\.(?:join|resolve)\(/, (i, m) => {
+            const c = callText(f.code, i, m.index, 4);
+            return /\breq\.(params|query|body)\b/.test(c) && !/basename|root\s*:/.test(c);
+          }),
+  },
+  {
+    id: "ssrf",
+    kinds: ["js", "py"],
+    severity: "high",
+    confidence: "possible",
+    category: "security",
+    title: "The server fetches whatever URL the user sends (SSRF)",
+    why: "If the address comes from the request, an attacker can make your server call places only it can reach — internal admin panels, databases, or the cloud metadata service that hands out secret keys.",
+    fix: "Don't fetch user-supplied URLs directly. Allow only known hosts (an allow-list), refuse private and internal addresses, and don't follow redirects blindly.",
+    learn: "Server-side request forgery (SSRF)",
+    practice: "bounty",
+    find: (f) => {
+      const src = f.kind === "py" ? /^\s*request\.(args|form|json|values|GET|POST)\b/ : /^\s*req\.(query|body|params)\b/;
+      const assigned = (i: number, v: string) => f.code.slice(Math.max(0, i - 12), i).some((l) => new RegExp(`\\b${escRe(v)}\\s*=\\s*${f.kind === "py" ? "request\\.(args|form|json|values)" : "req\\.(query|body|params)"}`).test(l));
+      const call = f.kind === "py" ? /\b(?:requests|httpx)\.(?:get|post|put|head|request)\(|\burlopen\(/ : /(?<![\w$.])fetch\(|\baxios(?:\.(?:get|post|put|request))?\(|\bgot\(|\bhttps?\.get\(/;
+      return each(f, call, (i, m) => {
+        const arg = callText(f.code, i, m.index, 3).replace(/^[^(]*\(/, "");
+        if (src.test(arg)) return true;
+        const v = arg.match(/^\s*([A-Za-z_$][\w$]*)\s*[,)]/)?.[1];
+        return !!v && assigned(i, v);
+      });
+    },
+  },
+  {
+    id: "mass-assignment",
+    kinds: ["js"],
+    severity: "medium",
+    confidence: "possible",
+    category: "security",
+    title: "The whole request body is saved to the database (mass assignment)",
+    why: 'Every field the user sends is copied in — including ones your form never showed, like role: "admin", isVerified: true or balance: 999999.',
+    fix: "Pick the fields you allow: const { name, bio } = req.body; then save only those — or validate with a schema (zod, joi) that drops unknown keys.",
+    learn: "Mass assignment",
+    practice: "bounty",
+    find: (f) => each(f, /(?:\bnew\s+[A-Z][\w$]*\(|\.(?:create|insertOne|insertMany|save|update|updateOne|findByIdAndUpdate|findOneAndUpdate)\((?:[^()]*?,)?|Object\.assign\(\s*[\w$.]+\s*,)\s*req\.body\s*[,)]/),
+  },
+  {
+    id: "nosql-injection",
+    kinds: ["js"],
+    severity: "high",
+    confidence: "likely",
+    category: "security",
+    title: "Request data goes straight into a MongoDB query (NoSQL injection)",
+    why: 'MongoDB queries are objects. If the user sends JSON like { "password": { "$ne": null } }, the query matches any user — and the attacker is logged in without a password.',
+    fix: "Use exact values of the right type: User.findOne({ email: String(req.body.email) }) — or validate the body with a schema first (zod, joi) and sanitise it (express-mongo-sanitize).",
+    learn: "NoSQL injection",
+    practice: "bounty",
+    find: (f) => {
+      if (!f.raw.some((l) => /mongoose|mongodb/.test(l))) return [];
+      return each(f, /\.(?:find|findOne|findOneAndUpdate|findOneAndDelete|deleteOne|deleteMany|updateOne|updateMany|countDocuments|exists)\(\s*(?:req\.(?:body|query)\s*[,)]|\{[^}]*:\s*req\.(?:body|query)\.[\w$]+\s*[,}])/, (i) => !/String\(|sanitize|parseInt|Number\(|ObjectId\(/.test(f.code[i]));
+    },
+  },
+  {
+    id: "reflected-xss",
+    kinds: ["js"],
+    severity: "high",
+    confidence: "likely",
+    category: "security",
+    title: "Request data is sent back as HTML (reflected XSS)",
+    why: "Whatever is in the URL ends up in the page as HTML. A link like ?name=<script>…</script> runs the attacker's code in the victim's browser, on your site, with their login.",
+    fix: "Escape it before it goes into HTML (template engines like EJS escape <%= %> for you), or send JSON with res.json(…) and let the frontend show it as text.",
+    learn: "Cross-site scripting (XSS)",
+    practice: "bounty",
+    find: (f) =>
+      each(f, /\bres\.(?:send|write|end)\(/, (i, m) => {
+        const c = callText(f.raw, i, m.index, 3);
+        if (!/req\.(query|params|body)\b/.test(c)) return false;
+        return /\x60[^\x60]*<[a-z/!][^\x60]*\$\{[^}]*req\.(query|params|body)/i.test(c) || /["'][^"']*<[a-z/][^"']*["']\s*\+\s*req\.(query|params|body)/i.test(c);
+      }),
+  },
+  {
+    id: "effect-no-cleanup",
+    kinds: ["js"],
+    severity: "medium",
+    confidence: "likely",
+    category: "performance",
+    title: "A timer or listener started in useEffect is never cleaned up",
+    why: "Each time the component mounts, another interval or event listener starts — and the old ones keep running after the component is gone: memory leaks, double requests and updates to screens that no longer exist.",
+    fix: "Return a clean-up function: useEffect(() => { const id = setInterval(tick, 1000); return () => clearInterval(id); }, []). Same for addEventListener → removeEventListener.",
+    learn: "React effects",
+    practice: "practice",
+    find: (f) =>
+      each(f, /\buseEffect\(/, (i) => {
+        const block = cBlock(f.code, i, 60);
+        if (/\bsetInterval\(/.test(block) && !/\bclearInterval\(/.test(block)) return { line: 0, title: "A setInterval started in useEffect is never cleared" };
+        if (/\b(window|document)\.addEventListener\(/.test(block) && !/removeEventListener\(|AbortController|signal\s*:/.test(block)) return { line: 0, title: "An event listener added in useEffect is never removed" };
+        return false;
+      }),
+  },
+  {
+    id: "await-in-loop",
+    kinds: ["js"],
+    severity: "low",
+    confidence: "possible",
+    category: "performance",
+    title: "Requests run one at a time inside a loop",
+    why: "await inside a loop waits for each request to finish before starting the next — 20 requests of 200 ms take 4 seconds instead of about 0.2.",
+    fix: "If the requests don't depend on each other, start them together: await Promise.all(items.map((item) => load(item))). Keep the loop only when the order matters or you must stay under a rate limit.",
+    learn: "async / await",
+    practice: "practice",
+    find: (f) =>
+      each(f, /^\s*for\s*\((?!\s*await)/, (i) => {
+        const block = cBlock(f.code, i, 25);
+        return /\bawait\s+(?:fetch\(|axios\b|[\w$.]*\.(?:query|findOne|findById|findUnique|find|get|post|put|create|save|update|insert)\()/.test(block);
+      }),
+  },
+  {
+    id: "secret-in-log",
+    kinds: ["js", "py"],
+    severity: "medium",
+    confidence: "likely",
+    category: "security",
+    title: "A password or token is written to the logs",
+    why: "Logs are copied to files, dashboards and other people's screens. A password or token printed there can be read by anyone with access to the logs — long after the bug is fixed.",
+    fix: 'Never log secrets. Log the user id, or a masked value ("tok_…a9f2"), instead.',
+    learn: "Logging safely",
+    practice: "bounty",
+    find: (f) =>
+      each(f, f.kind === "py" ? /\b(?:print|logging\.\w+|logger\.\w+|log\.\w+)\(/ : /\bconsole\.(?:log|info|debug|warn)\(|\blogger\.\w+\(/, (i, m) => {
+        const c = callText(f.code, i, m.index, 3);
+        const ids = c.match(/[A-Za-z_$][\w$]*/g) ?? [];
+        return ids.some((x) => secretishName(x) && !/^(get|has|is|set|show|hide|reset|forgot|new|confirm|on)[A-Z_]/.test(x) && !/(count|length|label|placeholder|field|input|valid|error|strength|type|limit|usage|expiry|expires|url|name|id|ids)$/i.test(x));
+      }),
+  },
   // ── Java ──
   {
     id: "java-string-eq",
