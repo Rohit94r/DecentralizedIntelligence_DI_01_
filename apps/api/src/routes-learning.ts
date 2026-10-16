@@ -108,10 +108,12 @@ export function registerLearningRoutes(app: FastifyInstance, ctx: LearnCtx, ai: 
     mentor: MENTOR,
   }));
 
-  app.get<{ Querystring: { viewer?: string; kind?: string; challenge_id?: string; q?: string; author_id?: string } }>("/api/community/posts", async (req) => ({
-    posts: listPosts(ctx.store, { ...req.query, q: req.query.q?.slice(0, 80) }),
-    stats: ctx.store.communityStats(),
-  }));
+  app.get<{ Querystring: { viewer?: string; kind?: string; challenge_id?: string; q?: string; author_id?: string } }>("/api/community/posts", async (req) => {
+    const posts = listPosts(ctx.store, { ...req.query, q: req.query.q?.slice(0, 80) });
+    // who replied (names, roles, avatars — never reply bodies, so spoilers stay blurred)
+    const authors = ctx.store.replyAuthorsFor(posts.map((p) => p.id));
+    return { posts: posts.map((p) => ({ ...p, replies_lite: authors.get(p.id) ?? [] })), stats: ctx.store.communityStats() };
+  });
 
   app.get<{ Params: { id: string }; Querystring: { viewer?: string } }>("/api/community/posts/:id", async (req) => getThread(ctx.store, Number(req.params.id), req.query.viewer ?? ""));
 
