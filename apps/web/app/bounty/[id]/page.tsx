@@ -15,11 +15,14 @@ import { ArrowLeft, Check, ChevronDown, CircleAlert, CreditCard, ExternalLink, G
 import { GithubIcon } from "@/components/icons/github-icon";
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { Card } from "@/components/app/bits";
+import { LogoTile, TechLogo } from "@/components/app/Logo";
+import { companyName } from "@/components/bounty/Directory";
+import { DodoBadge, DodoCheckoutSheet } from "@/components/payments/DodoCheckout";
 import { CodeViewer, FileTree, type FoundMark } from "@/components/bounty/CodeViewer";
 import { ReportForm } from "@/components/bounty/ReportForm";
 import { SEVERITY_STYLE, SeverityChip, StatusPill } from "@/components/bounty/bits";
 import { usePin } from "@/components/rewards/PinDialog";
-import { api, refreshPoints, timeAgo, type BountyReport, type BountySeverity, type FileReportResult, type HostedProgramDetail, type PlatformProgramDetail, type ProgramDetail } from "@/lib/api";
+import { api, refreshPoints, timeAgo, type BountyReport, type BountySeverity, type DemoCheckout, type FileReportResult, type HostedProgramDetail, type PlatformProgramDetail, type ProgramDetail } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { cn } from "@/lib/utils";
 
@@ -199,16 +202,16 @@ function PlatformView({ p, learner, reload }: { p: PlatformProgramDetail; learne
       <Card className="relative overflow-hidden">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
           <div className="flex min-w-0 flex-1 items-start gap-4">
-            <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-3xl">{p.logo}</span>
+            <LogoTile src={p.logo} name={companyName(p.company).name} size={56} full />
             <div className="min-w-0">
-              <p className="text-[12px] font-semibold text-neutral-500">{p.company} · Layerflow program</p>
+              <p className="text-[12px] font-semibold text-neutral-500">{companyName(p.company).name} · practice program</p>
               <h1 className="text-[26px] font-medium leading-[1.15] tracking-[-0.035em] text-neutral-950">{p.title}</h1>
               <p className="mt-1 text-[13.5px] leading-[1.55] text-neutral-600">{p.summary}</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 <span className="rounded-full bg-neutral-950 px-2.5 py-0.5 text-[11px] font-semibold capitalize text-white">{p.difficulty}</span>
                 {p.stack.map((s) => (
-                  <span key={s} className="rounded-full border border-neutral-200 px-2 py-px text-[11px] text-neutral-600">
-                    {s}
+                  <span key={s} className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-px text-[11px] text-neutral-600">
+                    <TechLogo name={s} size={11} /> {s}
                   </span>
                 ))}
               </div>
@@ -430,6 +433,7 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
   const [payBusy, setPayBusy] = useState(false);
   const [payErr, setPayErr] = useState<string | null>(null);
   const [hasPin, setHasPin] = useState(true);
+  const [demo, setDemo] = useState<DemoCheckout | null>(null);
   const pin = usePin();
   useEffect(() => {
     if (learner)
@@ -449,7 +453,11 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
     setPayBusy(true);
     try {
       const r = await api.programCheckout(p.id, learner, x, window.location.origin);
-      window.location.href = r.checkout_url;
+      if (r.checkout_url) window.location.href = r.checkout_url;
+      else if (r.demo_checkout) {
+        setDemo(r.demo_checkout);
+        setPayBusy(false);
+      }
     } catch (e) {
       setPayErr((e as Error).message);
       setPayBusy(false);
@@ -462,11 +470,11 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
       <Card>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
           <div className="flex min-w-0 flex-1 items-start gap-4">
-            <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-3xl">{p.logo}</span>
+            <LogoTile src={p.logo} name={companyName(p.company).name} size={56} full={!!p.logo} />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[12px] font-semibold text-neutral-500">
-                  {p.company} · {p.kind === "open_source" ? "open source" : "company program"}
+                  {companyName(p.company).name} · {p.kind === "open_source" ? "open source" : companyName(p.company).demo ? "demo company program" : "company program"}
                 </span>
                 {p.plan !== "community" && <span className="rounded-full bg-[#bbf451] px-2 py-px text-[10px] font-bold text-[#1a2e05]">{p.plan_name}</span>}
               </div>
@@ -503,6 +511,7 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
             <p className="text-[14px] font-semibold text-[#151515]">Waiting for payment — only you can see this program</p>
             <p className="text-[12.5px] text-[#6b5320] dark:text-neutral-300">It goes live for hunters as soon as Dodo Payments confirms the {p.plan_name} plan.</p>
             {payErr && <p className="mt-1 text-[12px] font-medium text-[#a8401f]">{payErr}</p>}
+            <DodoBadge label="Checkout by" className="mt-2" />
           </div>
           <button onClick={pay} disabled={payBusy} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-neutral-950 px-5 text-[13px] font-semibold text-white disabled:opacity-50">
             {payBusy ? <LoaderCircle className="size-4 animate-spin" /> : <CreditCard className="size-4" />} Complete payment
@@ -571,6 +580,17 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
         </div>
       )}
       {pin.dialog}
+      {demo && learner && (
+        <DodoCheckoutSheet
+          checkout={demo}
+          ownerId={learner}
+          onClose={() => setDemo(null)}
+          onPaid={() => {
+            setDemo(null);
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }
