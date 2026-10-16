@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, Bug, BookOpenText, Flame, FolderTree, Gavel, Gift, LayoutDashboard, ListChecks, Menu, MessagesSquare, ScrollText, ShieldCheck, Video, X, Check, Plus, Zap } from "lucide-react";
+import { ArrowUpRight, Bug, BookOpenText, Flame, FolderTree, Gavel, Gift, LayoutDashboard, ListChecks, Menu, MessagesSquare, ShieldCheck, Video, X, Check, Plus, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -41,7 +41,6 @@ const NAV: { section?: string; items: { href: string; key: string; Icon: typeof 
   {
     section: "app.tools",
     items: [
-      { href: "/ledger", key: "app.ledger", Icon: ScrollText },
       { href: "/taxonomy", key: "app.taxonomy", Icon: BookOpenText },
       { href: "/judges", key: "app.judges", Icon: Gavel },
       { href: "/admin", key: "app.admin", Icon: ShieldCheck },

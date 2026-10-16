@@ -1,13 +1,17 @@
 "use client";
 
+/**
+ * Dashboard — one calm page with everything a learner needs: what to do next,
+ * how their skills are moving, the mistakes that keep coming back, the hints
+ * they used, their activity map, and their rewards.
+ */
 import React, { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { motion } from "motion/react";
-import NumberFlow from "@number-flow/react";
-import { ArrowRight, Bug, CheckCircle2, Flame, Lightbulb, TrendingUp, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Flame, Gift, IndianRupee, Lightbulb, Target, XCircle, Zap } from "lucide-react";
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
-import { Card, MasteryBar, PageHeading, TagBadge, TAG_COLOR } from "@/components/app/bits";
-import { api, timeAgo, type LearnerView } from "@/lib/api";
+import { ActivityMap } from "@/components/app/ActivityMap";
+import { Card, MasteryBar, TagBadge } from "@/components/app/bits";
+import { api, timeAgo, type LearnerView, type LedgerEntry, type RewardsView } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { cn } from "@/lib/utils";
 
@@ -20,222 +24,255 @@ const CONCEPT_COLOR: Record<string, string> = {
   accumulators: "#f59e0b",
 };
 
-function Timeline({ data, concepts }: { data: LearnerView["mastery_timeline"]; concepts: string[] }) {
-  const W = 560;
-  const H = 150;
-  if (data.length < 2) return <p className="text-[13px] text-neutral-500">Two or more submissions draw the line.</p>;
-  const x = (i: number) => 10 + (i * (W - 20)) / (data.length - 1);
-  const y = (v: number) => H - 10 - v * (H - 20);
+const nameOf = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
+
+function Stat({ label, value, sub, icon: Icon }: { label: string; value: React.ReactNode; sub?: string; icon: typeof Target }) {
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-40 w-full">
-      {[0.25, 0.5, 0.75].map((g) => (
-        <line key={g} x1={0} x2={W} y1={y(g)} y2={y(g)} stroke="currentColor" className="text-neutral-200" strokeDasharray="3 4" />
-      ))}
-      {concepts.map((c) => {
-        const pts = data.map((p, i) => `${x(i)},${y(p.mastery[c] ?? 0.5)}`).join(" ");
-        return <motion.polyline key={c} points={pts} fill="none" stroke={CONCEPT_COLOR[c] ?? "#737373"} strokeWidth={2.2} strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.1 }} />;
-      })}
-      {data.map((p, i) => (
-        <circle key={i} cx={x(i)} cy={H - 4} r={3} fill={p.label.startsWith("✓") ? "#359462" : "#c64e27"}>
-          <title>{p.label}</title>
-        </circle>
-      ))}
-    </svg>
+    <div className="rounded-2xl border border-neutral-200/80 bg-white px-4 py-3.5">
+      <div className="flex items-center justify-between text-neutral-400">
+        <span className="text-[11.5px] font-medium text-neutral-500">{label}</span>
+        <Icon className="size-4" />
+      </div>
+      <p className="mt-1.5 text-[24px] font-semibold tabular-nums leading-none tracking-[-0.02em] text-neutral-950">{value}</p>
+      {sub && <p className="mt-1 text-[11.5px] text-neutral-500">{sub}</p>}
+    </div>
   );
 }
 
-function Heat({ activity }: { activity: { day: string; n: number }[] }) {
-  const days = useMemo(() => {
-    const map = new Map(activity.map((a) => [a.day, a.n]));
-    const out: { day: string; n: number }[] = [];
-    const d = new Date();
-    d.setUTCDate(d.getUTCDate() - 7 * 12 + 1);
-    for (let i = 0; i < 7 * 12; i++) {
-      const k = d.toISOString().slice(0, 10);
-      out.push({ day: k, n: map.get(k) ?? 0 });
-      d.setUTCDate(d.getUTCDate() + 1);
-    }
-    return out;
-  }, [activity]);
-  const lvl = (n: number) => (n === 0 ? "#f0e4d2" : n < 3 ? "#f5c9a8" : n < 6 ? "#e8956a" : n < 10 ? "#d96a3a" : "#c64e27");
-  return (
-    <div className="grid grid-flow-col grid-rows-7 gap-[3px]">
-      {days.map((d) => (
-        <span key={d.day} title={`${d.day}: ${d.n} attempts`} className="size-[11px] rounded-[2px]" style={{ backgroundColor: lvl(d.n) }} />
-      ))}
-    </div>
-  );
+function hintInfo(e: LedgerEntry) {
+  return { challenge: e.prompt.match(/challenge=([\w-]+)/)?.[1] ?? null, rung: e.prompt.match(/rung=(\d+)/)?.[1] ?? null };
 }
 
 function Dashboard() {
   const [learner] = useLearner();
   const [me, setMe] = useState<LearnerView | null>(null);
+  const [rw, setRw] = useState<RewardsView | null>(null);
+  const [hints, setHints] = useState<LedgerEntry[]>([]);
+  const [titles, setTitles] = useState<Record<string, string>>({});
+  const [total, setTotal] = useState(12);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .challenges(true)
+      .then((c) => {
+        setTitles(Object.fromEntries(c.challenges.map((x) => [x.id, x.title.replace("Bug Factory · ", "")])));
+        setTotal(c.challenges.filter((x) => !x.bug_factory).length);
+      })
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     if (!learner) return;
     setMe(null);
-    api.learner(learner).then(setMe).catch((e) => setErr(e.message));
+    setRw(null);
+    api.learner(learner).then(setMe).catch((e) => setErr((e as Error).message));
+    api.rewards(learner).then(setRw).catch(() => {});
+    api
+      .ledger({ learner_id: learner, kind: "hint" })
+      .then((l) => setHints(l.entries.filter((e) => !e.rejected_for_code).slice(0, 4)))
+      .catch(() => {});
   }, [learner]);
 
-  const concepts = me ? (me.touched_concepts.length ? me.touched_concepts : Object.keys(me.mastery)) : [];
+  const title = (id: string) => titles[id] ?? id;
+  const concepts = me ? (me.touched_concepts.length ? me.touched_concepts : []) : [];
   const first = me?.mastery_timeline[0]?.mastery ?? {};
-  const avgNow = concepts.length ? concepts.reduce((s, c) => s + (me?.mastery[c] ?? 0.5), 0) / concepts.length : 0.5;
-  const avgFirst = concepts.length ? concepts.reduce((s, c) => s + (first[c] ?? 0.5), 0) / concepts.length : 0.5;
+  const isNew = !!me && me.history.length === 0;
+  const recent = useMemo(() => (me ? [...me.history].reverse().slice(0, 6) : []), [me]);
+  const nextGoodie = rw ? ([...rw.goodies].sort((a, b) => a.points - b.points).find((g) => !g.affordable) ?? [...rw.goodies].sort((a, b) => b.points - a.points)[0]) : null;
 
   return (
     <AppShell title="Dashboard" subtitle={learner ? `learner · ${learner}` : undefined}>
-      <PageHeading eyebrow="Your arc" title={learner ?? "…"} accent="— how you're learning" body="Mastery is a Beta posterior per concept: a pass without hints moves it most, a hinted pass much less, every failure and every hint pulls it down a little. A mistake is a pattern only when it shows up in two different challenges." />
-      {err && <Card className="text-sm text-[#a8401f]">{err}</Card>}
+      {err && <Card className="mb-4 text-sm text-[#a8401f]">{err}</Card>}
       {!me ? (
-        <p className="text-sm text-neutral-500">Loading…</p>
-      ) : (
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            {[
-              { k: "Submissions", v: me.totals.submissions, icon: TrendingUp },
-              { k: "Challenges cleared", v: me.totals.challenges_cleared, icon: CheckCircle2 },
-              { k: "First-try passes", v: me.totals.first_try_passes, icon: CheckCircle2 },
-              { k: "Hints taken", v: me.totals.hints, icon: Lightbulb },
-              { k: "Day streak", v: me.streak_days, icon: Flame },
-            ].map(({ k, v, icon: Icon }) => (
-              <div key={k} className="rounded-2xl border border-neutral-200/70 bg-white px-4 py-3.5">
-                <Icon className="size-4 text-neutral-400" />
-                <p className="mt-2 text-[24px] font-medium tabular-nums leading-none tracking-[-0.03em] text-neutral-950">
-                  <NumberFlow value={v} />
-                </p>
-                <p className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-neutral-400">{k}</p>
-              </div>
+        <div className="space-y-4">
+          <div className="h-16 w-72 animate-pulse rounded-2xl bg-neutral-100" />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-24 animate-pulse rounded-2xl bg-neutral-100" />
             ))}
           </div>
+          <div className="h-48 animate-pulse rounded-3xl bg-neutral-100" />
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* greeting */}
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="text-[30px] font-semibold leading-tight tracking-[-0.03em] text-neutral-950">Hi, {nameOf(me.learner_id)}</h1>
+              <p className="mt-1 text-[14px] text-neutral-500">
+                {isNew ? "Welcome to Layerflow. Your progress will show up here as you practise." : `${me.totals.challenges_cleared} of ${total} problems solved · ${me.streak_days}-day streak`}
+              </p>
+            </div>
+            <Link href={`/challenge/${me.next_challenge.challenge_id}`} className="inline-flex h-10 items-center gap-2 rounded-full bg-neutral-950 px-5 text-[13.5px] font-semibold text-white hover:bg-neutral-800">
+              {isNew ? "Start your first problem" : `Continue: ${title(me.next_challenge.challenge_id)}`} <ArrowRight className="size-4" />
+            </Link>
+          </div>
 
-          <motion.div initial={{ rotateX: -75, opacity: 0, y: 20 }} animate={{ rotateX: 0, opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 120, damping: 16, delay: 0.25 }} style={{ transformPerspective: 900 }}>
-            <Card tint="green" className="relative overflow-hidden">
-              <p className="font-poppins text-[10px] font-semibold uppercase tracking-[0.18em] text-[#359462]">Why this next</p>
-              <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-                <div className="max-w-2xl">
-                  <h3 className="font-instrumental text-4xl leading-none text-[#151515]">{me.next_challenge.challenge_id}</h3>
-                  <p className="mt-3 text-[14.5px] leading-[1.6] text-[#33473a]">{me.next_challenge.reason}</p>
-                </div>
-                <Link href={`/challenge/${me.next_challenge.challenge_id}`} className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-[#359462] px-6 text-[14px] font-semibold text-white hover:bg-[#2c7a51]">
-                  Start it <ArrowRight className="size-4" />
-                </Link>
+          {/* numbers */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Stat label="Problems solved" value={`${me.totals.challenges_cleared}/${total}`} sub={`${me.totals.first_try_passes} on the first try`} icon={CheckCircle2} />
+            <Stat label="Submissions" value={me.totals.submissions} sub={`${me.totals.hints} hint${me.totals.hints === 1 ? "" : "s"} used`} icon={Target} />
+            <Stat label="Streak" value={`${me.streak_days} day${me.streak_days === 1 ? "" : "s"}`} sub={me.streak.today_done ? "today done" : me.streak.at_risk ? "solve one today" : `longest ${me.streak.longest}`} icon={Flame} />
+            <Stat label="Points" value={me.streak.points.toLocaleString("en-IN")} sub={`worth ₹${(me.streak.points / 10).toLocaleString("en-IN")}`} icon={Zap} />
+          </div>
+
+          {/* activity */}
+          <Card>
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+              <SectionLabel>Activity</SectionLabel>
+              <span className="text-[12px] text-neutral-500">A square turns green on every day you solve something.</span>
+            </div>
+            {rw ? <ActivityMap days={rw.calendar} today={rw.streak.today} /> : <div className="h-[118px] animate-pulse rounded-xl bg-neutral-100" />}
+          </Card>
+
+          {isNew ? (
+            <Card className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[#359462]/10 text-[#359462]">
+                <Target className="size-6" />
               </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[16px] font-semibold text-neutral-950">Start with {title(me.next_challenge.challenge_id)}</p>
+                <p className="mt-0.5 text-[13.5px] leading-[1.55] text-neutral-600">It takes about five minutes. After your first submission you'll see your skills, the mistakes to watch and the hints you used — right here.</p>
+              </div>
+              <Link href={`/challenge/${me.next_challenge.challenge_id}`} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-[#359462] px-5 text-[13.5px] font-semibold text-white hover:bg-[#2c7a51]">
+                Start <ArrowRight className="size-4" />
+              </Link>
             </Card>
-          </motion.div>
-
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card>
-              <div className="flex items-center justify-between">
-                <SectionLabel>Mastery per concept</SectionLabel>
-                {me.mastery_timeline.length > 1 && (
-                  <span className={cn("text-[12px] font-semibold", avgNow >= avgFirst ? "text-[#2f7c53]" : "text-[#a8401f]")}>
-                    {avgNow >= avgFirst ? "▲" : "▼"} {Math.abs(Math.round((avgNow - avgFirst) * 100))} pts since your first attempt
-                  </span>
-                )}
-              </div>
-              <div className="mt-4 space-y-3.5">
-                {concepts.map((c) => (
-                  <MasteryBar key={c} label={me.concept_labels[c] ?? c} value={me.mastery[c] ?? 0.5} color={CONCEPT_COLOR[c]} delta={(me.mastery[c] ?? 0.5) - (first[c] ?? 0.5)} />
-                ))}
-              </div>
-              <div className="mt-5">
-                <SectionLabel className="mb-1">Mastery over time</SectionLabel>
-                <Timeline data={me.mastery_timeline} concepts={concepts} />
-                <div className="flex flex-wrap gap-3 text-[11px] text-neutral-500">
-                  {concepts.map((c) => (
-                    <span key={c} className="inline-flex items-center gap-1">
-                      <span className="size-2 rounded-full" style={{ backgroundColor: CONCEPT_COLOR[c] }} />
-                      {me.concept_labels[c]}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </Card>
-
-            <div className="space-y-5">
-              <Card tint="orange">
-                <SectionLabel>Recurring mistakes</SectionLabel>
-                {me.recurring_mistakes.length ? (
-                  <div className="mt-3 space-y-3">
-                    {me.recurring_mistakes.map((t) => (
-                      <div key={t} className="rounded-2xl bg-white/80 px-4 py-3">
-                        <TagBadge tag={t} />
-                        <p className="mt-2 text-[12.5px] text-[#6D6878]">
-                          in {me.recurring_where[t]?.length} different challenges: <span className="font-mono text-neutral-800">{me.recurring_where[t]?.join(", ")}</span>
-                        </p>
-                      </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div className="space-y-5">
+                <Card>
+                  <SectionLabel>Up next</SectionLabel>
+                  <p className="mt-2 text-[17px] font-semibold text-neutral-950">{title(me.next_challenge.challenge_id)}</p>
+                  <p className="mt-1 text-[13.5px] leading-[1.55] text-neutral-600">{me.next_challenge.reason}</p>
+                  <Link href={`/challenge/${me.next_challenge.challenge_id}`} className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-[#2f7c53] hover:underline">
+                    Start it <ArrowRight className="size-3.5" />
+                  </Link>
+                </Card>
+                <Card>
+                  <SectionLabel>Skills</SectionLabel>
+                  <div className="mt-4 space-y-3.5">
+                    {concepts.map((c) => (
+                      <MasteryBar key={c} label={me.concept_labels[c] ?? c} value={me.mastery[c] ?? 0.5} color={CONCEPT_COLOR[c]} delta={(me.mastery[c] ?? 0.5) - (first[c] ?? 0.5)} />
                     ))}
                   </div>
-                ) : (
-                  <p className="mt-2 text-[13px] text-[#6D6878]">Nothing recurring. A tag only counts when it appears in two different challenges.</p>
-                )}
-                {me.one_off_mistakes.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#b08968]">One-off slips (not patterns)</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
+                  <p className="mt-4 text-[12px] leading-[1.5] text-neutral-500">A pass without hints moves a skill up the most. Each hint or failed attempt pulls it down a little.</p>
+                </Card>
+              </div>
+              <div className="space-y-5">
+                <Card>
+                  <SectionLabel>Mistakes to watch</SectionLabel>
+                  {me.recurring_mistakes.length ? (
+                    <div className="mt-3 space-y-2.5">
+                      {me.recurring_mistakes.map((t) => (
+                        <div key={t} className="rounded-xl border border-neutral-200/80 px-3.5 py-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <TagBadge tag={t} />
+                            <span className="text-[12.5px] font-medium text-neutral-700">{me.tag_labels[t]}</span>
+                          </div>
+                          <p className="mt-1.5 text-[12px] text-neutral-500">Seen in {me.recurring_where[t]?.map(title).join(", ")}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[13px] text-neutral-500">No repeated mistakes. A mistake only counts here once it shows up in two different problems.</p>
+                  )}
+                  {me.one_off_mistakes.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-500">
+                      One-off slips:
                       {me.one_off_mistakes.map((t) => (
                         <TagBadge key={t} tag={t} className="opacity-70" />
                       ))}
                     </div>
+                  )}
+                </Card>
+                <Card>
+                  <div className="flex items-baseline justify-between">
+                    <SectionLabel>Hints you used</SectionLabel>
+                    <Link href="/ledger" className="text-[12px] font-semibold text-neutral-500 hover:text-neutral-950">
+                      All hints →
+                    </Link>
                   </div>
-                )}
-              </Card>
-              <Card tint="purple">
-                <div className="flex items-center gap-2">
-                  <Bug className="size-4 text-[#5e2ac4]" />
-                  <SectionLabel>Bug Factory, built for you</SectionLabel>
-                </div>
-                <p className="mt-2 text-[13.5px] leading-5 text-[#4a3d6b]">{me.bug_factory.reason}</p>
-                <Link href="/bug-factory" className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#5e2ac4] px-4 text-[13px] font-semibold text-white hover:bg-[#4c22a3]">
-                  Find the bug <ArrowRight className="size-3.5" />
-                </Link>
-              </Card>
-              <Card>
-                <SectionLabel>Practice · last 12 weeks</SectionLabel>
-                <div className="mt-3 overflow-x-auto">
-                  <Heat activity={me.activity} />
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[12px] text-neutral-500">
-                    {me.streak.today_done
-                      ? `${me.streak_days}-day streak — today is done, come back tomorrow.`
-                      : me.streak.at_risk
-                        ? `Solve one problem today to keep your ${me.streak_days}-day streak.`
-                        : "Solve one problem a day to build a streak — each day pays 100 points."}
-                  </p>
-                  <Link href="/rewards" className="inline-flex items-center gap-1 rounded-full bg-neutral-950 px-3 py-1 text-[11.5px] font-semibold text-white">
-                    ⚡ {me.streak.points.toLocaleString("en-IN")} points · Rewards <ArrowRight className="size-3" />
-                  </Link>
-                </div>
-              </Card>
+                  <div className="mt-3 space-y-2.5">
+                    {hints.map((h) => {
+                      const info = hintInfo(h);
+                      return (
+                        <div key={h.id} className="flex gap-3">
+                          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#f59e0b]/15 text-[#96681c]">
+                            <Lightbulb className="size-3.5" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[12px] text-neutral-500">
+                              {info.challenge ? title(info.challenge) : "Hint"}
+                              {info.rung ? ` · hint ${info.rung}` : ""} · {timeAgo(h.ts)}
+                            </p>
+                            <p className="line-clamp-2 text-[13px] leading-[1.45] text-neutral-800">{h.response}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {!hints.length && <p className="text-[13px] text-neutral-500">No hints used yet.</p>}
+                  </div>
+                </Card>
+              </div>
             </div>
-          </div>
+          )}
 
-          <Card>
-            <SectionLabel>History — what you tried</SectionLabel>
-            <div className="mt-3 divide-y divide-neutral-100">
-              {[...me.history].reverse().map((h, i) => (
-                <motion.div key={h.submission_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 12) * 0.03 }}>
-                  <Link href={`/challenge/${h.challenge_id}?submission=${h.submission_id}`} className="flex flex-wrap items-center gap-3 py-2.5 hover:bg-neutral-50/70">
+          {!isNew && (
+            <Card>
+              <SectionLabel>Recent submissions</SectionLabel>
+              <div className="mt-2 divide-y divide-neutral-100">
+                {recent.map((h) => (
+                  <Link key={h.submission_id} href={`/challenge/${h.challenge_id}?submission=${h.submission_id}`} className="flex flex-wrap items-center gap-3 py-2.5 hover:bg-neutral-50/70">
                     {h.passed ? <CheckCircle2 className="size-4 text-[#359462]" /> : <XCircle className="size-4 text-[#c64e27]" />}
-                    <span className="font-mono text-[12.5px] font-semibold text-neutral-900">{h.challenge_id}</span>
+                    <span className="text-[13.5px] font-medium text-neutral-900">{title(h.challenge_id)}</span>
                     {h.tags.map((t) => (
-                      <span key={t} className="font-mono text-[11px]" style={{ color: TAG_COLOR[t] }}>
-                        {t}
-                      </span>
+                      <TagBadge key={t} tag={t} className="!text-[10px]" />
                     ))}
-                    {h.hints_used > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
-                        <Lightbulb className="size-3" /> {h.hints_used}
-                      </span>
-                    )}
-                    <span className="ml-auto font-mono text-[11px] text-neutral-400">
-                      {h.submission_id} · {timeAgo(h.at)}
-                    </span>
+                    <span className="ml-auto text-[12px] text-neutral-400">{timeAgo(h.at)}</span>
                   </Link>
-                </motion.div>
-              ))}
-              {!me.history.length && <p className="py-3 text-[13px] text-neutral-500">No submissions yet — <Link className="font-semibold underline" href="/practice">start practising</Link>.</p>}
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* rewards */}
+          <Card>
+            <div className="flex items-baseline justify-between">
+              <SectionLabel>Rewards</SectionLabel>
+              <Link href="/rewards" className="text-[12px] font-semibold text-neutral-500 hover:text-neutral-950">
+                Open rewards →
+              </Link>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:items-center">
+              <div>
+                <p className="flex items-baseline gap-2">
+                  <span className="text-[34px] font-semibold tabular-nums leading-none tracking-[-0.03em] text-neutral-950">{(rw?.points.balance ?? me.streak.points).toLocaleString("en-IN")}</span>
+                  <span className="text-[13px] text-neutral-500">points · ₹{((rw?.points.balance ?? me.streak.points) / 10).toLocaleString("en-IN")}</span>
+                </p>
+                <p className="mt-1.5 text-[12.5px] text-neutral-500">100 points for every streak day · bug bounty finds pay more</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link href="/rewards" className="inline-flex h-9 items-center gap-1.5 rounded-full bg-neutral-950 px-4 text-[12.5px] font-semibold text-white hover:bg-neutral-800">
+                    <Gift className="size-3.5" /> Redeem goodies
+                  </Link>
+                  <Link href="/rewards" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 px-4 text-[12.5px] font-semibold text-neutral-700 hover:border-neutral-950">
+                    <IndianRupee className="size-3.5" /> Withdraw
+                  </Link>
+                </div>
+              </div>
+              {nextGoodie && rw && (
+                <div className="flex items-center gap-4 rounded-2xl border border-neutral-200/80 p-3">
+                  {nextGoodie.image ? <img src={nextGoodie.image} alt="" className="h-20 w-[106px] shrink-0 rounded-xl bg-[#dfdcd9] object-cover" /> : <span className="flex h-20 w-[106px] shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-3xl">{nextGoodie.emoji}</span>}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] text-neutral-500">{nextGoodie.affordable ? "You can redeem" : "Next goodie"}</p>
+                    <p className="truncate text-[14px] font-semibold text-neutral-950">{nextGoodie.name}</p>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                      <div className={cn("h-full rounded-full", nextGoodie.affordable ? "bg-[#359462]" : "bg-[#f59e0b]")} style={{ width: `${Math.min(100, Math.round((rw.points.balance / nextGoodie.points) * 100))}%` }} />
+                    </div>
+                    <p className="mt-1 text-[11.5px] text-neutral-500">{nextGoodie.affordable ? `${nextGoodie.points.toLocaleString("en-IN")} points` : `${(nextGoodie.points - rw.points.balance).toLocaleString("en-IN")} points to go`}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
         </div>
