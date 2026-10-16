@@ -276,7 +276,7 @@ function PlatformView({ p, learner, reload }: { p: PlatformProgramDetail; learne
               learner={learner}
               categories={p.categories}
               severities={p.severities}
-              location={{ file, line }}
+              location={{ file, line, code: line ? active.content.replace(/\r\n/g, "\n").split("\n")[line - 1] : undefined }}
               left={p.reports_left_today}
               onFiled={(r) => {
                 setOutcome(r);
