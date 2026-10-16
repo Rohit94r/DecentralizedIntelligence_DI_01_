@@ -258,6 +258,8 @@ export async function chat(ctx: LearnCtx, body: ChatBody) {
     let reply = local;
     let model: string | null = null;
     if (ctx.ai) {
+      const bugs = report.bugs ?? []; // reports saved before bug detection have none
+      const asked = bugs.find((b) => message.includes(`${b.file}:${b.line}`));
       const summary = {
         repo: report.repo.name,
         kind: report.kind,
@@ -267,6 +269,18 @@ export async function chat(ctx: LearnCtx, body: ChatBody) {
         findings: report.findings.map((f) => `[${f.severity}] ${f.title} — fix: ${f.fix}${f.files?.length ? ` (files: ${f.files.slice(0, 3).join(", ")})` : ""}`),
         strengths: report.strengths.map((s) => s.title),
         target: report.target.layers.map((l) => `${l.label}: ${l.rule}`),
+        bugs_found: bugs.length,
+        top_bugs: bugs.slice(0, 3).map((b) => `[${b.severity}, ${b.confidence}] ${b.title} — ${b.file}:${b.line}`),
+        ...(report.overview
+          ? {
+              what_it_is: report.overview.summary,
+              parts: report.overview.parts.map((p) => `${p.label}: ${p.folders.slice(0, 3).join(", ")}${p.tech.length ? ` (${p.tech.slice(0, 4).join(", ")})` : ""}`),
+              start_reading: report.overview.start_here.map((s) => `${s.path} — ${s.why}`),
+              how_it_runs: report.overview.how_it_runs,
+            }
+          : {}),
+        // the bug the student is asking about (its snippet never contains a secret-looking line)
+        ...(asked ? { asked_bug: { title: asked.title, where: `${asked.file}:${asked.line}`, why: asked.why, fix: asked.fix, code: asked.snippet.lines.join("\n") } } : {}),
       };
       const msgs: AiMessage[] = [
         {
@@ -362,6 +376,8 @@ export async function analyze(ctx: LearnCtx, body: { url?: string; local?: boole
             strengths: report.strengths.map((s) => s.title),
             findings: report.findings.slice(0, 8).map((f) => `[${f.severity}] ${f.title}`),
             missing_layers: report.layers.filter((l) => !l.present).map((l) => l.label),
+            bugs_found: report.bugs.length,
+            top_bugs: report.bugs.slice(0, 3).map((b) => `[${b.severity}, ${b.confidence}] ${b.title} — ${b.file}:${b.line}`),
           }),
         },
       ],
@@ -379,7 +395,7 @@ export async function analyze(ctx: LearnCtx, body: { url?: string; local?: boole
     kind: "repo",
     learner_id: learnerId,
     prompt: `repo analyse · ${repoName} · files=${report.metrics.files} sampled=${report.metrics.sampled_files}`,
-    response: `score ${report.score} (${report.grade}) · ${report.findings.length} findings · ${report.review}`,
+    response: `score ${report.score} (${report.grade}) · ${report.findings.length} findings · ${report.bugs.length} bugs · ${report.review}`,
     model: reviewModel,
     rejected: false,
   });
