@@ -7,6 +7,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { RedemptionStatus } from "@layerflow/db";
 import {
+  completeDemoPayment,
   createProgram,
   explainer,
   fileReport,
@@ -22,7 +23,7 @@ import {
   type CreateProgramBody,
 } from "./bounty.ts";
 import { displayName } from "./learning.ts";
-import { checkKey, dodoConfig, paymentsEnabled, verifyWebhook } from "./lib/dodo.ts";
+import { checkKey, checkoutMode, dodoConfig, paymentsEnabled, verifyWebhook } from "./lib/dodo.ts";
 import { adminRedemptions, adminUpdateRedemption, cancelRedemption, payoutMode, redeem, rewardsPage, rewardsSummary, setPin, type RedeemBody } from "./rewards.ts";
 
 const ID = { type: "string", pattern: "^[A-Za-z0-9_.-]{2,40}$" } as const;
@@ -190,8 +191,14 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
   /* ── payments (Dodo) ── */
   app.get("/api/payments/status", async () => {
     const k = await checkKey();
-    return { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret };
+    return { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret, checkout: await checkoutMode() };
   });
+
+  app.post<{ Body: { payment: string; owner_id: string } }>(
+    "/api/payments/demo/complete",
+    { schema: { body: { type: "object", required: ["payment", "owner_id"], properties: { payment: { type: "string", maxLength: 40 }, owner_id: ID } } } },
+    async (req) => completeDemoPayment(ctx, req.body.payment, req.body.owner_id),
+  );
 
   app.post<{ Body: { payment: string; payment_id: string } }>(
     "/api/payments/sync",
@@ -224,7 +231,7 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
   app.get("/api/admin/status", async (req) => {
     const a = admin(req);
     const k = await checkKey();
-    return { ok: a.ok, open: a.open, payouts: payoutMode(), payments: { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret } };
+    return { ok: a.ok, open: a.open, payouts: payoutMode(), payments: { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret, checkout: await checkoutMode() } };
   });
 
   app.get<{ Querystring: { status?: string } }>("/api/admin/redemptions", async (req) => {
