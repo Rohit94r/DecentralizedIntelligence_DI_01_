@@ -6,58 +6,11 @@
 > **The one-line thesis:** every other AI tutor gives the answer. Debug Dojo is the one that **refuses** — and can *prove* it never gave it.
 
 **Document status:** FINAL · locked decision · **Kickoff 15:30 16 Oct** · **Freeze 15:30 17 Oct**
-**Companions:** `features.md` (the build spec — start there) · `README.md` (event manual) · `README-TRACK.md` (timeline, roles, speech)
-
----
-
-## 0. Read this first — the statement in plain English, and in Hinglish
-
-### 0.1 Plain English (five sentences)
-
-**The statement asks you to build:** a coding-practice website for beginners that (a) **runs student code safely**, (b) reports **every test honestly** — passed / wrong output / crashed / timed out, (c) **explains the failure in normal human language**, (d) gives a **ladder of at least 3 hints that get sharper but never give the final answer**, and (e) **remembers which mistakes that same student keeps repeating**, then serves the **next problem chosen to fix that specific mistake**.
-
-**The real-world problem it targets:** a beginner writes code, passes the three tests they can *see*, and fails a fourth test they *cannot* see. The error message tells them **where** the program broke but not **why**. Unable to use the feedback, they paste the question into a chatbot, copy the answer, submit, and get "Accepted" — and learn nothing. The same mistake returns next week, and there is no chatbot in the exam hall.
-
-**The deeper problem:** it is not "I don't know the answer." It is **"I don't know *where to look*"** — plus *"I'm afraid to ask, because then everyone will know I don't understand."* So students hide their confusion, fake competence, and break at exam time.
-
-**What we build:** a safe runner · an honest per-test classifier · plain-language explanations that name the **kind** of failing input and never the hidden values · a prose-only hint ladder enforced in code · five deterministic mistake detectors · a memory of which mistakes **repeat across different problems** · and a next challenge that targets the recurring one, **with the reason shown**.
-
-**The winning architectural decision:** **the hidden test cases never touch disk and never reach the code being tested.** The sandbox receives *inputs only*; the expected answers stay in the server's memory. So a student cannot cheat by reading the answers — not because we hid fields in JSON, but because the runner **was never given them**. This single decision satisfies three of the six judge tests at once.
-
-### 0.2 Hinglish (team ke liye — pura context 2 minute mein)
-
-**Tumhara problem statement: DI-01 Debug Dojo.**
-
-Simple bhasha mein — tumhe banana hai ek **coding practice website**, jismein:
-
-| # | Kya karna hai | Simple mein |
-|---|---|---|
-| 1 | **Code safe chalana** | Student ka code aise chale ki system na gire, usse teri files aur internet na dikhe |
-| 2 | **Har test ka honest result** | Seedha batana — `passed` / `wrong_output` / `runtime_error` / `timeout`. Aur agar limit ne maara, toh **kaun si limit** maari, wo bhi batana |
-| 3 | **Samjhana, simple bhasha mein** | Sirf *error text* nahi — **"teri loop negative index se shuru ho rahi hai"** jaisi samajhne wali baat |
-| 4 | **Hint ladder (3+ steps)** | Pehle halka hint → phir thoda gehra → phir aur gehra. **Par kabhi poora answer nahi** — chahe student "bhai answer de do" bol le, tab bhi nahi |
-| 5 | **Galti pehchan-na** | 5 fixed categories: `off_by_one`, `unhandled_short_input`, `print_not_return`, `boundary_comparison`, `mutates_input` |
-| 6 | **Yaad rakh-na** | Ek student ki **kaunsi galti baar-baar** hoti hai — **alag-alag problems mein** |
-| 7 | **Agla problem chun-na** | Wahi problem do jo uski **recurring galti** pakde — aur **reason bhi dikha do** |
-
-**Asli problem kya hai (statement ke apne character se):** Rohan ka function **3 dikhne wale test** pass karta hai, aur **4th hidden test** fail karta hai. Error message batata hai *kahan* ruka — par **kyun** nahi batata. Toh Rohan confuse hai, chatbot se answer copy kar leta hai, **"Accepted"** mil jaata hai — aur **seekhta kuch nahi**. Agle week exam mein wahi loop aata hai, aur **exam hall mein koi chatbot nahi hota.**
-
-**Asli dard ye nahi ki "mujhe answer nahi aata." Asli dard ye hai:**
-> *"Mujhe ye bhi nahi pata **KAHAN dekhna hai** — aur poochhne mein dar lagta hai, kyunki phir class mein sabko pata chal jayega ki mujhe kuch nahi aata."*
-
-Isliye hamara system kabhi **judge nahi karta**. Woh sirf **dikhata hai — "idhar dekho"** — aur jab tak tu na sudhare, thoda aur gehra hint deta hai. **Answer kabhi nahi milega.**
-
-**Hamara secret weapon:** hidden tests **kabhi disk pe nahi jaate**, aur woh code ko **kabhi milte bhi nahi**. Matlab student answer chura hi nahi sakta — humne JSON mein chhupaya nahi hai, **runner ko diya hi nahi hai**. Ye ek design decision tumhare **6 judge tests mein se 3 ko ek saath** pass kara deta hai.
-
-**Ek line mein poora solution:**
-> **"Student ka code chalao, har test ka sach batаo, galti ki **daraz** batao — par answer mat do. Aur agli baar usi galti ka shikar do."**
-
-**Kyun jeetenge:** Ye statement board par **sabse kam log lenge** (sab DI-06 le rahe hain), aur iske **6 judge tests aap khud run karke score check kar sakte ho** — koi panel guess nahi. Matlab raat ko hi pata chal jayega kitne points aa rahe hain.
+**Companions:** `README.md` (event manual) · `README-TRACK.md` (build plan + timeline) · `compare.md` (all 13 statements compared)
 
 ---
 
 ## Table of contents
-0. [Read this first — plain English, and Hinglish](#0-read-this-first--the-statement-in-plain-english-and-in-hinglish)
 1. [Why I chose this statement](#1-why-i-chose-this-statement)
 2. [The innovation — what is genuinely new here](#2-the-innovation--what-is-genuinely-new-here)
 3. [The problem-solving — what we actually built](#3-the-problem-solving--what-we-actually-built)
