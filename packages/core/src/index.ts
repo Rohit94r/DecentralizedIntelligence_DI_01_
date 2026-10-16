@@ -16,3 +16,7 @@ export * from "./mentor.ts";
 export * from "./chatbot.ts";
 export * from "./repo-analysis.ts";
 export * from "./community.ts";
+export * from "./rewards.ts";
+export * from "./bounty.ts";
+export * from "./bounty-programs.ts";
+export * from "./bounty-explainer.ts";
