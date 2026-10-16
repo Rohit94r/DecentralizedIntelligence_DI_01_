@@ -8,33 +8,34 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, Bug, BookOpenText, FolderTree, Gavel, LayoutDashboard, ListChecks, Menu, MessagesSquare, ScrollText, Video, X, Check, Plus } from "lucide-react";
+import { ArrowUpRight, Bug, BookOpenText, Flame, FolderTree, Gavel, Gift, LayoutDashboard, ListChecks, Menu, MessagesSquare, ScrollText, ShieldCheck, Video, X, Check, Plus, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { DEMO_LEARNERS, sanitizeLearner, useLearner } from "@/lib/learner";
-import { api } from "@/lib/api";
+import { api, type RewardsSummary } from "@/lib/api";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 
 export function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
   return <p className={cn("text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400", className)}>{children}</p>;
 }
 
-const NAV: { section?: string; items: { href: string; key: string; Icon: typeof ListChecks; fresh?: boolean }[] }[] = [
+const NAV: { section?: string; items: { href: string; key: string; Icon: typeof ListChecks; also?: string[] }[] }[] = [
   {
     items: [
-      { href: "/practice", key: "app.practice", Icon: ListChecks },
-      { href: "/mentoring", key: "app.mentoring", Icon: Video, fresh: true },
+      { href: "/practice", key: "app.practice", Icon: ListChecks, also: ["/challenge"] },
+      { href: "/mentoring", key: "app.mentoring", Icon: Video },
+      { href: "/bounty", key: "app.bounty", Icon: Bug, also: ["/bounty/", "/bug-factory"] },
       { href: "/dashboard", key: "app.dashboard", Icon: LayoutDashboard },
-      { href: "/bug-factory", key: "app.bugFactory", Icon: Bug },
+      { href: "/rewards", key: "app.rewards", Icon: Gift },
     ],
   },
   {
     section: "app.learnTogether",
     items: [
-      { href: "/repo", key: "app.repo", Icon: FolderTree, fresh: true },
-      { href: "/community", key: "app.community", Icon: MessagesSquare, fresh: true },
+      { href: "/repo", key: "app.repo", Icon: FolderTree },
+      { href: "/community", key: "app.community", Icon: MessagesSquare },
     ],
   },
   {
@@ -43,9 +44,52 @@ const NAV: { section?: string; items: { href: string; key: string; Icon: typeof 
       { href: "/ledger", key: "app.ledger", Icon: ScrollText },
       { href: "/taxonomy", key: "app.taxonomy", Icon: BookOpenText },
       { href: "/judges", key: "app.judges", Icon: Gavel },
+      { href: "/admin", key: "app.admin", Icon: ShieldCheck },
     ],
   },
 ];
+
+/** 🔥 streak · ⚡ points in the header — refreshes on navigation, on focus, and when a page says points changed. */
+function StreakChip({ learner }: { learner: string }) {
+  const path = usePathname();
+  const [s, setS] = useState<RewardsSummary | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api
+        .rewardsSummary(learner)
+        .then((r) => alive && setS(r))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 60_000);
+    window.addEventListener("layerflow-points-refresh", load);
+    window.addEventListener("focus", load);
+    return () => {
+      alive = false;
+      clearInterval(id);
+      window.removeEventListener("layerflow-points-refresh", load);
+      window.removeEventListener("focus", load);
+    };
+  }, [learner, path]);
+  if (!s) return null;
+  return (
+    <Link
+      href="/rewards"
+      title={s.today_done ? `${s.streak}-day streak — today is done` : s.at_risk ? `Solve one problem today to keep your ${s.streak}-day streak` : "Solve a problem to start a streak"}
+      className="flex items-center gap-2 rounded-full border border-neutral-200/80 bg-white px-2.5 py-1 text-[12px] font-semibold text-neutral-700 transition-colors hover:border-neutral-950"
+    >
+      <span className={cn("inline-flex items-center gap-0.5 tabular-nums", s.today_done ? "text-[#e8792b]" : "text-neutral-400")}>
+        <Flame className={cn("size-3.5", s.today_done && "fill-[#f59e0b]/40", s.at_risk && "animate-pulse text-[#e8792b]")} />
+        {s.streak}
+      </span>
+      <span className="h-3 w-px bg-neutral-200" />
+      <span className="inline-flex items-center gap-0.5 tabular-nums text-neutral-800">
+        <Zap className="size-3.5 fill-[#bbf451] text-[#4d7c0f]" />
+        {s.points.toLocaleString("en-IN")}
+      </span>
+    </Link>
+  );
+}
 
 function LearnerPicker() {
   const { t } = useI18n();
@@ -168,8 +212,8 @@ export function AppShell({ title, subtitle, actions, children, wide = false }: {
             {NAV.map((group, gi) => (
               <div key={gi} className="space-y-0.5">
                 {group.section && <SectionLabel className="mb-1.5 px-3">{t(group.section)}</SectionLabel>}
-                {group.items.map(({ href, key, Icon, fresh }) => {
-                  const active = path === href || (href === "/practice" && path.startsWith("/challenge"));
+                {group.items.map(({ href, key, Icon, also }) => {
+                  const active = path === href || !!also?.some((p) => path.startsWith(p));
                   return (
                     <Link
                       key={href}
@@ -182,7 +226,6 @@ export function AppShell({ title, subtitle, actions, children, wide = false }: {
                     >
                       <Icon className="size-4" />
                       {t(key)}
-                      {fresh && !active && <span className="ml-auto rounded-full bg-[#eeffe8] px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.06em] text-[#2f7c53]">{t("app.newBadge")}</span>}
                     </Link>
                   );
                 })}
@@ -227,6 +270,7 @@ export function AppShell({ title, subtitle, actions, children, wide = false }: {
           </div>
           <div className="flex items-center gap-1.5">
             {actions}
+            {learner && <StreakChip learner={learner} />}
             {learner && (
               <Link href="/dashboard" className="hidden items-center gap-1.5 rounded-full border border-neutral-200/80 bg-white px-3 py-1 text-[12px] font-semibold text-neutral-700 hover:border-neutral-950 sm:flex">
                 <span className="size-1.5 rounded-full bg-[#359462]" />

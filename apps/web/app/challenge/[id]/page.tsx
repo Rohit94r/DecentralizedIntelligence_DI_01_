@@ -13,7 +13,7 @@ import { ArrowRight, Lightbulb, Loader2, MapPin, MessageCircleQuestion, Pause, P
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { CodeEditor } from "@/components/app/CodeEditor";
 import { Card, LEVEL_STYLE, MasteryBar, OutcomeChip, Prose, TagBadge } from "@/components/app/bits";
-import { api, type Challenge, type HintResult, type LearnerView, type Outcome, type SubmitResult, type TraceResult } from "@/lib/api";
+import { api, refreshPoints, type Challenge, type HintResult, type LearnerView, type Outcome, type SubmitResult, type TraceResult } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { cn } from "@/lib/utils";
 import { clearChatContext, openChat, setChatContext } from "@/lib/chat-context";
@@ -130,7 +130,10 @@ function Workspace() {
       try {
         const r = await api.submit(learner, challenge.id, source ?? code);
         setResult(r);
-        if (r.debug?.passed) celebrate();
+        if (r.debug?.passed) {
+          celebrate();
+          refreshPoints();
+        }
         api.learner(learner).then((l) => setAfter(l)).catch(() => {});
       } catch (e) {
         setError((e as Error).message);

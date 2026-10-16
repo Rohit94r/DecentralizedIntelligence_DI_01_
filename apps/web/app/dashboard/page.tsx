@@ -195,7 +195,18 @@ function Dashboard() {
                 <div className="mt-3 overflow-x-auto">
                   <Heat activity={me.activity} />
                 </div>
-                <p className="mt-3 text-[12px] text-neutral-500">{me.streak_days > 0 ? `${me.streak_days}-day streak — come back tomorrow to keep it.` : "Come back tomorrow — one challenge keeps the streak alive."}</p>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[12px] text-neutral-500">
+                    {me.streak.today_done
+                      ? `${me.streak_days}-day streak — today is done, come back tomorrow.`
+                      : me.streak.at_risk
+                        ? `Solve one problem today to keep your ${me.streak_days}-day streak.`
+                        : "Solve one problem a day to build a streak — each day pays 100 points."}
+                  </p>
+                  <Link href="/rewards" className="inline-flex items-center gap-1 rounded-full bg-neutral-950 px-3 py-1 text-[11.5px] font-semibold text-white">
+                    ⚡ {me.streak.points.toLocaleString("en-IN")} points · Rewards <ArrowRight className="size-3" />
+                  </Link>
+                </div>
               </Card>
             </div>
           </div>

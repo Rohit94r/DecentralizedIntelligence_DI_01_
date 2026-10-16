@@ -3,11 +3,11 @@
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
-import { Bug, CheckCircle2, Crosshair, Loader2, Send, Wrench } from "lucide-react";
+import { ArrowLeft, Bug, CheckCircle2, Crosshair, Loader2, Send, Wrench } from "lucide-react";
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { Card, OutcomeChip, PageHeading, TagBadge } from "@/components/app/bits";
 import { CodeEditor } from "@/components/app/CodeEditor";
-import { api, type Challenge, type SubmitResult, type Outcome } from "@/lib/api";
+import { api, refreshPoints, type Challenge, type SubmitResult, type Outcome } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { cn } from "@/lib/utils";
 
@@ -66,15 +66,21 @@ function Factory() {
     try {
       const r = await api.submit(learner, pick.challenge.id, code);
       setResult(r);
-      if (r.debug?.passed) (await import("canvas-confetti")).default({ particleCount: 120, spread: 80, origin: { y: 0.4 } });
+      if (r.debug?.passed) {
+        refreshPoints();
+        (await import("canvas-confetti")).default({ particleCount: 120, spread: 80, origin: { y: 0.4 } });
+      }
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <AppShell title="Bug Factory" subtitle="find the bug, don't write the code">
-      <PageHeading eyebrow="OB3 · Bug Factory" title="Find the bug." accent="Then fix it." body="Writing from scratch is hard; spotting one bug is a learnable skill. This program was generated from the mistake you make most — click the line you think is wrong, then repair it. It counts as a real challenge: it feeds your mastery and your recurrence." />
+    <AppShell title="Bug Bounty · Training range" subtitle="find the bug, don't write the code">
+      <Link href="/bounty" className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-neutral-500 hover:text-neutral-950">
+        <ArrowLeft className="size-3.5" /> Bug Bounty programs
+      </Link>
+      <PageHeading eyebrow="Bug Bounty · Training range (Bug Factory)" title="Find the bug." accent="Then fix it." body="Every bug hunter starts here. Spotting one bug is a learnable skill: this program was generated from the mistake you make most — click the line you think is wrong, then repair it. It counts as a real challenge (it feeds your mastery and your streak). Ready for real codebases? Head to the Bug Bounty programs." />
       {!pick ? (
         <p className="text-sm text-neutral-500">Loading…</p>
       ) : (
