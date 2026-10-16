@@ -21,6 +21,8 @@ import { Footer } from "./footer";
 import AppShowcase from "./landing/AppShowcase";
 import { DashboardPreview } from "./landing/DashboardPreview";
 import { HintWheelBox } from "./landing/HintWheelBox";
+import { LearnTogether } from "./landing/LearnTogether";
+import { ChatWidget } from "./chat/ChatWidget";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
 import { api, timeAgo } from "@/lib/api";
@@ -367,6 +369,8 @@ export const Hero = () => {
         </div>
       </section>
 
+      <LearnTogether />
+
       <section id="preview" className="bg-neutral-50 py-16 md:py-24">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-center gap-5 px-4 sm:px-6 lg:px-8">
           <h1 className="max-w-lg text-center text-3xl font-medium leading-tight sm:text-4xl md:text-5xl">{t("previewSection.heading")}</h1>
@@ -469,6 +473,7 @@ export const Hero = () => {
       </section>
 
       <Footer />
+      <ChatWidget variant="landing" />
     </main>
   );
 };
