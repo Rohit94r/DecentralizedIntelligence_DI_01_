@@ -101,6 +101,191 @@ export interface ReplyRow extends Author {
   my_vote: number;
 }
 
+export type PointsKind = "streak_day" | "bounty" | "redeem" | "refund" | "adjust";
+
+export interface PointsRow {
+  id: number;
+  delta: number;
+  kind: PointsKind;
+  ref: string;
+  note: string;
+  created_at: string;
+}
+
+export type RedemptionStatus = "requested" | "approved" | "paid" | "shipped" | "delivered" | "rejected" | "cancelled";
+
+export interface RedemptionRow {
+  id: string;
+  learner_id: string;
+  kind: "cash" | "goodie";
+  item_id: string | null;
+  size: string | null;
+  points: number;
+  amount_paise: number;
+  upi_id: string | null;
+  shipping: { name: string; phone: string; address: string; city: string; pincode: string } | null;
+  status: RedemptionStatus;
+  note: string | null;
+  payout_ref: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProgramStatus = "awaiting_payment" | "open" | "paused" | "closed";
+
+export interface ProgramRow {
+  id: string;
+  owner_id: string;
+  kind: "company" | "open_source";
+  company: string;
+  title: string;
+  summary: string;
+  repo_url: string | null;
+  website: string | null;
+  scope: string[];
+  out_of_scope: string[];
+  rewards: Record<"critical" | "high" | "medium" | "low", number>;
+  plan: string;
+  points_pool: number;
+  points_paid: number;
+  status: ProgramStatus;
+  created_at: string;
+}
+
+export type ReportStatus = "triage" | "valid" | "duplicate" | "needs_info" | "invalid";
+
+export interface ReportRow {
+  id: string;
+  program_id: string;
+  learner_id: string;
+  title: string;
+  category: string;
+  severity: string;
+  file: string | null;
+  line: number | null;
+  description: string;
+  steps: string | null;
+  impact: string | null;
+  fix: string | null;
+  status: ReportStatus;
+  bug_id: string | null;
+  final_severity: string | null;
+  points: number;
+  triage_note: string | null;
+  created_at: string;
+  triaged_at: string | null;
+}
+
+export type PaymentStatus = "pending" | "succeeded" | "failed" | "cancelled";
+
+export interface PaymentRow {
+  id: string;
+  provider: string;
+  purpose: "bounty_plan";
+  ref: string;
+  sku: string;
+  amount_paise: number;
+  session_id: string | null;
+  payment_id: string | null;
+  checkout_url: string | null;
+  status: PaymentStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+function httpError(message: string, statusCode: number): Error {
+  return Object.assign(new Error(message), { statusCode });
+}
+
+const json = <T>(v: unknown, fallback: T): T => {
+  try {
+    return v == null ? fallback : (JSON.parse(String(v)) as T);
+  } catch {
+    return fallback;
+  }
+};
+
+function toRedemption(r: Row): RedemptionRow {
+  return {
+    id: String(r.id),
+    learner_id: String(r.learner_id),
+    kind: r.kind as RedemptionRow["kind"],
+    item_id: (r.item_id as string) ?? null,
+    size: (r.size as string) ?? null,
+    points: Number(r.points),
+    amount_paise: Number(r.amount_paise),
+    upi_id: (r.upi_id as string) ?? null,
+    shipping: json(r.shipping, null),
+    status: r.status as RedemptionStatus,
+    note: (r.note as string) ?? null,
+    payout_ref: (r.payout_ref as string) ?? null,
+    created_at: String(r.created_at),
+    updated_at: String(r.updated_at),
+  };
+}
+
+function toProgram(r: Row): ProgramRow {
+  return {
+    id: String(r.id),
+    owner_id: String(r.owner_id),
+    kind: r.kind as ProgramRow["kind"],
+    company: String(r.company),
+    title: String(r.title),
+    summary: String(r.summary),
+    repo_url: (r.repo_url as string) ?? null,
+    website: (r.website as string) ?? null,
+    scope: json(r.scope, []),
+    out_of_scope: json(r.out_of_scope, []),
+    rewards: json(r.rewards, { critical: 0, high: 0, medium: 0, low: 0 }),
+    plan: String(r.plan),
+    points_pool: Number(r.points_pool),
+    points_paid: Number(r.points_paid),
+    status: r.status as ProgramStatus,
+    created_at: String(r.created_at),
+  };
+}
+
+function toReport(r: Row): ReportRow {
+  return {
+    id: String(r.id),
+    program_id: String(r.program_id),
+    learner_id: String(r.learner_id),
+    title: String(r.title),
+    category: String(r.category),
+    severity: String(r.severity),
+    file: (r.file as string) ?? null,
+    line: r.line == null ? null : Number(r.line),
+    description: String(r.description),
+    steps: (r.steps as string) ?? null,
+    impact: (r.impact as string) ?? null,
+    fix: (r.fix as string) ?? null,
+    status: r.status as ReportStatus,
+    bug_id: (r.bug_id as string) ?? null,
+    final_severity: (r.final_severity as string) ?? null,
+    points: Number(r.points ?? 0),
+    triage_note: (r.triage_note as string) ?? null,
+    created_at: String(r.created_at),
+    triaged_at: (r.triaged_at as string) ?? null,
+  };
+}
+
+function toPayment(r: Row): PaymentRow {
+  return {
+    id: String(r.id),
+    provider: String(r.provider),
+    purpose: r.purpose as PaymentRow["purpose"],
+    ref: String(r.ref),
+    sku: String(r.sku),
+    amount_paise: Number(r.amount_paise),
+    session_id: (r.session_id as string) ?? null,
+    payment_id: (r.payment_id as string) ?? null,
+    checkout_url: (r.checkout_url as string) ?? null,
+    status: r.status as PaymentStatus,
+    created_at: String(r.created_at),
+    updated_at: String(r.updated_at),
+  };
+}
+
 function toProfile(r: Row): Profile {
   return {
     id: String(r.id),
@@ -567,6 +752,27 @@ export class LayerflowStore implements Store {
     return { ...toPost(r), replies };
   }
 
+  /** Who replied to each of these posts (no bodies) — lets the feed show faces without opening every thread. */
+  replyAuthorsFor(postIds: number[]): Map<number, { id: number; author_id: string; author_name: string; author_role: Profile["role"]; author_avatar: string | null; ai: boolean; score: number; created_at: string }[]> {
+    const out = new Map<number, { id: number; author_id: string; author_name: string; author_role: Profile["role"]; author_avatar: string | null; ai: boolean; score: number; created_at: string }[]>();
+    const ids = postIds.filter((n) => Number.isInteger(n)).slice(0, 500);
+    if (!ids.length) return out;
+    const rows = this.db
+      .prepare(
+        `SELECT r.id, r.post_id, r.author_id, r.ai, r.created_at, pr.display_name, pr.role, pr.avatar,
+                (SELECT COALESCE(SUM(value), 0) FROM votes v WHERE v.target = 'reply' AND v.target_id = r.id) AS score
+           FROM replies r LEFT JOIN profiles pr ON pr.id = r.author_id
+          WHERE r.post_id IN (${ids.map(() => "?").join(",")}) ORDER BY r.created_at, r.id`,
+      )
+      .all(...ids) as Row[];
+    for (const r of rows) {
+      const list = out.get(Number(r.post_id)) ?? [];
+      list.push({ id: Number(r.id), ...author(r), ai: !!r.ai, score: Number(r.score ?? 0), created_at: String(r.created_at) });
+      out.set(Number(r.post_id), list);
+    }
+    return out;
+  }
+
   communityStats(): { posts: number; replies: number; teachers: number; students: number; answered: number } {
     const g = (sql: string) => Number((this.db.prepare(sql).get() as { n: number }).n);
     return {
@@ -602,11 +808,337 @@ export class LayerflowStore implements Store {
     return r ? { id: String(r.id), created_at: String(r.created_at), report: JSON.parse(String(r.report)) } : null;
   }
 
+  /* ── ids ── */
+
+  private nextId(table: "redemptions" | "bounty_programs" | "bounty_reports" | "payments", prefix: string): string {
+    const n = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n);
+    let id = `${prefix}_${String(n + 1).padStart(4, "0")}`;
+    while (this.db.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(id)) id = `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
+    return id;
+  }
+
+  /* ── rewards: points ledger ── */
+
+  /** Idempotent: the same (learner, kind, ref) is credited at most once. Returns whether it was new. */
+  creditPoints(e: { learner_id: string; delta: number; kind: PointsKind; ref: string; note: string; at?: string }): boolean {
+    const r = this.db
+      .prepare("INSERT OR IGNORE INTO points_ledger (learner_id, delta, kind, ref, note, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(e.learner_id, e.delta, e.kind, e.ref, e.note, e.at ?? new Date().toISOString());
+    return Number(r.changes) > 0;
+  }
+
+  pointsBalance(learnerId: string): number {
+    return Number((this.db.prepare("SELECT COALESCE(SUM(delta), 0) AS n FROM points_ledger WHERE learner_id = ?").get(learnerId) as { n: number }).n);
+  }
+
+  pointsTotals(learnerId: string): { balance: number; earned: number; streak: number; bounty: number; redeemed: number } {
+    const r = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(delta), 0) AS balance,
+                COALESCE(SUM(CASE WHEN kind = 'streak_day' THEN delta END), 0) AS streak,
+                COALESCE(SUM(CASE WHEN kind = 'bounty' THEN delta END), 0) AS bounty,
+                COALESCE(SUM(CASE WHEN kind = 'adjust' THEN delta END), 0) AS adjust,
+                COALESCE(SUM(CASE WHEN kind IN ('redeem', 'refund') THEN delta END), 0) AS redeemed
+           FROM points_ledger WHERE learner_id = ?`,
+      )
+      .get(learnerId) as Row;
+    const streak = Number(r.streak);
+    const bounty = Number(r.bounty);
+    return { balance: Number(r.balance), earned: streak + bounty + Number(r.adjust), streak, bounty, redeemed: -Number(r.redeemed) };
+  }
+
+  pointsLedger(learnerId: string, limit = 40): PointsRow[] {
+    return (this.db.prepare("SELECT * FROM points_ledger WHERE learner_id = ? ORDER BY created_at DESC, id DESC LIMIT ?").all(learnerId, limit) as Row[]).map((r) => ({
+      id: Number(r.id),
+      delta: Number(r.delta),
+      kind: r.kind as PointsKind,
+      ref: String(r.ref),
+      note: String(r.note),
+      created_at: String(r.created_at),
+    }));
+  }
+
+  /** When each confirmed bounty report was confirmed — a confirmed bug keeps the streak alive too. */
+  validReportTimes(learnerId: string): string[] {
+    return (this.db.prepare("SELECT COALESCE(triaged_at, created_at) AS t FROM bounty_reports WHERE learner_id = ? AND status = 'valid'").all(learnerId) as Row[]).map((r) => String(r.t));
+  }
+
+  /* ── rewards: redemptions ── */
+
+  /** Debits the points and records the request in one transaction — the balance can never go below zero. */
+  createRedemption(r: { learner_id: string; kind: "cash" | "goodie"; item_id?: string | null; size?: string | null; points: number; amount_paise: number; upi_id?: string | null; shipping?: object | null; note: string }): RedemptionRow {
+    return this.tx(() => {
+      const balance = this.pointsBalance(r.learner_id);
+      if (r.points > balance) throw httpError(`You have ${balance.toLocaleString("en-IN")} points — that's not enough.`, 400);
+      const id = this.nextId("redemptions", "rd");
+      const at = new Date().toISOString();
+      this.db
+        .prepare(
+          `INSERT INTO redemptions (id, learner_id, kind, item_id, size, points, amount_paise, upi_id, shipping, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?)`,
+        )
+        .run(id, r.learner_id, r.kind, r.item_id ?? null, r.size ?? null, r.points, r.amount_paise, r.upi_id ?? null, r.shipping ? JSON.stringify(r.shipping) : null, at, at);
+      this.creditPoints({ learner_id: r.learner_id, delta: -r.points, kind: "redeem", ref: id, note: r.note, at });
+      return this.redemption(id)!;
+    });
+  }
+
+  redemption(id: string): RedemptionRow | null {
+    const r = this.db.prepare("SELECT * FROM redemptions WHERE id = ?").get(id) as Row | undefined;
+    return r ? toRedemption(r) : null;
+  }
+
+  redemptions(f: { learner_id?: string; status?: string; limit?: number } = {}): RedemptionRow[] {
+    const where: string[] = [];
+    const args: (string | number)[] = [];
+    if (f.learner_id) (where.push("learner_id = ?"), args.push(f.learner_id));
+    if (f.status) (where.push("status = ?"), args.push(f.status));
+    args.push(Math.min(f.limit ?? 100, 500));
+    return (this.db.prepare(`SELECT * FROM redemptions ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY created_at DESC LIMIT ?`).all(...args) as Row[]).map(toRedemption);
+  }
+
+  /** Moving a request to rejected / cancelled gives the points back (once). */
+  setRedemptionStatus(id: string, status: RedemptionStatus, extra: { note?: string | null; payout_ref?: string | null } = {}): RedemptionRow {
+    return this.tx(() => {
+      const cur = this.redemption(id);
+      if (!cur) throw httpError("No such redemption.", 404);
+      if (cur.status === "rejected" || cur.status === "cancelled") throw httpError(`This request is already ${cur.status}.`, 409);
+      const at = new Date().toISOString();
+      this.db
+        .prepare("UPDATE redemptions SET status = ?, note = COALESCE(?, note), payout_ref = COALESCE(?, payout_ref), updated_at = ? WHERE id = ?")
+        .run(status, extra.note ?? null, extra.payout_ref ?? null, at, id);
+      if (status === "rejected" || status === "cancelled")
+        this.creditPoints({ learner_id: cur.learner_id, delta: cur.points, kind: "refund", ref: id, note: `Points returned — request ${id} ${status}`, at });
+      return this.redemption(id)!;
+    });
+  }
+
+  /* ── rewards: wallet PIN ── */
+
+  walletPin(learnerId: string): { salt: string; hash: string; failed: number; locked_until: string | null } | null {
+    const r = this.db.prepare("SELECT salt, hash, failed, locked_until FROM wallet_pins WHERE learner_id = ?").get(learnerId) as Row | undefined;
+    return r ? { salt: String(r.salt), hash: String(r.hash), failed: Number(r.failed), locked_until: (r.locked_until as string) ?? null } : null;
+  }
+
+  setWalletPin(learnerId: string, salt: string, hash: string): void {
+    this.db.prepare("INSERT INTO wallet_pins (learner_id, salt, hash, created_at) VALUES (?, ?, ?, ?)").run(learnerId, salt, hash, new Date().toISOString());
+  }
+
+  /** Five wrong PINs lock the wallet for 15 minutes. */
+  recordPinAttempt(learnerId: string, ok: boolean): void {
+    if (ok) this.db.prepare("UPDATE wallet_pins SET failed = 0, locked_until = NULL WHERE learner_id = ?").run(learnerId);
+    else
+      this.db
+        .prepare("UPDATE wallet_pins SET failed = failed + 1, locked_until = CASE WHEN failed + 1 >= 5 THEN ? ELSE locked_until END WHERE learner_id = ?")
+        .run(new Date(Date.now() + 15 * 60_000).toISOString(), learnerId);
+  }
+
+  /* ── bug bounty ── */
+
+  createProgram(p: Omit<ProgramRow, "id" | "points_paid" | "created_at"> & { at?: string }): string {
+    const id = this.nextId("bounty_programs", "bp");
+    this.db
+      .prepare(
+        `INSERT INTO bounty_programs (id, owner_id, kind, company, title, summary, repo_url, website, scope, out_of_scope, rewards, plan, points_pool, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        p.owner_id,
+        p.kind,
+        p.company,
+        p.title,
+        p.summary,
+        p.repo_url,
+        p.website,
+        JSON.stringify(p.scope),
+        JSON.stringify(p.out_of_scope),
+        JSON.stringify(p.rewards),
+        p.plan,
+        p.points_pool,
+        p.status,
+        p.at ?? new Date().toISOString(),
+      );
+    return id;
+  }
+
+  program(id: string): ProgramRow | null {
+    const r = this.db.prepare("SELECT * FROM bounty_programs WHERE id = ?").get(id) as Row | undefined;
+    return r ? toProgram(r) : null;
+  }
+
+  programs(): ProgramRow[] {
+    return (this.db.prepare("SELECT * FROM bounty_programs ORDER BY created_at DESC").all() as Row[]).map(toProgram);
+  }
+
+  activateProgram(id: string, pool: number): void {
+    this.db.prepare("UPDATE bounty_programs SET status = 'open', points_pool = MAX(points_pool, ?) WHERE id = ? AND status = 'awaiting_payment'").run(pool, id);
+  }
+
+  setProgramStatus(id: string, status: ProgramStatus): void {
+    this.db.prepare("UPDATE bounty_programs SET status = ? WHERE id = ?").run(status, id);
+  }
+
+  reportCountSince(learnerId: string, programId: string, sinceIso: string): number {
+    return Number((this.db.prepare("SELECT COUNT(*) AS n FROM bounty_reports WHERE learner_id = ? AND program_id = ? AND created_at >= ?").get(learnerId, programId, sinceIso) as { n: number }).n);
+  }
+
+  createReport(r: Omit<ReportRow, "id" | "status" | "bug_id" | "final_severity" | "points" | "triage_note" | "created_at" | "triaged_at"> & { at?: string }): string {
+    const id = this.nextId("bounty_reports", "br");
+    this.db
+      .prepare(
+        `INSERT INTO bounty_reports (id, program_id, learner_id, title, category, severity, file, line, description, steps, impact, fix, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'triage', ?)`,
+      )
+      .run(id, r.program_id, r.learner_id, r.title, r.category, r.severity, r.file, r.line, r.description, r.steps, r.impact, r.fix, r.at ?? new Date().toISOString());
+    return id;
+  }
+
+  report(id: string): ReportRow | null {
+    const r = this.db.prepare("SELECT * FROM bounty_reports WHERE id = ?").get(id) as Row | undefined;
+    return r ? toReport(r) : null;
+  }
+
+  reports(f: { program_id?: string; learner_id?: string; status?: string; limit?: number } = {}): ReportRow[] {
+    const where: string[] = [];
+    const args: (string | number)[] = [];
+    if (f.program_id) (where.push("program_id = ?"), args.push(f.program_id));
+    if (f.learner_id) (where.push("learner_id = ?"), args.push(f.learner_id));
+    if (f.status) (where.push("status = ?"), args.push(f.status));
+    args.push(Math.min(f.limit ?? 200, 1000));
+    return (this.db.prepare(`SELECT * FROM bounty_reports ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY created_at DESC LIMIT ?`).all(...args) as Row[]).map(toReport);
+  }
+
+  /**
+   * Closes a report. When it pays points, the ledger credit (and, for a
+   * company program, the draw on its reward pool) happen in the same
+   * transaction — the pool can never be overdrawn (there's a CHECK, too).
+   */
+  triageReport(id: string, t: { status: ReportStatus; final_severity?: string | null; points?: number; note?: string | null; bug_id?: string | null; pool_program?: string | null; at?: string }): ReportRow {
+    return this.tx(() => {
+      const cur = this.report(id);
+      if (!cur) throw httpError("No such report.", 404);
+      const at = t.at ?? new Date().toISOString();
+      const points = Math.max(0, t.points ?? 0);
+      if (points > 0 && t.pool_program) {
+        const p = this.program(t.pool_program)!;
+        if (p.points_paid + points > p.points_pool) throw httpError(`This program's reward pool has ${(p.points_pool - p.points_paid).toLocaleString("en-IN")} points left.`, 409);
+        this.db.prepare("UPDATE bounty_programs SET points_paid = points_paid + ? WHERE id = ?").run(points, p.id);
+      }
+      this.db
+        .prepare("UPDATE bounty_reports SET status = ?, final_severity = ?, points = ?, triage_note = ?, bug_id = COALESCE(?, bug_id), triaged_at = ? WHERE id = ?")
+        .run(t.status, t.final_severity ?? null, points, t.note ?? null, t.bug_id ?? null, at, id);
+      if (points > 0) this.creditPoints({ learner_id: cur.learner_id, delta: points, kind: "bounty", ref: id, note: `Bug bounty · ${cur.title}`, at });
+      return this.report(id)!;
+    });
+  }
+
+  validBugIds(learnerId: string, programId: string): Set<string> {
+    return new Set(
+      (this.db.prepare("SELECT bug_id FROM bounty_reports WHERE learner_id = ? AND program_id = ? AND status = 'valid' AND bug_id IS NOT NULL").all(learnerId, programId) as Row[]).map((r) => String(r.bug_id)),
+    );
+  }
+
+  nudges(learnerId: string, programId: string): string[] {
+    return (this.db.prepare("SELECT bug_id FROM bounty_nudges WHERE learner_id = ? AND program_id = ? ORDER BY created_at").all(learnerId, programId) as Row[]).map((r) => String(r.bug_id));
+  }
+
+  addNudge(learnerId: string, programId: string, bugId: string): void {
+    this.db.prepare("INSERT OR IGNORE INTO bounty_nudges (learner_id, program_id, bug_id, created_at) VALUES (?, ?, ?, ?)").run(learnerId, programId, bugId, new Date().toISOString());
+  }
+
+  /** Hall of fame: points earned from bounties, confirmed bugs, and signal (how often reports are right). */
+  bountyBoard(limit = 10): { learner_id: string; points: number; valid: number; reports: number }[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT learner_id, SUM(points) AS points, SUM(status = 'valid') AS valid, COUNT(*) AS reports
+             FROM bounty_reports GROUP BY learner_id HAVING SUM(status = 'valid') > 0
+            ORDER BY points DESC, valid DESC LIMIT ?`,
+        )
+        .all(limit) as Row[]
+    ).map((r) => ({ learner_id: String(r.learner_id), points: Number(r.points), valid: Number(r.valid), reports: Number(r.reports) }));
+  }
+
+  bountyStats(): { reports: number; valid: number; hunters: number; points_paid: number } {
+    const r = this.db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(status = 'valid'), 0) AS v, COUNT(DISTINCT learner_id) AS h, COALESCE(SUM(points), 0) AS p FROM bounty_reports").get() as Row;
+    return { reports: Number(r.n), valid: Number(r.v), hunters: Number(r.h), points_paid: Number(r.p) };
+  }
+
+  /* ── payments (Dodo) ── */
+
+  createPayment(p: { purpose: PaymentRow["purpose"]; ref: string; sku: string; amount_paise: number }): string {
+    const id = this.nextId("payments", "pay");
+    const at = new Date().toISOString();
+    this.db
+      .prepare("INSERT INTO payments (id, purpose, ref, sku, amount_paise, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)")
+      .run(id, p.purpose, p.ref, p.sku, p.amount_paise, at, at);
+    return id;
+  }
+
+  payment(id: string): PaymentRow | null {
+    const r = this.db.prepare("SELECT * FROM payments WHERE id = ?").get(id) as Row | undefined;
+    return r ? toPayment(r) : null;
+  }
+
+  paymentByProviderId(paymentId: string): PaymentRow | null {
+    const r = this.db.prepare("SELECT * FROM payments WHERE payment_id = ?").get(paymentId) as Row | undefined;
+    return r ? toPayment(r) : null;
+  }
+
+  paymentsFor(ref: string): PaymentRow[] {
+    return (this.db.prepare("SELECT * FROM payments WHERE ref = ? ORDER BY created_at DESC").all(ref) as Row[]).map(toPayment);
+  }
+
+  updatePayment(id: string, patch: Partial<Pick<PaymentRow, "session_id" | "payment_id" | "checkout_url" | "status">>): void {
+    const cur = this.payment(id);
+    if (!cur) return;
+    // a succeeded payment never goes back to pending / failed
+    const status = cur.status === "succeeded" ? "succeeded" : (patch.status ?? cur.status);
+    this.db
+      .prepare("UPDATE payments SET session_id = ?, payment_id = ?, checkout_url = ?, status = ?, updated_at = ? WHERE id = ?")
+      .run(patch.session_id ?? cur.session_id, patch.payment_id ?? cur.payment_id, patch.checkout_url ?? cur.checkout_url, status, new Date().toISOString(), id);
+  }
+
+  dodoProduct(sku: string, mode: string): string | null {
+    const r = this.db.prepare("SELECT product_id FROM dodo_products WHERE sku = ? AND mode = ?").get(sku, mode) as Row | undefined;
+    return r ? String(r.product_id) : null;
+  }
+
+  saveDodoProduct(sku: string, mode: string, productId: string): void {
+    this.db.prepare("INSERT OR REPLACE INTO dodo_products (sku, mode, product_id, created_at) VALUES (?, ?, ?, ?)").run(sku, mode, productId, new Date().toISOString());
+  }
+
+  /** True the first time a webhook id is seen — Dodo retries, we process once. */
+  firstWebhook(id: string, type: string): boolean {
+    return Number(this.db.prepare("INSERT OR IGNORE INTO webhook_events (id, type, received_at) VALUES (?, ?, ?)").run(id, type, new Date().toISOString()).changes) > 0;
+  }
+
   /* ── reset (judges' page / npm run seed) ── */
 
   wipe(): void {
     this.tx(() => {
-      for (const t of ["test_results", "hints", "ledger", "submissions", "mastery", "bug_finds", "learners", "votes", "replies", "posts", "profiles"]) this.db.exec(`DELETE FROM ${t}`);
+      for (const t of [
+        "test_results",
+        "hints",
+        "ledger",
+        "submissions",
+        "mastery",
+        "bug_finds",
+        "learners",
+        "votes",
+        "replies",
+        "posts",
+        "profiles",
+        "points_ledger",
+        "redemptions",
+        "wallet_pins",
+        "bounty_reports",
+        "bounty_nudges",
+        "bounty_programs",
+        "payments",
+      ])
+        this.db.exec(`DELETE FROM ${t}`);
     });
   }
 

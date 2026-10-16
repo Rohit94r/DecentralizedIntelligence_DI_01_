@@ -148,6 +148,128 @@ CREATE TABLE IF NOT EXISTS repo_reports (
   created_at TEXT NOT NULL
 );
 
+-- ── Rewards: streak points, redemptions, wallet PINs ──
+CREATE TABLE IF NOT EXISTS points_ledger (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  learner_id TEXT NOT NULL,
+  delta      INTEGER NOT NULL,                   -- + earned · − spent
+  kind       TEXT NOT NULL CHECK (kind IN ('streak_day', 'bounty', 'redeem', 'refund', 'adjust')),
+  ref        TEXT NOT NULL,                      -- the day (YYYY-MM-DD), a report id or a redemption id
+  note       TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (learner_id, kind, ref)                 -- a day / a report / a redemption pays exactly once
+);
+
+CREATE TABLE IF NOT EXISTS redemptions (
+  id           TEXT PRIMARY KEY,                 -- rd_0001
+  learner_id   TEXT NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN ('cash', 'goodie')),
+  item_id      TEXT,                             -- goodie id
+  size         TEXT,
+  points       INTEGER NOT NULL CHECK (points > 0),
+  amount_paise INTEGER NOT NULL,                 -- what the points are worth
+  upi_id       TEXT,                             -- cash only · only ever sent back masked
+  shipping     TEXT,                             -- goodie only · JSON · only ever sent back masked
+  status       TEXT NOT NULL CHECK (status IN ('requested', 'approved', 'paid', 'shipped', 'delivered', 'rejected', 'cancelled')),
+  note         TEXT,
+  payout_ref   TEXT,                             -- UPI reference / tracking number, added by an admin
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS wallet_pins (         -- protects cash-outs: there are no passwords in Layerflow
+  learner_id   TEXT PRIMARY KEY,
+  salt         TEXT NOT NULL,
+  hash         TEXT NOT NULL,                    -- scrypt
+  failed       INTEGER NOT NULL DEFAULT 0,
+  locked_until TEXT,
+  created_at   TEXT NOT NULL
+);
+
+-- ── Bug Bounty (Layerflow's own programs are static code in packages/core) ──
+CREATE TABLE IF NOT EXISTS bounty_programs (
+  id           TEXT PRIMARY KEY,                 -- bp_0001
+  owner_id     TEXT NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN ('company', 'open_source')),
+  company      TEXT NOT NULL,
+  title        TEXT NOT NULL,
+  summary      TEXT NOT NULL,
+  repo_url     TEXT,
+  website      TEXT,
+  scope        TEXT NOT NULL,                    -- JSON string[]
+  out_of_scope TEXT NOT NULL,                    -- JSON string[]
+  rewards      TEXT NOT NULL,                    -- JSON {critical, high, medium, low} in points
+  plan         TEXT NOT NULL,
+  points_pool  INTEGER NOT NULL DEFAULT 0,       -- unlocked by a paid plan
+  points_paid  INTEGER NOT NULL DEFAULT 0 CHECK (points_paid <= points_pool),
+  status       TEXT NOT NULL CHECK (status IN ('awaiting_payment', 'open', 'paused', 'closed')),
+  created_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS bounty_reports (
+  id             TEXT PRIMARY KEY,               -- br_0001
+  program_id     TEXT NOT NULL,
+  learner_id     TEXT NOT NULL,
+  title          TEXT NOT NULL,
+  category       TEXT NOT NULL,
+  severity       TEXT NOT NULL,                  -- what the hunter claimed
+  file           TEXT,
+  line           INTEGER,
+  description    TEXT NOT NULL,
+  steps          TEXT,
+  impact         TEXT,
+  fix            TEXT,
+  status         TEXT NOT NULL CHECK (status IN ('triage', 'valid', 'duplicate', 'needs_info', 'invalid')),
+  bug_id         TEXT,                           -- the planted bug it matched (Layerflow programs) — never sent unless valid
+  final_severity TEXT,
+  points         INTEGER NOT NULL DEFAULT 0,
+  triage_note    TEXT,
+  created_at     TEXT NOT NULL,
+  triaged_at     TEXT
+);
+
+CREATE TABLE IF NOT EXISTS bounty_nudges (
+  learner_id TEXT NOT NULL,
+  program_id TEXT NOT NULL,
+  bug_id     TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (learner_id, program_id, bug_id)
+);
+
+-- ── Payments (Dodo Payments checkout) ──
+CREATE TABLE IF NOT EXISTS payments (
+  id           TEXT PRIMARY KEY,                 -- pay_0001 (ours)
+  provider     TEXT NOT NULL DEFAULT 'dodo',
+  purpose      TEXT NOT NULL CHECK (purpose IN ('bounty_plan')),
+  ref          TEXT NOT NULL,                    -- the program id
+  sku          TEXT NOT NULL,
+  amount_paise INTEGER NOT NULL,
+  session_id   TEXT,
+  payment_id   TEXT,                             -- Dodo's pay_… id
+  checkout_url TEXT,
+  status       TEXT NOT NULL CHECK (status IN ('pending', 'succeeded', 'failed', 'cancelled')),
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dodo_products (       -- one Dodo product per plan, created on first use
+  sku        TEXT NOT NULL,
+  mode       TEXT NOT NULL,                      -- test_mode | live_mode
+  product_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (sku, mode)
+);
+
+CREATE TABLE IF NOT EXISTS webhook_events (      -- Standard Webhooks retry: process each webhook-id once
+  id          TEXT PRIMARY KEY,
+  type        TEXT NOT NULL,
+  received_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_points_learner  ON points_ledger(learner_id);
+CREATE INDEX IF NOT EXISTS idx_redeem_learner  ON redemptions(learner_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_reports_program ON bounty_reports(program_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_reports_learner ON bounty_reports(learner_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at);
 CREATE INDEX IF NOT EXISTS idx_replies_post  ON replies(post_id);
 CREATE INDEX IF NOT EXISTS idx_repo_learner  ON repo_reports(learner_id, created_at);
