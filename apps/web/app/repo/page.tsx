@@ -9,6 +9,10 @@
  *   Architecture  health score, findings, layers, Priya's review
  *   Roadmap       step-by-step plan, the shape to aim for, what to learn next
  * …and Priya to ask about any of it. Works offline on this project too.
+ *
+ * No repo? Switch to Website and paste a URL: the live site is checked for
+ * security, speed, search, accessibility and good practice, and what it's
+ * built with (see components/repo/SiteReport.tsx).
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -23,9 +27,11 @@ import {
   FileCode,
   FolderTree,
   Gauge,
+  Globe,
   Layers,
   LoaderCircle,
   Map as MapIcon,
+  ShieldCheck as ShieldCheckIcon,
   RefreshCw,
   SendHorizontal,
   Sparkles,
@@ -38,8 +44,9 @@ import { Card, PageHeading } from "@/components/app/bits";
 import { Markdown } from "@/components/app/Markdown";
 import { RepoBugs } from "@/components/repo/RepoBugs";
 import { RepoOverview } from "@/components/repo/RepoOverview";
+import { SiteReportView } from "@/components/repo/SiteReport";
 import { SEV } from "@/components/repo/bits";
-import { api, timeAgo, type RepoFinding, type RepoReport, type Severity } from "@/lib/api";
+import { api, isSiteReport, timeAgo, type RepoFinding, type RepoReport, type Severity, type SiteReport } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { useI18n } from "@/lib/i18n/context";
 import { useSpeaker } from "@/lib/voice";
@@ -56,6 +63,7 @@ function GithubMark({ className }: { className?: string }) {
 const GRADE_COLOR: Record<string, string> = { A: "#359462", B: "#5aa832", C: "#f59e0b", D: "#e8792b", E: "#c64e27" };
 
 const STEPS = ["Reading the file tree", "Opening the key files", "Sorting it into frontend, backend…", "Checking every line for bugs", "Writing your step-by-step plan"];
+const SITE_STEPS = ["Opening the page", "Reading headers & cookies", "Checking robots.txt & sitemap", "Measuring scripts & images", "Spotting the tech it's built with"];
 
 type TabId = "overview" | "bugs" | "architecture" | "roadmap";
 
@@ -199,7 +207,7 @@ function FindingCard({ f, onAsk, open, onToggle }: { f: RepoFinding; onAsk: (q: 
   );
 }
 
-function AskRepo({ report, pending, onConsumed }: { report: RepoReport; pending: string | null; onConsumed: () => void }) {
+function AskRepo({ report, pending, onConsumed }: { report: RepoReport | SiteReport; pending: string | null; onConsumed: () => void }) {
   const [learner] = useLearner();
   const [msgs, setMsgs] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [draft, setDraft] = useState("");
@@ -225,11 +233,12 @@ function AskRepo({ report, pending, onConsumed }: { report: RepoReport; pending:
   useEffect(() => {
     box.current?.scrollTo({ top: box.current.scrollHeight, behavior: "smooth" });
   }, [msgs, busy]);
-  const suggestions = ["What should I fix first?", (report.bugs?.length ?? 0) > 0 ? "Which bug is the most serious?" : "How do I make it scalable?", "Where should I start reading?"];
+  const site = isSiteReport(report);
+  const suggestions = site ? ["What should I fix first?", "Is this site secure?", "What is it built with?"] : ["What should I fix first?", (report.bugs?.length ?? 0) > 0 ? "Which bug is the most serious?" : "How do I make it scalable?", "Where should I start reading?"];
   return (
     <div>
       <div ref={box} className="max-h-[340px] space-y-3 overflow-y-auto">
-        {msgs.length === 0 && <p className="text-[12.5px] text-neutral-500">Ask about anything in this report — a part, a folder, a bug, or what to fix first.</p>}
+        {msgs.length === 0 && <p className="text-[12.5px] text-neutral-500">{site ? "Ask about anything in this report — a header, a problem, the tech, or what to fix first." : "Ask about anything in this report — a part, a folder, a bug, or what to fix first."}</p>}
         {msgs.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="flex justify-end">
@@ -264,7 +273,7 @@ function AskRepo({ report, pending, onConsumed }: { report: RepoReport; pending:
         }}
         className="mt-2.5 flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white p-1 pl-3.5"
       >
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask Priya about this repo…" className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-neutral-400" />
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={site ? "Ask Priya about this site…" : "Ask Priya about this repo…"} className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-neutral-400" />
         <button disabled={!draft.trim() || busy} className="flex size-8 items-center justify-center rounded-full bg-neutral-950 text-white disabled:opacity-30" aria-label="Send">
           <SendHorizontal className="size-3.5" />
         </button>
@@ -475,11 +484,12 @@ function RoadmapTab({ report, onAsk }: { report: RepoReport; onAsk: (q: string) 
 export default function RepoPage() {
   const { t } = useI18n();
   const [learner] = useLearner();
+  const [mode, setMode] = useState<"repo" | "site">("repo");
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [stepIdx, setStepIdx] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [report, setReport] = useState<RepoReport | null>(null);
+  const [report, setReport] = useState<RepoReport | SiteReport | null>(null);
   const [history, setHistory] = useState<{ id: string; repo: string; source: string; score: number; grade: string; created_at: string }[]>([]);
   const [tab, setTab] = useState<TabId>("overview");
   const [pendingQ, setPendingQ] = useState<string | null>(null);
@@ -497,23 +507,25 @@ export default function RepoPage() {
     if (!busy) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restart the fake progress when a new analysis starts
     setStepIdx(0);
-    const id = setInterval(() => setStepIdx((i) => Math.min(STEPS.length - 1, i + 1)), 900);
+    const id = setInterval(() => setStepIdx((i) => Math.min(STEPS.length - 1, i + 1)), mode === "site" ? 700 : 900);
     return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
-  const show = (r: RepoReport) => {
+  const show = (r: RepoReport | SiteReport) => {
     setReport(r);
-    setTab(r.overview ? "overview" : "architecture");
+    if (isSiteReport(r)) setMode("site");
+    else setTab(r.overview ? "overview" : "architecture");
     setTimeout(() => top.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   };
 
-  const run = async (body: { url?: string; local?: boolean }) => {
+  const run = async (body: { url?: string; local?: boolean; site?: boolean }) => {
     setBusy(true);
     setError(null);
     setReport(null);
     speaker.stop();
     try {
-      const r = await api.analyzeRepo({ ...body, learner_id: learner });
+      const r = body.site ? await api.analyzeSite({ url: body.url ?? "", learner_id: learner }) : await api.analyzeRepo({ url: body.url, local: body.local, learner_id: learner });
       show(r);
       loadHistory();
     } catch (e) {
@@ -522,51 +534,84 @@ export default function RepoPage() {
       setBusy(false);
     }
   };
-  const rerun = () => report && run(report.repo.source === "local" ? { local: true } : { url: report.repo.url ?? `${report.repo.owner}/${report.repo.name}` });
+  const rerun = () => report && (isSiteReport(report) ? run({ url: report.site.url, site: true }) : run(report.repo.source === "local" ? { local: true } : { url: report.repo.url ?? `${report.repo.owner}/${report.repo.name}` }));
+  const repoReport = report && !isSiteReport(report) ? report : null;
+  const siteReport = report && isSiteReport(report) ? report : null;
 
   const ask = (q: string) => {
     setPendingQ(q);
     askRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
-  const bugCount = report?.bugs?.length ?? 0;
+  const bugCount = repoReport?.bugs?.length ?? 0;
   const tabs = useMemo(
     () =>
       [
         { id: "overview", label: "Overview", hint: "for beginners", Icon: Compass, count: null },
-        { id: "bugs", label: "Bugs to fix", hint: null, Icon: Bug, count: report?.bugs ? bugCount : null },
-        { id: "architecture", label: "Architecture", hint: null, Icon: Layers, count: report?.findings.length ?? null },
+        { id: "bugs", label: "Bugs to fix", hint: null, Icon: Bug, count: repoReport?.bugs ? bugCount : null },
+        { id: "architecture", label: "Architecture", hint: null, Icon: Layers, count: repoReport?.findings.length ?? null },
         { id: "roadmap", label: "Roadmap & learn", hint: null, Icon: MapIcon, count: null },
       ] as { id: TabId; label: string; hint: string | null; Icon: typeof Compass; count: number | null }[],
-    [report, bugCount],
+    [repoReport, bugCount],
   );
 
   return (
     <AppShell title={t("app.repo")} subtitle="Understand any project — and learn to build it right" wide>
       <PageHeading
         eyebrow="Repo Analyse"
-        title="Paste a repo."
-        accent="See how it's built — and what to fix."
-        body="Layerflow reads your GitHub project and explains it in plain words: the frontend, the backend and the languages it uses, which lines look like bugs and why, and how to shape it so it can grow."
+        title="Repo Analyse"
+        body="Paste a GitHub repo to see how it's built, which lines look like bugs and how to fix them. No public code? Paste the website instead — it's checked for security, speed, SEO and accessibility, and what it's built with."
       />
 
       {/* input */}
       <Card className="mb-6">
+        <div className="mb-3 inline-flex rounded-full border border-neutral-200 bg-white p-1" role="tablist" aria-label="What to analyse">
+          {(
+            [
+              ["repo", "GitHub repo"],
+              ["site", "Website URL"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={mode === k}
+              onClick={() => {
+                setMode(k);
+                setUrl("");
+                setError(null);
+              }}
+              className={cn("inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold", mode === k ? "bg-neutral-950 text-white" : "text-neutral-600 hover:text-neutral-950")}
+            >
+              {k === "site" ? <Globe className="size-3.5" /> : <GithubMark className="size-3.5" />} {label}
+            </button>
+          ))}
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (url.trim()) run({ url });
+            if (url.trim()) run(mode === "site" ? { url, site: true } : { url });
           }}
           className="flex flex-col gap-2.5 sm:flex-row"
         >
           <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full border border-neutral-200 bg-white px-4 focus-within:border-neutral-950">
-            <GithubMark className="size-4 shrink-0 text-neutral-500" />
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/owner/repo  — or just owner/repo" className="h-12 min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-neutral-400" />
+            {mode === "site" ? <Globe className="size-4 shrink-0 text-neutral-500" /> : <GithubMark className="size-4 shrink-0 text-neutral-500" />}
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={mode === "site" ? "https://company.com — any public website" : "https://github.com/owner/repo  — or just owner/repo"} inputMode="url" className="h-12 min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-neutral-400" />
           </div>
           <button disabled={busy || !url.trim()} className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-neutral-950 px-6 text-[14px] font-semibold text-white transition-opacity disabled:opacity-40">
             {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Gauge className="size-4" />} Analyse
           </button>
         </form>
+        {mode === "site" ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px]">
+            <span className="text-neutral-400">Try:</span>
+            {["python.org", "wordpress.org", "nextjs.org"].map((r) => (
+              <button key={r} onClick={() => (setUrl(r), run({ url: r, site: true }))} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 font-medium text-neutral-700 hover:border-neutral-950 disabled:opacity-50">
+                <Globe className="size-3 shrink-0" /> {r}
+              </button>
+            ))}
+          </div>
+        ) : (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px]">
           <span className="text-neutral-400">Try:</span>
           <button onClick={() => run({ local: true })} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full border border-[#cfe9c8] bg-[#eeffe8] px-3 py-1 font-semibold text-[#2f7c53] disabled:opacity-50">
@@ -578,11 +623,12 @@ export default function RepoPage() {
             </button>
           ))}
         </div>
+        )}
         <AnimatePresence>
           {busy && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
               <ol className="mt-4 grid gap-1.5 sm:grid-cols-5">
-                {STEPS.map((s, i) => (
+                {(mode === "site" ? SITE_STEPS : STEPS).map((s, i) => (
                   <li key={s} className={cn("flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] transition-colors", i < stepIdx ? "bg-[#eeffe8] text-[#2f7c53]" : i === stepIdx ? "bg-neutral-100 font-semibold text-neutral-900" : "text-neutral-400")}>
                     {i < stepIdx ? <CircleCheck className="size-3.5 shrink-0" /> : i === stepIdx ? <LoaderCircle className="size-3.5 shrink-0 animate-spin" /> : <span className="size-3.5 shrink-0 rounded-full border border-neutral-300" />}
                     {s}
@@ -606,6 +652,7 @@ export default function RepoPage() {
                   <span className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: GRADE_COLOR[h.grade] }}>
                     {h.grade}
                   </span>
+                  {h.source === "site" ? <Globe className="size-3.5 text-neutral-400" /> : null}
                   <span className="font-semibold text-neutral-800">{h.repo === "local" ? "this project" : h.repo}</span>
                   <span className="text-neutral-400">{timeAgo(h.created_at)}</span>
                 </button>
@@ -617,14 +664,22 @@ export default function RepoPage() {
 
       {!report && !busy && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["🧭", "What's inside?", "The frontend, the backend, the database and every language — explained like you're new."],
-            ["🐞", "Any bugs?", "Off-by-one loops, async mistakes, unsafe HTML, plain-text passwords — with the exact line and the fix."],
-            ["🧱", "Is it organised?", "Screens, routes, logic and data in their own layers — or tangled together?"],
-            ["🚀", "Can it grow?", "Tests, CI, config, health checks — what you'll need before real users arrive."],
-          ].map(([e, h, b]) => (
+          {(mode === "site"
+            ? [
+                { Icon: ShieldCheckIcon, h: "Is it secure?", b: "HTTPS, security headers, cookies, mixed content, old libraries with known holes, keys left in the page." },
+                { Icon: Gauge, h: "Is it fast?", b: "Server response time, compression, render-blocking scripts, heavy images, caching." },
+                { Icon: Compass, h: "Can people find it?", b: "Title, description, headings, robots.txt, sitemap, social preview, structured data." },
+                { Icon: Layers, h: "What's it built with?", b: "Framework, CMS, hosting, analytics and widgets — with the evidence for each." },
+              ]
+            : [
+                { Icon: Compass, h: "What's inside?", b: "The frontend, the backend, the database and every language — explained like you're new." },
+                { Icon: Bug, h: "Any bugs?", b: "Off-by-one loops, async mistakes, SQL built from text, unsafe HTML, plain-text passwords — with the exact line and the fix." },
+                { Icon: Layers, h: "Is it organised?", b: "Screens, routes, logic and data in their own layers — or tangled together?" },
+                { Icon: MapIcon, h: "Can it grow?", b: "Tests, CI, config, health checks — what you'll need before real users arrive." },
+              ]
+          ).map(({ Icon, h, b }) => (
             <Card key={h}>
-              <p className="text-2xl">{e}</p>
+              <Icon className="size-5 text-neutral-400" />
               <p className="mt-2 text-[14px] font-semibold tracking-[-0.01em] text-neutral-950">{h}</p>
               <p className="mt-1 text-[12.5px] leading-[1.5] text-neutral-500">{b}</p>
             </Card>
@@ -632,50 +687,67 @@ export default function RepoPage() {
         </div>
       )}
 
-      {report && (
+      {siteReport && (
+        <div ref={top} className="grid scroll-mt-20 gap-6 2xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="min-w-0">
+            <SiteReportView key={siteReport.id} report={siteReport} onAsk={ask} />
+          </div>
+          <aside ref={askRef} className="min-w-0 scroll-mt-32 2xl:sticky 2xl:top-[80px] 2xl:self-start">
+            <Card>
+              <div className="mb-3 flex items-center gap-2">
+                <img src="/people/priya.jpg" alt="" className="size-6 rounded-full object-cover" />
+                <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">Ask Priya about this site</p>
+              </div>
+              <AskRepo key={siteReport.id} report={siteReport} pending={pendingQ} onConsumed={() => setPendingQ(null)} />
+            </Card>
+          </aside>
+        </div>
+      )}
+
+      {repoReport && (
         <div ref={top} className="scroll-mt-20 space-y-4">
           {/* which repo */}
           <Card className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                {report.repo.source === "github" ? <GithubMark className="size-4 shrink-0 text-neutral-500" /> : <FolderTree className="size-4 shrink-0 text-neutral-500" />}
-                {report.repo.url ? (
-                  <a href={report.repo.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.02em] text-neutral-950 hover:underline">
-                    {report.repo.owner ? `${report.repo.owner}/` : ""}
-                    {report.repo.name}
+                {repoReport.repo.source === "github" ? <GithubMark className="size-4 shrink-0 text-neutral-500" /> : <FolderTree className="size-4 shrink-0 text-neutral-500" />}
+                {repoReport.repo.url ? (
+                  <a href={repoReport.repo.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.02em] text-neutral-950 hover:underline">
+                    {repoReport.repo.owner ? `${repoReport.repo.owner}/` : ""}
+                    {repoReport.repo.name}
                   </a>
                 ) : (
-                  <span className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.02em] text-neutral-950">{report.repo.name}</span>
+                  <span className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.02em] text-neutral-950">{repoReport.repo.name}</span>
                 )}
-                {typeof report.repo.stars === "number" && (
+                {typeof repoReport.repo.stars === "number" && (
                   <span className="inline-flex items-center gap-1 text-[12px] text-neutral-500">
-                    <Star className="size-3" /> {report.repo.stars}
+                    <Star className="size-3" /> {repoReport.repo.stars}
                   </span>
                 )}
-                <span className="rounded-full bg-neutral-950 px-2.5 py-0.5 text-[11px] font-semibold text-white">{report.kind}</span>
+                <span className="rounded-full bg-neutral-950 px-2.5 py-0.5 text-[11px] font-semibold text-white">{repoReport.kind}</span>
               </div>
-              {report.repo.description && <p className="mt-1 text-[12.5px] text-neutral-500">{report.repo.description}</p>}
+              {repoReport.repo.description && <p className="mt-1 text-[12.5px] text-neutral-500">{repoReport.repo.description}</p>}
             </div>
             <div className="grid grid-cols-3 gap-2 lg:w-[340px]">
               <button onClick={() => setTab("architecture")} className="rounded-2xl bg-neutral-50 px-3 py-2 text-left hover:bg-neutral-100">
                 <p className="flex items-center gap-1.5 text-[18px] font-semibold tabular-nums tracking-[-0.02em] text-neutral-950">
-                  <span className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: GRADE_COLOR[report.grade] }}>
-                    {report.grade}
+                  <span className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: GRADE_COLOR[repoReport.grade] }}>
+                    {repoReport.grade}
                   </span>
-                  <NumberFlow value={report.score} />
+                  <NumberFlow value={repoReport.score} />
                 </p>
                 <p className="text-[10.5px] text-neutral-500">health score</p>
               </button>
               <button onClick={() => setTab("bugs")} className="rounded-2xl bg-neutral-50 px-3 py-2 text-left hover:bg-neutral-100">
                 <p className="flex items-center gap-1.5 text-[18px] font-semibold tabular-nums tracking-[-0.02em] text-neutral-950">
                   <Bug className={cn("size-4", bugCount ? "text-[#c64e27]" : "text-[#359462]")} />
-                  {report.bugs ? <NumberFlow value={bugCount} /> : "–"}
+                  {repoReport.bugs ? <NumberFlow value={bugCount} /> : "–"}
                 </p>
                 <p className="text-[10.5px] text-neutral-500">bugs to fix</p>
               </button>
               <button onClick={() => setTab("overview")} className="rounded-2xl bg-neutral-50 px-3 py-2 text-left hover:bg-neutral-100">
                 <p className="text-[18px] font-semibold tabular-nums tracking-[-0.02em] text-neutral-950">
-                  <NumberFlow value={report.metrics.files} />
+                  <NumberFlow value={repoReport.metrics.files} />
                 </p>
                 <p className="text-[10.5px] text-neutral-500">files</p>
               </button>
@@ -716,11 +788,11 @@ export default function RepoPage() {
           <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_340px]">
             <div className="min-w-0">
               <AnimatePresence mode="wait">
-                <motion.div key={`${report.id}-${tab}`} role="tabpanel" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
-                  {tab === "overview" && (report.overview ? <RepoOverview report={report} onAsk={ask} /> : <OldReport what="the beginner overview" onRerun={rerun} />)}
-                  {tab === "bugs" && (report.bugs ? <RepoBugs report={report} onAsk={ask} /> : <OldReport what="the bug check" onRerun={rerun} />)}
-                  {tab === "architecture" && <ArchitectureTab report={report} onAsk={ask} speaker={speaker} />}
-                  {tab === "roadmap" && <RoadmapTab report={report} onAsk={ask} />}
+                <motion.div key={`${repoReport.id}-${tab}`} role="tabpanel" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
+                  {tab === "overview" && (repoReport.overview ? <RepoOverview report={repoReport} onAsk={ask} /> : <OldReport what="the beginner overview" onRerun={rerun} />)}
+                  {tab === "bugs" && (repoReport.bugs ? <RepoBugs report={repoReport} onAsk={ask} /> : <OldReport what="the bug check" onRerun={rerun} />)}
+                  {tab === "architecture" && <ArchitectureTab report={repoReport} onAsk={ask} speaker={speaker} />}
+                  {tab === "roadmap" && <RoadmapTab report={repoReport} onAsk={ask} />}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -730,13 +802,13 @@ export default function RepoPage() {
                   <img src="/people/priya.jpg" alt="" className="size-6 rounded-full object-cover" />
                   <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">Ask Priya about this repo</p>
                 </div>
-                <AskRepo key={report.id} report={report} pending={pendingQ} onConsumed={() => setPendingQ(null)} />
+                <AskRepo key={repoReport.id} report={repoReport} pending={pendingQ} onConsumed={() => setPendingQ(null)} />
               </Card>
             </aside>
           </div>
 
           <p className="text-center text-[11.5px] text-neutral-400">
-            Read {report.metrics.sampled_files} of {report.metrics.files} files in full{report.truncated ? " (GitHub truncated the file list — very large repo)" : ""}. Secrets are reported by file and line only — their values are never copied, and a line that looks like a secret is never shown in a snippet.
+            Read {repoReport.metrics.sampled_files} of {repoReport.metrics.files} files in full{repoReport.truncated ? " (GitHub truncated the file list — very large repo)" : ""}. Secrets are reported by file and line only — their values are never copied, and a line that looks like a secret is never shown in a snippet.
           </p>
         </div>
       )}
