@@ -73,6 +73,9 @@ function publicReport(r: ReportRow, opts: { withBody?: boolean } = {}) {
   };
 }
 
+/** Brand marks for the seeded programs; a program posted from the form shows its initial instead. */
+const HOSTED_LOGO: Record<string, string> = { layerflow: "/brands/layerflow.svg", quickbite_security: "/brands/quickbite.svg" };
+
 function companyView(store: LayerflowStore, p: ProgramRow) {
   const reports = store.reports({ program_id: p.id, limit: 1000 });
   const plan = getPlan(p.plan);
@@ -80,7 +83,7 @@ function companyView(store: LayerflowStore, p: ProgramRow) {
     id: p.id,
     kind: p.kind,
     company: p.company,
-    logo: p.kind === "open_source" ? "🌐" : "🏢",
+    logo: HOSTED_LOGO[p.owner_id] ?? null,
     title: p.title,
     tagline: p.summary.split(/(?<=[.!?])\s/)[0],
     summary: p.summary,

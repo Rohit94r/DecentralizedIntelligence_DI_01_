@@ -503,7 +503,8 @@ export interface HostedProgram {
   id: string;
   kind: "company" | "open_source";
   company: string;
-  logo: string;
+  /** a brand mark, or null — then the page shows the company's initial */
+  logo: string | null;
   title: string;
   tagline: string;
   summary: string;
