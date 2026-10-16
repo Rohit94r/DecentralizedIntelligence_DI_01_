@@ -1,21 +1,28 @@
 /**
- * "How bug bounty works" — the narrated explainer on the Bug Bounty page.
+ * "How bug bounty works" — the narrated walkthrough on the Bug Bounty page.
  *
- * Each scene is one line Priya says plus a visual the player animates. The
- * web app voices it with the same speaker as Mentoring (ElevenLabs when the
- * server has a key, the browser's voice otherwise) and paces the scene by the
- * narration, so it plays like a short video with captions and chapters.
+ * Most scenes are real screenshots of Layerflow (in apps/web/public/explainer)
+ * with the part that matters zoomed in, a cursor that clicks where you would
+ * click, and a short label — so it plays like a screen-recorded product video.
+ * The web app voices each line with the same speaker as Mentoring (ElevenLabs
+ * when the server has a key, the browser's voice otherwise) and paces the
+ * scene by its narration, with captions and chapters.
+ *
+ * Positions are percentages of the screenshot (x, y = top-left corner).
  */
+
+export interface ShotBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 export type ExplainerVisual =
   | { kind: "title"; heading: string; sub: string }
-  | { kind: "flow"; steps: { icon: string; label: string }[] }
-  | { kind: "scope"; inside: string[]; outside: string[] }
-  | { kind: "recon"; tree: string[]; focus: string; to: string }
+  | { kind: "steps"; steps: { icon: string; label: string }[] }
+  | { kind: "shot"; src: string; path: string; focus: ShotBox; click?: { x: number; y: number }; label: string }
   | { kind: "classes"; items: { icon: string; label: string; ask: string }[] }
-  | { kind: "prove"; code: string[]; line: number; note: string }
-  | { kind: "report"; fields: { label: string; value: string }[] }
-  | { kind: "reward"; rows: { severity: string; points: number; color: string }[]; rate: string }
   | { kind: "rules"; rules: { icon: string; text: string }[] }
   | { kind: "outro"; cta: string[] };
 
@@ -30,115 +37,94 @@ export const BOUNTY_EXPLAINER: ExplainerScene[] = [
   {
     id: "intro",
     chapter: "Welcome",
-    say: "Hi, I'm Priya. In the next three minutes you'll learn how bug bounty hunting works — first right here on Layerflow, then in real companies' programs.",
-    visual: { kind: "title", heading: "Bug bounty, explained", sub: "Find real bugs · report them well · get rewarded" },
+    say: "Hi, I'm Priya. In about two minutes I'll show you how bug bounty works on Layerflow — and how the same steps work on real company programs.",
+    visual: { kind: "title", heading: "How bug bounty works", sub: "Find a bug · report it clearly · get rewarded" },
   },
   {
     id: "what",
     chapter: "What is a bug bounty?",
-    say: "A bug bounty is a deal. A company says: find a real problem in our software, tell us privately, and we'll reward you. Thousands of companies run them, from startups to banks. You're rewarded for finding problems — not for writing features.",
+    say: "A bug bounty is a deal. A company says: find a real problem in our software, tell us privately, and we'll reward you. You're paid for finding problems — not for writing features.",
     visual: {
-      kind: "flow",
+      kind: "steps",
       steps: [
-        { icon: "🏢", label: "Company opens a program" },
-        { icon: "🕵️", label: "You hunt inside the scope" },
-        { icon: "📝", label: "You report it privately" },
-        { icon: "✅", label: "They confirm & fix it" },
-        { icon: "🏆", label: "You get the reward" },
+        { icon: "building", label: "A company opens a program" },
+        { icon: "search", label: "You hunt inside its scope" },
+        { icon: "file", label: "You report the bug privately" },
+        { icon: "check", label: "They confirm and fix it" },
+        { icon: "wallet", label: "You get the reward" },
       ],
     },
+  },
+  {
+    id: "pick",
+    chapter: "Pick a program",
+    say: "Start on the Bug Bounty page. The practice programs are small apps with real bugs planted in them. ShopKart is the easiest, so let's open it.",
+    visual: { kind: "shot", src: "/explainer/1-programs.webp", path: "/bounty", focus: { x: 20, y: 12.3, w: 78.1, h: 26.6 }, click: { x: 31.8, y: 25.4 }, label: "Practice programs — start with ShopKart" },
   },
   {
     id: "scope",
     chapter: "Read the scope",
-    say: "Every program starts with its scope: exactly which apps, files or websites you may test, and what is off-limits. Testing outside the scope isn't hunting — it's breaking in. Always read the scope and the rules first.",
-    visual: {
-      kind: "scope",
-      inside: ["app.py — every route", "auth.py — login and tokens", "Your own test accounts"],
-      outside: ["Other customers' real data", "Flooding the servers", "Anything not listed"],
-    },
+    say: "Every program starts with its scope: what you're allowed to test, and what's off-limits. Testing outside the scope isn't hunting — it's breaking in. So read it first.",
+    visual: { kind: "shot", src: "/explainer/2-scope.webp", path: "/bounty/shopkart", focus: { x: 20.1, y: 31.1, w: 77.8, h: 26.2 }, label: "In scope vs. out of scope" },
   },
   {
-    id: "recon",
-    chapter: "Map the target",
-    say: "Next, map the target. On Layerflow you get the code. Open the files and find where input comes in — routes, forms, URL parameters. Then follow that input to where it's used: the database, money, or other people's data.",
-    visual: { kind: "recon", tree: ["app.py", "auth.py", "pricing.py", "db.py"], focus: "GET /search?q=…", to: "db.query(…)" },
+    id: "read",
+    chapter: "Read the code like an attacker",
+    say: "Now read the code like an attacker. Find where input comes in — a search box, the URL — and follow it. Here the search text goes straight into an SQL query. That's our bug, so click the line.",
+    visual: { kind: "shot", src: "/explainer/3-code.webp", path: "/bounty/shopkart", focus: { x: 34.5, y: 7.1, w: 39.1, h: 57.7 }, click: { x: 45, y: 32.7 }, label: "User input glued into SQL" },
   },
   {
     id: "hunt",
-    chapter: "Hunt the classics",
-    say: "Now hunt for the classic mistakes. Input glued into SQL. An order page that never checks whose order it is. A quantity that can go negative. A login token that's read but never verified. Keep asking: what if I'm not who they expect? What if this number is zero, negative or huge? What if two requests arrive at once?",
+    chapter: "What to look for",
+    say: "These are the classic mistakes to hunt for. Text glued into a query. A page that never checks whose order it is. A login token that's read but never verified. Numbers that can go negative. Two requests racing each other. And user text that runs as code.",
     visual: {
       kind: "classes",
       items: [
-        { icon: "💉", label: "Injection", ask: "Does my text end up inside a query?" },
-        { icon: "🔓", label: "Broken access", ask: "Is this actually mine?" },
-        { icon: "🪪", label: "Broken auth", ask: "Is the token really checked?" },
-        { icon: "🧮", label: "Business logic", ask: "What if it's negative or huge?" },
-        { icon: "⚡", label: "Race condition", ask: "What if two requests race?" },
-        { icon: "🧨", label: "XSS", ask: "Does my text run as code?" },
+        { icon: "database", label: "Injection", ask: "Does my text end up inside a query?" },
+        { icon: "lock", label: "Broken access", ask: "Is this really mine?" },
+        { icon: "key", label: "Broken login", ask: "Is the token actually checked?" },
+        { icon: "calculator", label: "Business logic", ask: "What if it's negative, zero or huge?" },
+        { icon: "zap", label: "Race condition", ask: "What if two requests arrive at once?" },
+        { icon: "code", label: "XSS", ask: "Does my text run as code in the page?" },
       ],
-    },
-  },
-  {
-    id: "prove",
-    chapter: "Prove it safely",
-    say: "Found something? Prove it without hurting anyone. Find the smallest steps that trigger it, and explain the impact — what an attacker could really do. On Layerflow, you click the line, pick the kind of bug, and describe the impact.",
-    visual: {
-      kind: "prove",
-      code: ['@app.get("/search")', "def search():", '    q = request.args.get("q", "")', "    rows = db.query(f\"SELECT … LIKE '%{q}%'\")", "    return jsonify(results=rows)"],
-      line: 4,
-      note: "q = ' UNION SELECT email, password_hash … --",
     },
   },
   {
     id: "report",
     chapter: "Write the report",
-    say: "A great report has a clear title, the exact location, steps to reproduce, the impact, and a suggested fix. Keep it short, specific and polite. Triage teams read hundreds of reports — make yours easy to say yes to.",
-    visual: {
-      kind: "report",
-      fields: [
-        { label: "Title", value: "SQL injection in product search" },
-        { label: "Where", value: "app.py · line 32" },
-        { label: "Steps", value: "1. GET /search?q=' UNION SELECT …  2. Read the response" },
-        { label: "Impact", value: "Any visitor can dump every user's email and password hash." },
-        { label: "Fix", value: "Use a ? placeholder and pass q as a parameter." },
-      ],
-    },
+    say: "Pick the kind of bug and the report fills itself in: a title, the exact line, and a sentence with blanks. Replace each blank with what an attacker could really do — clear and specific.",
+    visual: { kind: "shot", src: "/explainer/4-report.webp", path: "/bounty/shopkart", focus: { x: 74.6, y: 7.1, w: 23, h: 52.2 }, label: "The report fills itself in" },
   },
   {
-    id: "reward",
-    chapter: "Triage & rewards",
-    say: "When the bug is confirmed, you earn points by severity: critical, high, medium or low. On Layerflow, a hundred points are worth ten rupees, and you can cash them out or spend them on goodies. Stuck? Take a nudge — but it halves that bug's reward.",
-    visual: {
-      kind: "reward",
-      rows: [
-        { severity: "Critical", points: 1000, color: "#b42318" },
-        { severity: "High", points: 600, color: "#c64e27" },
-        { severity: "Medium", points: 300, color: "#f59e0b" },
-        { severity: "Low", points: 120, color: "#0586d2" },
-      ],
-      rate: "100 points = ₹10",
-    },
+    id: "confirmed",
+    chapter: "Confirmed!",
+    say: "Send it. On practice programs you get an answer in seconds: the right line and the right kind of bug means it's confirmed — and the points go straight to your wallet.",
+    visual: { kind: "shot", src: "/explainer/5-confirmed.webp", path: "/bounty/shopkart", focus: { x: 74.6, y: 60, w: 22.9, h: 26.9 }, label: "Confirmed — points added" },
   },
   {
-    id: "enterprise",
+    id: "rewards",
+    chapter: "Your rewards",
+    say: "A hundred points are worth ten rupees. On the Rewards page you can cash them out to UPI, or spend them on Layerflow goodies.",
+    visual: { kind: "shot", src: "/explainer/6-rewards.webp", path: "/rewards", focus: { x: 24.5, y: 8, w: 69, h: 70 }, label: "Cash out to UPI or redeem goodies" },
+  },
+  {
+    id: "rules",
     chapter: "Real company programs",
-    say: "Real company programs, on platforms like HackerOne or Bugcrowd, follow the same steps, plus three golden rules. Never touch real users' data. Never disrupt the service. And disclose responsibly — tell only the company, and wait until they've fixed it.",
+    say: "Real company programs, on platforms like HackerOne, follow the same steps — plus three golden rules. Never touch real users' data. Never slow down or break the service. And report privately, until they've fixed it.",
     visual: {
       kind: "rules",
       rules: [
-        { icon: "🙅", text: "Never access or keep real users' data — use your own test accounts." },
-        { icon: "🐢", text: "Never slow down or break the service — no flooding, no destructive tests." },
-        { icon: "🤫", text: "Disclose responsibly — only to the company, until they've fixed it." },
-        { icon: "📜", text: "Follow each program's own rules. If unsure, ask the program first." },
+        { icon: "user", text: "Never access or keep real users' data — test with your own accounts." },
+        { icon: "server", text: "Never slow down or break the service — no flooding, no destructive tests." },
+        { icon: "mail", text: "Report privately, only to the company, until they've fixed it." },
+        { icon: "book", text: "Follow each program's own rules. If you're unsure, ask the program first." },
       ],
     },
   },
   {
     id: "outro",
     chapter: "Start hunting",
-    say: "Start with a Layerflow program, then try the company and open-source ones. Every bug you find makes software safer — and makes you a better engineer. Happy hunting!",
-    visual: { kind: "outro", cta: ["Pick a program below", "Read the code like an attacker", "File your first report"] },
+    say: "Start with a practice program, then try the company and open-source ones. Every bug you find makes software safer — and makes you a better engineer. Happy hunting!",
+    visual: { kind: "outro", cta: ["Pick a practice program", "Read the code like an attacker", "File your first report"] },
   },
 ];

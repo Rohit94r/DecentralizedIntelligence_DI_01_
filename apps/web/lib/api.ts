@@ -653,15 +653,19 @@ export type HostedProgramDetail = HostedProgram &
 
 export type ProgramDetail = PlatformProgramDetail | HostedProgramDetail;
 
+export interface ShotBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Positions in a "shot" are percentages of the screenshot (x, y = top-left). */
 export type ExplainerVisual =
   | { kind: "title"; heading: string; sub: string }
-  | { kind: "flow"; steps: { icon: string; label: string }[] }
-  | { kind: "scope"; inside: string[]; outside: string[] }
-  | { kind: "recon"; tree: string[]; focus: string; to: string }
+  | { kind: "steps"; steps: { icon: string; label: string }[] }
+  | { kind: "shot"; src: string; path: string; focus: ShotBox; click?: { x: number; y: number }; label: string }
   | { kind: "classes"; items: { icon: string; label: string; ask: string }[] }
-  | { kind: "prove"; code: string[]; line: number; note: string }
-  | { kind: "report"; fields: { label: string; value: string }[] }
-  | { kind: "reward"; rows: { severity: string; points: number; color: string }[]; rate: string }
   | { kind: "rules"; rules: { icon: string; text: string }[] }
   | { kind: "outro"; cta: string[] };
 
