@@ -9,6 +9,7 @@
  *         nothing recurring yet.
  */
 import { SEED_LEARNERS } from "./fixtures.ts";
+import { seedBounty } from "./seed-bounty.ts";
 import { seedCommunity } from "./seed-community.ts";
 import { runScript, type Ctx } from "./service.ts";
 
@@ -22,4 +23,6 @@ export async function seedAll(ctx: Ctx, log: (s: string) => void = () => {}): Pr
   }
   seedCommunity(ctx.store, now);
   log("  seeded community: 3 teachers, the AI mentor, 6 threads");
+  seedBounty(ctx.store, now);
+  log("  seeded bug bounty: 2 hosted programs, 7 reports, streak points");
 }
