@@ -7,7 +7,11 @@
  */
 import { buildApp } from "./app.ts";
 import { createRuntime } from "./context.ts";
+import { loadEnv } from "./lib/env.ts";
+import { voiceStatus } from "./lib/voice.ts";
 import { seedAll } from "./seed-data.ts";
+
+loadEnv();
 
 process.removeAllListeners("warning");
 process.on("warning", (w) => {
@@ -23,7 +27,7 @@ const rt = createRuntime({ log: (s) => console.log(s) });
 let seeding: Promise<void> | null = null;
 const reseed = () => (seeding ??= seedAll(rt, (s) => console.log(s)).finally(() => (seeding = null)));
 
-const app = await buildApp({ ...rt, pool: rt.pool, reseed });
+const app = await buildApp({ ...rt, pool: rt.pool, reseed, log: (s) => console.log(s) });
 
 if (rt.store.learners().length === 0 || process.env.LAYERFLOW_RESEED === "1") {
   console.log("[layerflow] first boot — seeding demo learners (rohan, meera, kabir) through the real sandbox…");
@@ -34,6 +38,8 @@ if (rt.store.learners().length === 0 || process.env.LAYERFLOW_RESEED === "1") {
 
 await app.listen({ port: PORT, host: HOST });
 console.log(`[layerflow] API ready on http://localhost:${PORT}  ·  LLM tier: ${rt.rewriter ? rt.rewriter.model : "off (deterministic tier — no API key needed)"}`);
+const v = voiceStatus();
+console.log(`[layerflow] mentor chat: ${rt.ai ? rt.ai.providers.join(" → ") : "built-in replies (add GROQ_API_KEY or GEMINI_API_KEY for AI)"}  ·  voice: ${v.tts === "elevenlabs" ? "ElevenLabs" : "browser"}  ·  listening: ${v.stt === "groq" ? "Groq Whisper" : "browser"}`);
 
 const shutdown = async () => {
   await app.close().catch(() => {});

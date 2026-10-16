@@ -37,12 +37,18 @@ import {
   type Sandbox,
 } from "@layerflow/core";
 import type { LayerflowStore } from "@layerflow/db";
+import { replaySubmission } from "./learning.ts";
+import type { Ai } from "./lib/ai.ts";
+import { registerLearningRoutes } from "./routes-learning.ts";
 import { doHint, doSubmit } from "./service.ts";
 
 export interface AppDeps {
   store: LayerflowStore;
   sandbox: Sandbox;
   rewriter: Rewriter | null;
+  /** optional chat model(s) for the mentor, chat and Repo Analyse (Groq / Gemini / Anthropic) */
+  ai?: Ai | null;
+  log?: (s: string) => void;
   pool?: { status(): unknown };
   reseed?: () => Promise<void>;
   logSubmissions?: boolean;
@@ -162,6 +168,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     uptime_s: Math.round((Date.now() - started) / 1000),
     sandbox: deps.pool?.status() ?? null,
     llm: rewriter ? rewriter.model : null,
+    ai: deps.ai ? deps.ai.label : null,
     challenges: listedChallenges().length,
     language: "Python",
   }));
@@ -236,10 +243,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const history = store.history(id);
     const mastery = store.mastery(id);
     const summary = learnerSummary(id, history, mastery);
-    const hints = store.db.prepare("SELECT challenge_id, created_at FROM hints WHERE learner_id = ? ORDER BY created_at").all(id) as {
-      challenge_id: string;
-      created_at: string;
-    }[];
+    const hints = store.hintTimes(id);
     const timeline = masteryTimeline(history, hints);
     const touched = [...new Set(mastery.map((m) => m.concept))] as Concept[];
     const bf = bugFactoryPick(history);
@@ -314,26 +318,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     async (req, reply) => {
       const sub = store.getSubmission(req.body.submission_id);
       if (!sub) return reply.status(404).send({ error: "not found" });
-      const challenge = getChallenge(sub.challenge_id)!;
       // Only PUBLIC inputs (probes / visible tests), or what the learner typed themselves.
-      let kind = req.body.kind;
-      if (!kind && !req.body.args_source) {
-        // the probe for the KIND of input that failed (already named in the explanation)
-        const failingEdges = sub.results
-          .filter((r) => r.outcome !== "passed")
-          .map((r) => (r.kind === "visible" ? challenge.visible : challenge.hidden)[r.test - 1]?.edge)
-          .filter((e): e is string => !!e && !!challenge.probes[e]);
-        kind = failingEdges[0] ?? "default";
-      }
-      const args = challenge.probes[kind ?? "default"] ?? challenge.visible[0].args;
-      const res = await sandbox.trace({
-        code: sub.code,
-        fn: challenge.fn,
-        args: req.body.args_source ? undefined : args,
-        argsSource: req.body.args_source,
-        culpritLine: sub.analysis?.culprit_line ?? null,
-      });
-      return { ...res, used_kind: req.body.args_source ? "custom" : (kind ?? "default"), kinds: Object.keys(challenge.probes).map((k) => ({ kind: k, label: k === "default" ? "first visible example" : (challenge.edges[k]?.one ?? k) })) };
+      return replaySubmission({ store, sandbox, rewriter }, sub, { kind: req.body.kind, args_source: req.body.args_source });
     },
   );
 
@@ -424,6 +410,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get("/api/dev/reset", reset);
   app.post("/api/dev/reset", reset);
   app.get("/api/dev/seed", reset);
+
+  /* ── Mentoring · voice · Ask Priya · Repo Analyse · Community ── */
+  registerLearningRoutes(app, { store, sandbox, rewriter, ai: deps.ai ?? null, log: deps.log }, deps.ai ?? null);
 
   app.setNotFoundHandler((req, reply) => reply.status(404).send({ error: `No route ${req.method} ${req.url}` }));
   return app;

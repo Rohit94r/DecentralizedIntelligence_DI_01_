@@ -1,8 +1,10 @@
 /** `npm run seed` — wipe and re-seed the demo learners through the real sandbox. */
 import { createRuntime } from "./context.ts";
+import { loadEnv } from "./lib/env.ts";
 import { seedAll } from "./seed-data.ts";
 
 process.removeAllListeners("warning");
+loadEnv();
 const rt = createRuntime({ llm: false });
 const t0 = Date.now();
 console.log("[seed] seeding rohan, meera, kabir through the real engine + sandbox…");
