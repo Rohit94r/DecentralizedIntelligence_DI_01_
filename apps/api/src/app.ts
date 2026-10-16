@@ -39,7 +39,9 @@ import {
 import type { LayerflowStore } from "@layerflow/db";
 import { replaySubmission } from "./learning.ts";
 import type { Ai } from "./lib/ai.ts";
+import { streakFor, syncStreakPoints } from "./rewards.ts";
 import { registerLearningRoutes } from "./routes-learning.ts";
+import { registerRewardRoutes } from "./routes-rewards.ts";
 import { doHint, doSubmit } from "./service.ts";
 
 export interface AppDeps {
@@ -97,19 +99,6 @@ const submitResponseSchema = {
   },
 } as const;
 
-function streak(history: HistoryItem[]): number {
-  const days = new Set(history.map((h) => h.at.slice(0, 10)));
-  let n = 0;
-  const d = new Date();
-  // a streak survives until the end of the day after the last practice
-  if (!days.has(d.toISOString().slice(0, 10))) d.setUTCDate(d.getUTCDate() - 1);
-  while (days.has(d.toISOString().slice(0, 10))) {
-    n++;
-    d.setUTCDate(d.getUTCDate() - 1);
-  }
-  return n;
-}
-
 /** Replays a learner's evidence in time order to show mastery moving with it. */
 function masteryTimeline(history: HistoryItem[], hints: { challenge_id: string; created_at: string }[]) {
   type Ev = { at: string; kind: "sub"; h: HistoryItem } | { at: string; kind: "hint"; challenge_id: string };
@@ -150,10 +139,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   // A crash in one request must never take the server down.
   app.setErrorHandler((err, _req, reply) => {
-    const e = err as { statusCode?: number; message?: string };
+    const e = err as { statusCode?: number; message?: string; expose?: boolean };
     const status = e.statusCode ?? 500;
     if (status >= 500 && status !== 503) console.error("[error]", err);
-    const friendly = status === 503 ? e.message : "Something went wrong on our side — please try again.";
+    const friendly = status === 503 || e.expose ? e.message : "Something went wrong on our side — please try again.";
     reply.status(status).send({ error: status >= 500 ? friendly : (e.message ?? "Bad request") });
   });
 
@@ -250,6 +239,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const passedIds = new Set(history.filter((h) => h.passed).map((h) => h.challenge_id));
     const firstTry = new Map<string, boolean>();
     for (const h of history) if (!firstTry.has(h.challenge_id)) firstTry.set(h.challenge_id, h.passed);
+    syncStreakPoints(store, id);
+    const st = streakFor(store, id);
     return {
       learner_id: id,
       recurring_mistakes: summary.recurring_mistakes,
@@ -264,7 +255,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       concept_labels: CONCEPT_LABELS,
       tag_labels: TAG_LABELS,
       mastery_timeline: timeline,
-      streak_days: streak(history),
+      // a streak day = a day you solved something (LeetCode-style); each one pays 100 points
+      streak_days: st.current,
+      streak: { current: st.current, longest: st.longest, today_done: st.today_done, at_risk: st.at_risk, points: store.pointsBalance(id) },
       totals: {
         submissions: history.length,
         passes: history.filter((h) => h.passed).length,
@@ -413,6 +406,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   /* ── Mentoring · voice · Ask Priya · Repo Analyse · Community ── */
   registerLearningRoutes(app, { store, sandbox, rewriter, ai: deps.ai ?? null, log: deps.log }, deps.ai ?? null);
+
+  /* ── Rewards · Bug Bounty · payments · admin ── */
+  registerRewardRoutes(app, { store, ai: deps.ai ?? null, log: deps.log });
 
   app.setNotFoundHandler((req, reply) => reply.status(404).send({ error: `No route ${req.method} ${req.url}` }));
   return app;
