@@ -28,7 +28,6 @@ const NAV: { section?: string; items: { href: string; key: string; Icon: typeof 
       { href: "/mentoring", key: "app.mentoring", Icon: Video },
       { href: "/bounty", key: "app.bounty", Icon: Bug, also: ["/bounty/", "/bug-factory"] },
       { href: "/dashboard", key: "app.dashboard", Icon: LayoutDashboard },
-      { href: "/rewards", key: "app.rewards", Icon: Gift },
     ],
   },
   {
@@ -41,6 +40,7 @@ const NAV: { section?: string; items: { href: string; key: string; Icon: typeof 
   {
     section: "app.tools",
     items: [
+      { href: "/rewards", key: "app.rewards", Icon: Gift },
       { href: "/taxonomy", key: "app.taxonomy", Icon: BookOpenText },
       { href: "/judges", key: "app.judges", Icon: Gavel },
       { href: "/admin", key: "app.admin", Icon: ShieldCheck },
