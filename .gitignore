@@ -18,6 +18,7 @@ out/
 .vercel/
 .netlify/
 *.tsbuildinfo
+next-env.d.ts
 
 # ---- python ----
 __pycache__/
@@ -25,7 +26,12 @@ __pycache__/
 .venv/
 venv/
 .pyodide/
-pyodide/
+
+# ---- the system of record (regenerable with `npm run seed`) ----
+apps/api/data/*.db
+apps/api/data/*.db-wal
+apps/api/data/*.db-shm
+apps/api/data/*.db-journal
 
 # ---- harness output (regenerable, keeps repo clean) ----
 harness/results/
@@ -38,3 +44,4 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+.playwright-mcp/
