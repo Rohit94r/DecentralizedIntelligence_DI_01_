@@ -5,6 +5,8 @@ Built for problem statement **DI-01 · Debug Dojo** · Decentralized Intelligenc
 
 Layerflow runs a beginner's Python **safely**, labels every test honestly (`passed` / `wrong_output` / `runtime_error` / `timeout`), explains failures in plain language **without revealing hidden tests**, gives a **hint ladder that never contains code**, detects which **mistakes recur across different challenges**, picks the **next challenge to fix them — with the reason**, and tracks **mastery per concept** where a pass without hints counts for more.
 
+And nobody learns alone: **Mentoring** puts you on a Google-Meet-style call with **Priya**, an AI mentor who talks you through your mistake and — on **✨ Summarise** — presents an animated, step-by-step replay of *your own code*; **Ask Priya** is a chat on every page that knows which problem you're on; **Repo Analyse** reviews any GitHub project for safety, structure and scalability in plain words; and **Community** lets students help each other while teachers mentor. Every one of them keeps the same rule as the hint ladder: *we point, you fix* — no code, no answers, no hidden tests.
+
 ---
 
 ## One command
@@ -15,6 +17,7 @@ npm install && npm start
 
 Then open **http://localhost:3000** (learners) and **http://localhost:3000/judges** (judges).
 Requirements: **Node 22.13+** (uses the built-in `node:sqlite` and `--permission`). No Docker, no database server, no Python install, **no API key**, no internet at runtime.
+Optional: free keys for **Groq**, **Gemini** and **ElevenLabs** in a git-ignored `.env` make Priya smarter and give her a real voice — see [Optional AI keys](#optional-ai-keys).
 
 - First run builds the web app once (~1 min) and seeds three pseudonymous demo learners (`rohan`, `meera`, `kabir`) by running their scripts through the real sandbox.
 - `npm run dev` — the same with hot reload · `npm run url` — public URL via `ngrok http 3000`
@@ -30,6 +33,18 @@ Requirements: **Node 22.13+** (uses the built-in `node:sqlite` and `--permission
 | **`/ledger`** | Every prompt and response, and the guardrail's **rejection** count (drafts that quoted code — logged, never shown) |
 | **`/taxonomy`** | Hand-in #3 — also [TAXONOMY.md](TAXONOMY.md) |
 | **`/bug-factory`** | A buggy program generated from the learner's top mistake: find the line, then fix it |
+| **`/mentoring?learner=rohan`** | Every problem Rohan tried and what went wrong → **Join session** → the Meet-style call: Priya speaks (captions on), **✨ Summarise** plays the animated replay of his code, ask her anything by voice or chat |
+| **`/repo`** | Click **This project (works offline)** — score, layers, findings with why + fix, roadmap, the shape to aim for, Ask Priya |
+| **`/community`** | Teachers' accepted answers, Priya's first-nudge replies, a blurred spoiler; switch to **Teacher view** for the Teacher desk |
+
+## Learn together — Mentoring · Ask Priya · Repo Analyse · Community
+
+| Feature | What a newcomer gets | The guardrail |
+|---|---|---|
+| **Mentoring** `/mentoring` | Recent problems with what went wrong in each → **Join session** opens a Google-Meet-style lobby and call with Priya (her photo tile, speaking ring, live captions, mic/camera, raise hand, reactions, in-call chat, hang-up recap). She explains the result, the line to look at, the mistake's name and a plan. **✨ Summarise** makes her *present*: an animated walkthrough of the learner's own code — the running line lights up, lists become boxes, index variables become pointers that slide (and fall off the end on an `IndexError`), changed values flash, hidden tests flip as locked tiles. Play / pause / step / scrub / speed, narrated. English, हिन्दी, मराठी. | Built only from the stored explanation, the Line Map and a replay on a **public probe** input; every spoken line passes `findLeak`; it ends with "I'll never hand you the code". |
+| **Ask Priya** (every page) | A floating chat: explains Python ideas in simple words anywhere; on a problem page it knows the problem and the learner's current code and helps with *that*. Voice in and out. | On a problem: prose only — every model reply passes `guardReply` (the hint validator + leak check) or the built-in reply ships; "give me the answer" is always answered deterministically, one rung. |
+| **Repo Analyse** `/repo` | Paste a GitHub link (or analyse this checkout offline): health score + grade, health per area, the layers present/missing as an animated diagram, findings sorted *fix first → polish* (each with why + fix + files + what to learn), strengths, a roadmap, the target layered architecture for scaling, Priya's spoken review, and Q&A about the report. | Secrets are reported by file and line only — values are never copied; only committed files are judged. |
+| **Community** `/community` | Questions, tips, discussions, showcases; filters and search; votes; accepted answers; teachers with badges and a **Teacher desk** (who needs help and why, open questions); Priya gives every new question a first nudge. | A post containing a solution is **blurred** for anyone who hasn't solved that problem (they can still reveal it); Priya's replies pass the same validator. |
 
 ## The API (same origin — `http://localhost:3000/api/*`, also `:4000` directly)
 
@@ -67,7 +82,12 @@ curl -s localhost:3000/api/submit -H 'content-type: application/json' \
 | `POST /api/replay` `{submission_id, kind?, args_source?}` | Time-Travel Replay on a public input (or one the learner types) |
 | `GET /api/bug-factory/:learner` · `POST /api/bug-factory/locate` | Bug Factory |
 | `GET /api/ledger` · `/api/taxonomy` · `/api/redteam` · `/api/stats` · `/api/feed` · `/api/health` | Ledger, taxonomy, hostile corpus, landing numbers, liveness |
-| `GET/POST /api/dev/reset` | Re-seed the demo learners |
+| `GET /api/mentor/:learner` · `POST /api/mentor/session` `{learner_id, challenge_id, lang?}` | Mentoring overview · a session script (segments + visuals) and the replay it presents |
+| `POST /api/chat` `{message, learner_id?, history?, lang?, context{page, challenge_id?, code?, repo_report_id?}}` | Ask Priya → `{reply, suggestions, source, model, intent}` |
+| `GET /api/voice/status` · `POST /api/voice/tts` `{text}` · `POST /api/voice/stt` (raw audio) | Which voice is live · ElevenLabs MP3 (204 → browser voice) · Groq Whisper transcript (204 → browser recognition) |
+| `POST /api/repo/analyze` `{url}` or `{local: true}` · `GET /api/repo/reports[/:id]` | Repo Analyse |
+| `GET/POST /api/community/posts` · `GET /api/community/posts/:id` · `POST …/:id/replies` · `POST …/:id/accept` · `POST /api/community/vote` · `GET /api/community/people` · `GET /api/community/teacher-desk` · `GET/POST /api/profile` | Community |
+| `GET/POST /api/dev/reset` | Re-seed the demo learners (and the demo community) |
 
 ## How it works
 
@@ -88,6 +108,7 @@ Browser ──/api/*──▶ Next.js (:3000) ──proxy──▶ Fastify API (
 - **Hints:** hand-written ladders (the statement's own ladder for `last-k-total`, verbatim) + a validator that rejects code at storage time.
 - **Learner model:** Beta mastery per concept; recurrence across *distinct* challenges; next challenge with a reason; Bug Factory generation.
 - **Three extras:** 🗺️ **Line Map** (AST of the learner's code → the culprit line) · ⏱️ **Time-Travel Replay** (`sys.settrace` on a public input, first wrong step flagged) · 🐛 **Bug Factory** (find the bug, then fix it).
+- **Learn together:** 🎥 **Mentoring** (Meet-style call + animated Summarise) · 💬 **Ask Priya** (chat on every page) · 🧱 **Repo Analyse** (architecture review of any repo) · 👥 **Community** (students + teachers, spoilers blurred).
 
 ## Self-test results — `npm run harness`
 
@@ -100,34 +121,50 @@ Browser ──/api/*──▶ Next.js (:3000) ──proxy──▶ Fastify API (
 | T4 hint leakage | **4/4** merged programs still fail a hidden test · **0** hints with code · one rung per request |
 | T5 recurring + skills | exactly the 2 planted mistakes recurring · one-off not flagged · reason names the tag · mastery moves with evidence |
 | T6 explanations | 5 explanations + 4 ladders printed for blind rating; automated floor checks pass |
-| Core unit tests | **20/20** (a planted-bug test per detector, classifier order, validator, bank self-check) |
+| T7 mentor · chat · community · repo (ours) | **0/84** chat replies with code / answer / hidden value · **0/84** leaking mentor lines · spoilers blurred for non-solvers only · AI first replies prose-only · Repo Analyse offline |
+| Core unit tests | **29/29** (a planted-bug test per detector, classifier order, validator, bank self-check, chat guard, mentor script, spoiler check, repo analysis) |
 
 ## Repository
 
 ```
 apps/
-  api/      Fastify API — routes, sandbox pool, seed, optional LLM tier
+  api/      Fastify API — routes, sandbox pool, seed, optional LLM tier,
+            learning.ts (mentor · chat · repo · community services), lib/ai.ts (Groq/Gemini/Anthropic),
+            lib/voice.ts (ElevenLabs TTS · Groq Whisper STT), lib/repo-fetch.ts (GitHub REST / local git)
   runner/   the sandbox child: supervisor.mjs · worker.mjs (Pyodide) · harness.py
-  web/      Next.js 16 + Tailwind 4 + shadcn/ui + motion — landing + 7 app pages, en/हिन्दी/मराठी, light/dark
+  web/      Next.js 16 + Tailwind 4 + shadcn/ui + motion — landing + 10 app pages, en/हिन्दी/मराठी, light/dark
+            components/mentor (MeetRoom, VisualSummary) · components/chat (ChatWidget)
 packages/
   core/     pure logic: challenge bank (hidden tests), classifier, detectors, hints + validator,
-            explanations, secrecy, mastery, recurrence, engine · test/unit.ts
+            explanations, secrecy, mastery, recurrence, engine, mentor script, chatbot + guard,
+            repo analysis, community rules · test/unit.ts
   db/       node:sqlite store — schema.sql (WAL, CHECK constraints)
-harness/    the six judge suites + all.ts scoreboard
+harness/    the six judge suites + T7 (mentor · chat · community · repo) + all.ts scoreboard
 docs/       architecture · test-harness · viva · EVENT-MANUAL (the event field manual)
 TAXONOMY.md hand-in #3 · prompt.md the full build spec · dojo.md / features.md / README-TRACK.md planning docs
 ```
 
-**Stack:** Node 22.13+ · TypeScript run directly by `tsx` · npm workspaces · Fastify 5 · Pyodide 314 (CPython 3.14 → WebAssembly) · `node:sqlite` · Next.js 16 · React 19 · Tailwind CSS 4 · shadcn/ui · motion · NumberFlow · cobe · canvas-confetti. Optional: `@anthropic-ai/sdk` (Tier-2 polish, off without `ANTHROPIC_API_KEY`).
+**Stack:** Node 22.13+ · TypeScript run directly by `tsx` · npm workspaces · Fastify 5 · Pyodide 314 (CPython 3.14 → WebAssembly) · `node:sqlite` · Next.js 16 · React 19 · Tailwind CSS 4 · shadcn/ui · motion · NumberFlow · cobe · canvas-confetti. Optional: `@anthropic-ai/sdk` (Tier-2 polish, off without `ANTHROPIC_API_KEY`) · Groq + Gemini (OpenAI-compatible REST, no SDK) · ElevenLabs REST · browser Web Speech API.
 
-## Optional LLM tier
+## Optional AI keys
 
-The product is complete with **zero API keys** — every explanation and hint has a deterministic Tier 1. If `ANTHROPIC_API_KEY` is set, explanations and hints may be reworded by `claude-opus-5-5` (configurable with `LAYERFLOW_LLM_MODEL`); the model only ever sees the public task, the learner's own code and the already-safe Tier-1 draft, and its text must pass the same validator and leak check or Tier 1 ships. Every prompt and response is logged in the Hint Ledger. See [.env.example](.env.example).
+Put any of these in a **`.env`** at the repo root (git-ignored; the API loads it at start-up). All have free tiers; none is required.
+
+| Key | What it turns on | Without it |
+|---|---|---|
+| `GROQ_API_KEY` | Priya's chat + mentor Q&A + repo review with `openai/gpt-oss-120b` (falls back to `llama-3.3-70b-versatile`, `llama-3.1-8b-instant`); speech-to-text with `whisper-large-v3-turbo`; Hindi/Marathi mentor sessions | Built-in replies; the browser's own speech recognition |
+| `GEMINI_API_KEY` | The same, with `gemini-3.5-flash-lite` (next in `LAYERFLOW_AI_ORDER`) | — |
+| `ELEVENLABS_API_KEY` | Priya's voice (`eleven_flash_v2_5`) | The browser's built-in voice |
+| `GITHUB_TOKEN` | Repo Analyse beyond 60 GitHub requests/hour, and private repos | Public repos, 60 requests/hour |
+
+Every model reply on a problem must pass `guardReply` (no code, no answer, no hidden value) or the built-in reply is shown; every call is logged in the Hint Ledger (`kind = chat · mentor · repo`).
+
+**Tier-2 polish for explanations and hints:** the product is complete with **zero API keys** — every explanation and hint has a deterministic Tier 1. If `ANTHROPIC_API_KEY` is set, explanations and hints may be reworded by `claude-opus-5-5` (configurable with `LAYERFLOW_LLM_MODEL`); the model only ever sees the public task, the learner's own code and the already-safe Tier-1 draft, and its text must pass the same validator and leak check or Tier 1 ships. Every prompt and response is logged in the Hint Ledger. See [.env.example](.env.example).
 
 ## Data & privacy
 
-Pseudonymous learner ids only (`rohan`, `meera`, `kabir`, or any nickname) — no accounts, no real student data. One SQLite file at `apps/api/data/layerflow.db` (gitignored); delete it or run `npm run seed` to reset.
+Pseudonymous learner ids only (`rohan`, `meera`, `kabir`, or any nickname) — no accounts, no real student data. The camera and microphone in Mentoring are only switched on when you click them; video never leaves the browser, and audio is only sent for transcription when you tap the mic. One SQLite file at `apps/api/data/layerflow.db` (gitignored); delete it or run `npm run seed` to reset.
 
 ## Credits
 
-All 18 challenges, their hidden tests and every hint are original to this project — no Exercism / MBPP / HumanEval content was adapted. The web app's design system, landing-page structure, illustrations, videos and fonts come from our team's [VH26-IMPIC](https://github.com/icancodefyi/VH26-IMPIC) frontend.
+All 18 challenges, their hidden tests and every hint are original to this project — no Exercism / MBPP / HumanEval content was adapted. The web app's design system, landing-page structure, illustrations, videos and fonts come from our team's [VH26-IMPIC](https://github.com/icancodefyi/VH26-IMPIC) frontend. The mentor and teacher portraits come from our team's [Apply](https://github.com/rohit94r/Apply-saas) product, whose mock-interview Meet room inspired the mentoring call.
