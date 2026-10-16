@@ -106,6 +106,8 @@ export interface RepoBug {
   file: string;
   line: number;
   snippet: { start: number; lines: string[] };
+  /** other lines in the same file with the same problem */
+  also?: number[];
   why: string;
   fix: string;
   learn: string;
@@ -141,7 +143,7 @@ export interface RepoReport {
   truncated: boolean;
   /** the project explained for a beginner: its parts, languages, folders, where to start, how to run it */
   overview: RepoOverview;
-  /** code-level bugs, most serious first (≤ 25, one per rule + file) */
+  /** code-level bugs, most serious first (≤ 40, one per rule + file) */
   bugs: RepoBug[];
 }
 

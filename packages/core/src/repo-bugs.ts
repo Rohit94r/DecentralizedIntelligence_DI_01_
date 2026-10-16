@@ -1347,10 +1347,10 @@ export function clip(l: string, n = 160): string {
   return t.length > n ? t.slice(0, n - 1) + "…" : t;
 }
 
-/** Up to 2 lines of context either side; any line that might hold a secret is replaced, never shown. */
+/** Up to 4 lines of context either side; any line that might hold a secret is replaced, never shown. */
 export function snippetAt(raw: string[], line: number): RepoBug["snippet"] {
-  const start = Math.max(1, line - 2);
-  const end = Math.min(raw.length, line + 2);
+  const start = Math.max(1, line - 4);
+  const end = Math.min(raw.length, line + 4);
   return { start, lines: raw.slice(start - 1, end).map((l) => (looksSecret(l) ? "… (line hidden — it looks like a secret)" : clip(l))) };
 }
 
@@ -1392,7 +1392,7 @@ export function findBugs(s: RepoSnapshot): RepoBug[] {
       moreFiles.set(last, (moreFiles.get(last) ?? 0) + 1);
     }
   }
-  return kept.slice(0, 25).map((g) => {
+  return kept.slice(0, 40).map((g) => {
     const h = g.hits[0];
     const others = g.hits.slice(1).map((x) => x.line);
     let why = h.why ?? g.rule.why;
@@ -1408,6 +1408,7 @@ export function findBugs(s: RepoSnapshot): RepoBug[] {
       file: g.file,
       line: h.line,
       snippet: snippetAt(g.raw, h.line),
+      also: others.slice(0, 12),
       why,
       fix: g.rule.fix,
       learn: g.rule.learn,
