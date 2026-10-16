@@ -11,6 +11,7 @@ import {
   CHALLENGES,
   allLadderTexts,
   analyzeRepo,
+  auditSite,
   buildMentorScript,
   guardReply,
   ladderFor,
@@ -31,6 +32,7 @@ import {
   validateHint,
   type HistoryItem,
   type RunResult,
+  type SiteFetch,
   type TestResult,
 } from "../src/index.ts";
 
@@ -426,6 +428,79 @@ test("repo overview: a Next.js + Express repo has a frontend and a backend, with
   assert.ok(r.overview.how_it_runs.length >= 3 && r.overview.how_it_runs.some((s) => s.includes("server/")), r.overview.how_it_runs.join(" / "));
   assert.ok(r.overview.commands.some((c) => c.cmd === "npm run dev"), JSON.stringify(r.overview.commands));
   assert.ok(r.overview.summary.startsWith("A small shopping cart app"), r.overview.summary);
+});
+
+/* ── Website Analyse (a live URL, no repo) ── */
+const siteFetch = (html: string, headers: Record<string, string> = {}, extra: Partial<SiteFetch> = {}): SiteFetch => ({
+  input: "shop.example",
+  url: "https://shop.example/",
+  status: 200,
+  redirects: [],
+  headers: { "content-type": "text/html; charset=utf-8", ...headers },
+  cookies: [],
+  html,
+  html_bytes: html.length,
+  ttfb_ms: 120,
+  total_ms: 300,
+  http_upgrade: "redirects",
+  robots: { status: 200, text: "User-agent: *\nAllow: /\nSitemap: https://shop.example/sitemap.xml" },
+  sitemap: { url: "https://shop.example/sitemap.xml", status: 200 },
+  security_txt: 200,
+  resources: [],
+  source_maps: [],
+  truncated: false,
+  ...extra,
+});
+
+test("site audit: finds weak headers, an old jQuery, a leaked key (masked), mixed forms and a11y gaps", () => {
+  const html = `<html><head><title>Shop</title>
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+    <script>var k = "AKIAABCDEFGHIJKLMNOP";</script></head>
+    <body><img src="/a.png"><a href="https://x.example" target="_blank"><svg></svg></a>
+    <form action="http://shop.example/login" method="post"><input type="password" name="pw"></form></body></html>`;
+  const r = auditSite(siteFetch(html, { server: "Apache/2.4.41 (Ubuntu)", "x-powered-by": "PHP/7.4.3" }, { cookies: ["PHPSESSID=abc; path=/"] }));
+  const ids = r.issues.map((i) => i.id);
+  for (const id of ["hsts", "csp", "clickjacking", "old-libraries", "secrets", "insecure-form", "server-version", "cookies", "lang", "img-alt", "link-names", "form-labels", "viewport", "description"]) assert.ok(ids.includes(id), `missing ${id} in ${ids.join(",")}`);
+  // a secret is never copied in full
+  const secret = r.issues.find((i) => i.id === "secrets")!;
+  assert.ok(!JSON.stringify(secret).includes("AKIAABCDEFGHIJKLMNOP"), JSON.stringify(secret.evidence));
+  assert.ok(r.tech.some((t) => t.name === "jQuery" && t.version === "1.12.4") && r.tech.some((t) => t.name === "PHP" && t.version === "7.4.3"), JSON.stringify(r.tech));
+  assert.ok(r.score < 60 && ["D", "E"].includes(r.grade), `${r.score} ${r.grade}`);
+});
+
+test("site audit: a well-built page scores A and its host is recognised", () => {
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fresh groceries in 10 minutes · QuickCart</title><meta name="description" content="Order fresh fruit, vegetables and daily needs and get them at your door in about ten minutes, any time of day.">
+    <link rel="canonical" href="https://shop.example/"><link rel="icon" href="/favicon.ico">
+    <meta property="og:title" content="QuickCart"><meta property="og:description" content="Groceries fast"><meta property="og:image" content="https://shop.example/og.png">
+    <script type="application/ld+json">{"@type":"Organization"}</script><script src="/app.js" defer></script></head>
+    <body><main><h1>Groceries in 10 minutes</h1><h2>Fruit</h2><img src="/a.webp" alt="Apples" width="200" height="100"><label for="q">Search</label><input id="q"></main></body></html>`;
+  const headers = { "strict-transport-security": "max-age=31536000", "content-security-policy": "default-src 'self'; frame-ancestors 'self'", "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "permissions-policy": "camera=()", "content-encoding": "br", "x-vercel-id": "bom1::abc" };
+  const r = auditSite(siteFetch(html, headers));
+  assert.ok(r.score >= 90 && r.grade === "A", `${r.score}: ${r.issues.map((i) => i.id).join(",")}`);
+  assert.ok(r.tech.some((t) => t.name === "Vercel"), JSON.stringify(r.tech));
+});
+
+/* ── Repo Analyse: the security and reliability bug rules ── */
+test("repo bugs: SQL injection, open CORS, open redirect, empty catch and debug mode — safe queries left alone", () => {
+  const files = {
+    "src/server.js": [
+      'const mongoose = require("mongoose");',
+      'app.use(cors({ origin: true, credentials: true }));',
+      'app.get("/s", async (req, res) => {',
+      "  const rows = await db.query(`SELECT * FROM products WHERE name LIKE '%${req.query.q}%'`);",
+      "  const ok = await db.query(`SELECT * FROM ${TABLE} WHERE id = ?`, [id]);",
+      "  res.redirect(req.query.next);",
+      "});",
+      "try { risky(); } catch (e) {}",
+    ].join("\n"),
+    "app/main.py": ['cur.execute(f"SELECT * FROM users WHERE name = \'{name}\'")', 'cur.execute("SELECT * FROM users WHERE id = %s", (uid,))', "app.run(debug=True)"].join("\n"),
+  };
+  const r = analyzeRepo({ source: "github", owner: "t", name: "t", files: Object.keys(files).map((path) => ({ path, size: files[path as keyof typeof files].length })), contents: files } as never);
+  const hits = r.bugs.map((b) => `${b.id.split(":")[0]}@${b.file}:${b.line}`);
+  for (const h of ["sql-injection@src/server.js:4", "cors-credentials@src/server.js:2", "open-redirect@src/server.js:6", "empty-catch@src/server.js:8", "sql-injection@app/main.py:1", "debug-mode@app/main.py:3"]) assert.ok(hits.includes(h), `missing ${h} in ${hits.join(", ")}`);
+  // the safe queries (a constant table name, a %s placeholder) are not flagged
+  assert.ok(!hits.includes("sql-injection@src/server.js:5") && !r.bugs.some((b) => b.file === "app/main.py" && (b.also ?? []).includes(2)), hits.join(", "));
 });
 
 let failed = 0;
