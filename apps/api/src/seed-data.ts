@@ -9,6 +9,7 @@
  *         nothing recurring yet.
  */
 import { SEED_LEARNERS } from "./fixtures.ts";
+import { seedCommunity } from "./seed-community.ts";
 import { runScript, type Ctx } from "./service.ts";
 
 export async function seedAll(ctx: Ctx, log: (s: string) => void = () => {}): Promise<void> {
@@ -19,4 +20,6 @@ export async function seedAll(ctx: Ctx, log: (s: string) => void = () => {}): Pr
     await runScript(ctx, l.id, l.steps, { days: l.days, now: now - 60_000 });
     log(`  seeded ${l.id.padEnd(6)} ${l.steps.filter((s) => s.code).length} submissions  (${Date.now() - t0} ms)`);
   }
+  seedCommunity(ctx.store, now);
+  log("  seeded community: 3 teachers, the AI mentor, 6 threads");
 }
