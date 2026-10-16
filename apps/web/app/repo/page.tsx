@@ -1,10 +1,14 @@
 "use client";
 
 /**
- * Repo Analyse — paste a GitHub repo, get a beginner-friendly architecture
- * review: a health score, the layers your project has (and is missing), what
- * to fix first and WHY, a step-by-step roadmap, the shape to aim for so it can
- * scale, and Priya to ask about any of it. Works offline on this project too.
+ * Repo Analyse — paste a GitHub repo and get it explained for a beginner:
+ *   Overview      what it is, its parts (frontend, backend, database…), how a
+ *                 click travels through them, languages, folders, where to start
+ *                 reading and how to run it
+ *   Bugs to fix   code-level bugs with the exact line, why and how to fix
+ *   Architecture  health score, findings, layers, Priya's review
+ *   Roadmap       step-by-step plan, the shape to aim for, what to learn next
+ * …and Priya to ask about any of it. Works offline on this project too.
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -12,26 +16,29 @@ import NumberFlow from "@number-flow/react";
 import {
   ArrowRight,
   BookOpen,
+  Bug,
   ChevronDown,
   CircleCheck,
+  Compass,
   FileCode,
   FolderTree,
   Gauge,
   Layers,
   LoaderCircle,
   Map as MapIcon,
+  RefreshCw,
   SendHorizontal,
-  ShieldAlert,
   Sparkles,
   Star,
-  TriangleAlert,
   Volume2,
   VolumeX,
-  Wrench,
 } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { Card, PageHeading } from "@/components/app/bits";
 import { Markdown } from "@/components/app/Markdown";
+import { RepoBugs } from "@/components/repo/RepoBugs";
+import { RepoOverview } from "@/components/repo/RepoOverview";
+import { SEV } from "@/components/repo/bits";
 import { api, timeAgo, type RepoFinding, type RepoReport, type Severity } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { useI18n } from "@/lib/i18n/context";
@@ -46,15 +53,11 @@ function GithubMark({ className }: { className?: string }) {
   );
 }
 
-const SEV: Record<Severity, { label: string; dot: string; chip: string; Icon: typeof ShieldAlert }> = {
-  high: { label: "Fix first", dot: "#c64e27", chip: "border-[#f3c8b8] bg-[#fdeee8] text-[#a8401f]", Icon: ShieldAlert },
-  medium: { label: "Fix soon", dot: "#f59e0b", chip: "border-[#fde1a8] bg-[#fff6e3] text-[#96681c]", Icon: TriangleAlert },
-  low: { label: "Polish", dot: "#0586d2", chip: "border-sky-200 bg-sky-50 text-sky-700", Icon: Wrench },
-};
-
 const GRADE_COLOR: Record<string, string> = { A: "#359462", B: "#5aa832", C: "#f59e0b", D: "#e8792b", E: "#c64e27" };
 
-const STEPS = ["Reading the file tree", "Opening the key files", "Checking for secrets and risky code", "Finding your project's layers", "Writing your step-by-step plan"];
+const STEPS = ["Reading the file tree", "Opening the key files", "Sorting it into frontend, backend…", "Checking every line for bugs", "Writing your step-by-step plan"];
+
+type TabId = "overview" | "bugs" | "architecture" | "roadmap";
 
 function ScoreRing({ score, grade }: { score: number; grade: string }) {
   const r = 52;
@@ -105,7 +108,7 @@ function LayerDiagram({ report }: { report: RepoReport }) {
               {l.present && l.paths.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {l.paths.slice(0, 4).map((p) => (
-                    <code key={p} className="rounded-md bg-white/80 px-1.5 py-px font-mono text-[11px] text-neutral-600">
+                    <code key={p} className="max-w-full truncate rounded-md bg-white/80 px-1.5 py-px font-mono text-[11px] text-neutral-600">
                       {p}
                     </code>
                   ))}
@@ -129,10 +132,10 @@ function LayerDiagram({ report }: { report: RepoReport }) {
       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Around every layer</p>
       <div className="grid grid-cols-2 gap-2">
         {side.map((l, i) => (
-          <motion.div key={l.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.1 }} className={cn("rounded-xl border px-3 py-2", l.present ? "border-neutral-200 bg-white" : "border-dashed border-[#f3c8b8] bg-[#fdeee8]/50")}>
+          <motion.div key={l.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.1 }} className={cn("min-w-0 rounded-xl border px-3 py-2", l.present ? "border-neutral-200 bg-white" : "border-dashed border-[#f3c8b8] bg-[#fdeee8]/50")}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[12.5px] font-semibold text-neutral-900">{l.label}</span>
-              {l.present ? <CircleCheck className="size-3.5 text-[#359462]" /> : <span className="text-[10.5px] font-bold text-[#a8401f]">missing</span>}
+              {l.present ? <CircleCheck className="size-3.5 shrink-0 text-[#359462]" /> : <span className="text-[10.5px] font-bold text-[#a8401f]">missing</span>}
             </div>
             <p className="mt-0.5 text-[11px] leading-[1.4] text-neutral-500">{l.simple}</p>
           </motion.div>
@@ -146,7 +149,7 @@ function FindingCard({ f, onAsk, open, onToggle }: { f: RepoFinding; onAsk: (q: 
   const s = SEV[f.severity];
   return (
     <div className="overflow-hidden rounded-2xl border border-neutral-200/80 bg-white">
-      <button onClick={onToggle} className="flex w-full items-start gap-3 px-4 py-3.5 text-left">
+      <button onClick={onToggle} aria-expanded={open} className="flex w-full items-start gap-3 px-4 py-3.5 text-left">
         <s.Icon className="mt-0.5 size-4 shrink-0" style={{ color: s.dot }} />
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-semibold leading-[1.35] tracking-[-0.01em] text-neutral-950">{f.title}</p>
@@ -172,8 +175,8 @@ function FindingCard({ f, onAsk, open, onToggle }: { f: RepoFinding; onAsk: (q: 
               {f.files && f.files.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {f.files.map((p) => (
-                    <code key={p} className="flex items-center gap-1 rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] text-neutral-700">
-                      <FileCode className="size-3" /> {p}
+                    <code key={p} className="flex max-w-full items-center gap-1 rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] text-neutral-700">
+                      <FileCode className="size-3 shrink-0" /> <span className="truncate">{p}</span>
                     </code>
                   ))}
                 </div>
@@ -222,14 +225,15 @@ function AskRepo({ report, pending, onConsumed }: { report: RepoReport; pending:
   useEffect(() => {
     box.current?.scrollTo({ top: box.current.scrollHeight, behavior: "smooth" });
   }, [msgs, busy]);
+  const suggestions = ["What should I fix first?", (report.bugs?.length ?? 0) > 0 ? "Which bug is the most serious?" : "How do I make it scalable?", "Where should I start reading?"];
   return (
     <div>
-      <div ref={box} className="max-h-[320px] space-y-3 overflow-y-auto">
-        {msgs.length === 0 && <p className="text-[12.5px] text-neutral-500">Ask about anything in this report — “What should I fix first?”, “How do I add tests?”, “How do I make it scale?”</p>}
+      <div ref={box} className="max-h-[340px] space-y-3 overflow-y-auto">
+        {msgs.length === 0 && <p className="text-[12.5px] text-neutral-500">Ask about anything in this report — a part, a folder, a bug, or what to fix first.</p>}
         {msgs.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl rounded-tr-md bg-neutral-950 px-3 py-2 text-[13px] text-white">{m.content}</div>
+              <div className="max-w-[85%] break-words rounded-2xl rounded-tr-md bg-neutral-950 px-3 py-2 text-[13px] text-white">{m.content}</div>
             </div>
           ) : (
             <div key={i} className="flex gap-2">
@@ -247,7 +251,7 @@ function AskRepo({ report, pending, onConsumed }: { report: RepoReport; pending:
         )}
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {["What should I fix first?", "How do I make it scalable?", "What's already good?"].map((s) => (
+        {suggestions.map((s) => (
           <button key={s} onClick={() => ask(s)} disabled={busy} className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11.5px] font-medium text-neutral-700 hover:border-neutral-950 disabled:opacity-50">
             {s}
           </button>
@@ -269,6 +273,205 @@ function AskRepo({ report, pending, onConsumed }: { report: RepoReport; pending:
   );
 }
 
+/** Reports saved before the beginner overview / bug check existed: offer a fresh run. */
+function OldReport({ what, onRerun }: { what: string; onRerun: () => void }) {
+  return (
+    <Card className="text-center">
+      <p className="text-[14px] font-semibold text-neutral-950">This report was saved before {what} existed.</p>
+      <p className="mt-1 text-[12.5px] text-neutral-500">Run the analysis again to see it — it takes a few seconds.</p>
+      <button onClick={onRerun} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-neutral-950 px-4 py-1.5 text-[12.5px] font-semibold text-white">
+        <RefreshCw className="size-3.5" /> Analyse again
+      </button>
+    </Card>
+  );
+}
+
+function ArchitectureTab({ report, onAsk, speaker }: { report: RepoReport; onAsk: (q: string) => void; speaker: ReturnType<typeof useSpeaker> }) {
+  const [sev, setSev] = useState<"all" | Severity>("all");
+  const [openId, setOpenId] = useState<string | null>(report.findings[0]?.id ?? null);
+  const findings = report.findings.filter((f) => sev === "all" || f.severity === sev);
+  const counts = { high: report.findings.filter((f) => f.severity === "high").length, medium: report.findings.filter((f) => f.severity === "medium").length, low: report.findings.filter((f) => f.severity === "low").length };
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <Card className="flex flex-col gap-6 sm:flex-row sm:items-center">
+          <ScoreRing score={report.score} grade={report.grade} />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Architecture health</p>
+            <p className="mt-1.5 text-[15px] font-medium leading-[1.45] tracking-[-0.01em] text-neutral-900">{report.verdict}</p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-neutral-950 px-2.5 py-0.5 text-[11px] font-semibold text-white">{report.kind}</span>
+              {report.stack.map((s) => (
+                <span key={s} className="rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-neutral-700">
+                  {s}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center sm:max-w-sm">
+              {[
+                ["files", report.metrics.files],
+                ["code files", report.metrics.code_files],
+                ["test files", report.metrics.test_files],
+              ].map(([k, v]) => (
+                <div key={k as string} className="rounded-2xl bg-neutral-50 px-2 py-2">
+                  <p className="text-[18px] font-semibold tabular-nums tracking-[-0.02em] text-neutral-950">
+                    <NumberFlow value={v as number} />
+                  </p>
+                  <p className="text-[10.5px] text-neutral-500">{k}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+        <Card>
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Health by area</p>
+          <div className="space-y-2.5">
+            {report.areas.map((a, i) => (
+              <div key={a.area} className="flex items-center gap-3">
+                <span className="w-24 shrink-0 text-[12.5px] font-medium text-neutral-700">{a.label}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-100">
+                  <motion.div className="h-full rounded-full" style={{ backgroundColor: a.score >= 80 ? "#359462" : a.score >= 55 ? "#f59e0b" : "#c64e27" }} initial={{ width: 0 }} animate={{ width: `${a.score}%` }} transition={{ delay: 0.1 + i * 0.06, duration: 0.8 }} />
+                </div>
+                <span className="w-8 text-right text-[12px] font-semibold tabular-nums text-neutral-800">{a.score}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Priya's review */}
+      <Card tint="sky" className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <img src="/people/priya.jpg" alt="Priya" className="size-14 shrink-0 rounded-2xl object-cover" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[14px] font-semibold text-neutral-950">Priya's review</p>
+            <span className="rounded-full bg-white/70 px-2 py-px text-[10.5px] font-semibold text-neutral-500">{report.review_model ? report.review_model : "built-in"}</span>
+            <button onClick={() => (speaker.speaking ? speaker.stop() : speaker.speak(report.review))} className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-neutral-800 shadow-sm">
+              {speaker.speaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />} {speaker.speaking ? "Stop" : "Listen"}
+            </button>
+          </div>
+          <p className="mt-2 text-[14px] leading-[1.6] text-neutral-800">{report.review}</p>
+        </div>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <div className="min-w-0">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <p className="mr-auto text-[18px] font-medium tracking-[-0.02em] text-neutral-950">What to fix ({report.findings.length})</p>
+            {(
+              [
+                ["all", `All`],
+                ["high", `Fix first · ${counts.high}`],
+                ["medium", `Soon · ${counts.medium}`],
+                ["low", `Polish · ${counts.low}`],
+              ] as ["all" | Severity, string][]
+            ).map(([k, label]) => (
+              <button key={k} onClick={() => setSev(k)} className={cn("rounded-full border px-3 py-1 text-[12px] font-semibold", sev === k ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400")}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="space-y-2.5">
+            {findings.map((f) => (
+              <FindingCard key={f.id} f={f} open={openId === f.id} onToggle={() => setOpenId((o) => (o === f.id ? null : f.id))} onAsk={onAsk} />
+            ))}
+            {report.findings.length === 0 && <Card className="text-[13px] text-neutral-600">Nothing important to fix — this is a well-kept project. 🎉</Card>}
+          </div>
+          {report.strengths.length > 0 && (
+            <div className="mt-6">
+              <p className="mb-3 text-[18px] font-medium tracking-[-0.02em] text-neutral-950">Already good 👏</p>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {report.strengths.map((s) => (
+                  <div key={s.title} className="flex items-start gap-2.5 rounded-2xl border border-[#cfe9c8] bg-[#eeffe8] px-4 py-3">
+                    <CircleCheck className="mt-0.5 size-4 shrink-0 text-[#359462]" />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-neutral-950">{s.title}</p>
+                      <p className="text-[12px] leading-[1.45] text-neutral-600">{s.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <Card className="min-w-0 self-start">
+          <div className="mb-4 flex items-center gap-2">
+            <Layers className="size-4 text-neutral-500" />
+            <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">Your project's layers</p>
+          </div>
+          <LayerDiagram report={report} />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function RoadmapTab({ report, onAsk }: { report: RepoReport; onAsk: (q: string) => void }) {
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <div className="mb-4 flex items-center gap-2">
+            <MapIcon className="size-4 text-neutral-500" />
+            <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">Your roadmap — one step at a time</p>
+          </div>
+          <ol className="relative space-y-4 pl-8">
+            <span className="absolute bottom-2 left-[11px] top-2 w-px bg-neutral-200" />
+            {report.roadmap.map((r, i) => (
+              <motion.li key={r.step} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.08 }} className="relative">
+                <span className="absolute -left-8 flex size-6 items-center justify-center rounded-full bg-neutral-950 text-[11px] font-bold text-white">{r.step}</span>
+                <p className="text-[13.5px] font-semibold tracking-[-0.01em] text-neutral-950">{r.title}</p>
+                <p className="mt-0.5 text-[12.5px] leading-[1.5] text-neutral-600">{r.detail}</p>
+              </motion.li>
+            ))}
+            {report.roadmap.length === 0 && <li className="text-[13px] text-neutral-500">No steps needed — keep doing what you're doing.</li>}
+          </ol>
+        </Card>
+        <Card tint="green">
+          <div className="mb-2 flex items-center gap-2">
+            <Sparkles className="size-4 text-[#2f7c53]" />
+            <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">The shape to aim for (so it can scale)</p>
+          </div>
+          <p className="mb-4 text-[12.5px] leading-[1.5] text-neutral-600">{report.target.note}</p>
+          <div className="space-y-0">
+            {report.target.layers.map((l, i) => (
+              <div key={l.label}>
+                <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.1 }} className="rounded-2xl border border-[#cfe9c8] bg-white/80 px-4 py-2.5">
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-[13.5px] font-semibold text-neutral-950">{l.label}</span>
+                    <code className="font-mono text-[11px] text-[#2f7c53]">{l.holds}</code>
+                  </div>
+                  <p className="mt-0.5 text-[12px] leading-[1.45] text-neutral-600">{l.rule}</p>
+                </motion.div>
+                {i < report.target.layers.length - 1 && <div className="mx-auto flex h-5 w-px items-center justify-center bg-[#cfe9c8] text-[10px] text-[#2f7c53]" />}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {report.learn.length > 0 && (
+        <Card>
+          <div className="mb-3 flex items-center gap-2">
+            <BookOpen className="size-4 text-neutral-500" />
+            <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">What to learn next</p>
+          </div>
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {report.learn.map((l) => (
+              <button key={l.topic} onClick={() => onAsk(`Explain "${l.topic}" to me like I'm a beginner, using my repo as the example.`)} className="rounded-2xl border border-[#ddd0ff] bg-[#f2eeff] px-4 py-3 text-left transition-transform hover:-translate-y-0.5">
+                <p className="flex items-center justify-between gap-2 text-[13.5px] font-semibold text-[#3f1d8a]">
+                  {l.topic} <ArrowRight className="size-3.5 shrink-0" />
+                </p>
+                <p className="mt-0.5 text-[12px] leading-[1.45] text-[#5e4a8f]">{l.why}</p>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export default function RepoPage() {
   const { t } = useI18n();
   const [learner] = useLearner();
@@ -278,8 +481,7 @@ export default function RepoPage() {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<RepoReport | null>(null);
   const [history, setHistory] = useState<{ id: string; repo: string; source: string; score: number; grade: string; created_at: string }[]>([]);
-  const [sev, setSev] = useState<"all" | Severity>("all");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabId>("overview");
   const [pendingQ, setPendingQ] = useState<string | null>(null);
   const speaker = useSpeaker();
   const top = useRef<HTMLDivElement>(null);
@@ -299,6 +501,12 @@ export default function RepoPage() {
     return () => clearInterval(id);
   }, [busy]);
 
+  const show = (r: RepoReport) => {
+    setReport(r);
+    setTab(r.overview ? "overview" : "architecture");
+    setTimeout(() => top.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  };
+
   const run = async (body: { url?: string; local?: boolean }) => {
     setBusy(true);
     setError(null);
@@ -306,23 +514,41 @@ export default function RepoPage() {
     speaker.stop();
     try {
       const r = await api.analyzeRepo({ ...body, learner_id: learner });
-      setReport(r);
-      setOpenId(r.findings[0]?.id ?? null);
+      show(r);
       loadHistory();
-      setTimeout(() => top.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   };
+  const rerun = () => report && run(report.repo.source === "local" ? { local: true } : { url: report.repo.url ?? `${report.repo.owner}/${report.repo.name}` });
 
-  const findings = useMemo(() => (report ? report.findings.filter((f) => sev === "all" || f.severity === sev) : []), [report, sev]);
-  const counts = useMemo(() => ({ high: report?.findings.filter((f) => f.severity === "high").length ?? 0, medium: report?.findings.filter((f) => f.severity === "medium").length ?? 0, low: report?.findings.filter((f) => f.severity === "low").length ?? 0 }), [report]);
+  const ask = (q: string) => {
+    setPendingQ(q);
+    askRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const bugCount = report?.bugs?.length ?? 0;
+  const tabs = useMemo(
+    () =>
+      [
+        { id: "overview", label: "Overview", hint: "for beginners", Icon: Compass, count: null },
+        { id: "bugs", label: "Bugs to fix", hint: null, Icon: Bug, count: report?.bugs ? bugCount : null },
+        { id: "architecture", label: "Architecture", hint: null, Icon: Layers, count: report?.findings.length ?? null },
+        { id: "roadmap", label: "Roadmap & learn", hint: null, Icon: MapIcon, count: null },
+      ] as { id: TabId; label: string; hint: string | null; Icon: typeof Compass; count: number | null }[],
+    [report, bugCount],
+  );
 
   return (
-    <AppShell title={t("app.repo")} subtitle="Learn architecture from your own project" wide>
-      <PageHeading eyebrow="Repo Analyse" title="Paste a repo." accent="Learn how to build it right." body="Layerflow reads your GitHub project and explains — in plain words — what's risky, what's messy, and how to shape it so it can grow. Every finding comes with the why and the fix." />
+    <AppShell title={t("app.repo")} subtitle="Understand any project — and learn to build it right" wide>
+      <PageHeading
+        eyebrow="Repo Analyse"
+        title="Paste a repo."
+        accent="See how it's built — and what to fix."
+        body="Layerflow reads your GitHub project and explains it in plain words: the frontend, the backend and the languages it uses, which lines look like bugs and why, and how to shape it so it can grow."
+      />
 
       {/* input */}
       <Card className="mb-6">
@@ -347,8 +573,8 @@ export default function RepoPage() {
             <FolderTree className="size-3.5" /> This project (works offline)
           </button>
           {["icancodefyi/VH26-IMPIC", "rohit94r/Apply-saas"].map((r) => (
-            <button key={r} onClick={() => (setUrl(r), run({ url: r }))} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 font-medium text-neutral-700 hover:border-neutral-950 disabled:opacity-50">
-              <GithubMark className="size-3" /> {r}
+            <button key={r} onClick={() => (setUrl(r), run({ url: r }))} disabled={busy} className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1 font-medium text-neutral-700 hover:border-neutral-950 disabled:opacity-50">
+              <GithubMark className="size-3 shrink-0" /> <span className="truncate">{r}</span>
             </button>
           ))}
         </div>
@@ -367,12 +593,33 @@ export default function RepoPage() {
           )}
         </AnimatePresence>
         {error && <p className="mt-3 rounded-2xl bg-[#fdeee8] px-4 py-3 text-[13px] text-[#a8401f]">{error}</p>}
+        {history.length > 0 && (
+          <div className="mt-4 border-t border-neutral-100 pt-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Your recent reports</p>
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-0.5">
+              {history.map((h) => (
+                <button
+                  key={h.id}
+                  onClick={() => api.repoReport(h.id).then(show).catch((e) => setError((e as Error).message))}
+                  className={cn("flex shrink-0 items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-[12px] hover:border-neutral-950", report?.id === h.id ? "border-neutral-950" : "border-neutral-200")}
+                >
+                  <span className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: GRADE_COLOR[h.grade] }}>
+                    {h.grade}
+                  </span>
+                  <span className="font-semibold text-neutral-800">{h.repo === "local" ? "this project" : h.repo}</span>
+                  <span className="text-neutral-400">{timeAgo(h.created_at)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
 
       {!report && !busy && (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["🔐", "Is it safe?", "Secrets committed by accident, SQL built from strings, debug mode left on."],
+            ["🧭", "What's inside?", "The frontend, the backend, the database and every language — explained like you're new."],
+            ["🐞", "Any bugs?", "Off-by-one loops, async mistakes, unsafe HTML, plain-text passwords — with the exact line and the fix."],
             ["🧱", "Is it organised?", "Screens, routes, logic and data in their own layers — or tangled together?"],
             ["🚀", "Can it grow?", "Tests, CI, config, health checks — what you'll need before real users arrive."],
           ].map(([e, h, b]) => (
@@ -382,258 +629,114 @@ export default function RepoPage() {
               <p className="mt-1 text-[12.5px] leading-[1.5] text-neutral-500">{b}</p>
             </Card>
           ))}
-          {history.length > 0 && (
-            <Card className="sm:col-span-3">
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Your recent reports</p>
-              <div className="flex flex-wrap gap-2">
-                {history.map((h) => (
-                  <button key={h.id} onClick={() => api.repoReport(h.id).then((r) => (setReport(r), setOpenId(r.findings[0]?.id ?? null)))} className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[12px] hover:border-neutral-950">
-                    <span className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: GRADE_COLOR[h.grade] }}>
-                      {h.grade}
-                    </span>
-                    <span className="font-semibold text-neutral-800">{h.repo === "local" ? "this project" : h.repo}</span>
-                    <span className="text-neutral-400">{timeAgo(h.created_at)}</span>
-                  </button>
-                ))}
-              </div>
-            </Card>
-          )}
         </div>
       )}
 
       {report && (
-        <div ref={top} className="scroll-mt-20 space-y-6">
-          {/* summary */}
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-            <Card className="flex flex-col gap-6 sm:flex-row sm:items-center">
-              <ScoreRing score={report.score} grade={report.grade} />
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  {report.repo.source === "github" ? <GithubMark className="size-4 text-neutral-500" /> : <FolderTree className="size-4 text-neutral-500" />}
-                  {report.repo.url ? (
-                    <a href={report.repo.url} target="_blank" rel="noreferrer" className="truncate text-[17px] font-semibold tracking-[-0.02em] text-neutral-950 hover:underline">
-                      {report.repo.owner ? `${report.repo.owner}/` : ""}
-                      {report.repo.name}
-                    </a>
-                  ) : (
-                    <span className="text-[17px] font-semibold tracking-[-0.02em] text-neutral-950">{report.repo.name}</span>
-                  )}
-                  {typeof report.repo.stars === "number" && (
-                    <span className="inline-flex items-center gap-1 text-[12px] text-neutral-500">
-                      <Star className="size-3" /> {report.repo.stars}
-                    </span>
-                  )}
-                </div>
-                {report.repo.description && <p className="mt-1 text-[12.5px] text-neutral-500">{report.repo.description}</p>}
-                <p className="mt-3 text-[15px] font-medium leading-[1.45] tracking-[-0.01em] text-neutral-900">{report.verdict}</p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  <span className="rounded-full bg-neutral-950 px-2.5 py-0.5 text-[11px] font-semibold text-white">{report.kind}</span>
-                  {report.stack.map((s) => (
-                    <span key={s} className="rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-[11px] font-medium text-neutral-700">
-                      {s}
-                    </span>
-                  ))}
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center sm:max-w-sm">
-                  {[
-                    ["files", report.metrics.files],
-                    ["code files", report.metrics.code_files],
-                    ["test files", report.metrics.test_files],
-                  ].map(([k, v]) => (
-                    <div key={k as string} className="rounded-2xl bg-neutral-50 px-2 py-2">
-                      <p className="text-[18px] font-semibold tabular-nums tracking-[-0.02em] text-neutral-950">
-                        <NumberFlow value={v as number} />
-                      </p>
-                      <p className="text-[10.5px] text-neutral-500">{k}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-            <Card>
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Health by area</p>
-              <div className="space-y-2.5">
-                {report.areas.map((a, i) => (
-                  <div key={a.area} className="flex items-center gap-3">
-                    <span className="w-24 shrink-0 text-[12.5px] font-medium text-neutral-700">{a.label}</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-neutral-100">
-                      <motion.div className="h-full rounded-full" style={{ backgroundColor: a.score >= 80 ? "#359462" : a.score >= 55 ? "#f59e0b" : "#c64e27" }} initial={{ width: 0 }} animate={{ width: `${a.score}%` }} transition={{ delay: 0.1 + i * 0.06, duration: 0.8 }} />
-                    </div>
-                    <span className="w-8 text-right text-[12px] font-semibold tabular-nums text-neutral-800">{a.score}</span>
-                  </div>
-                ))}
-              </div>
-              {report.metrics.languages.length > 0 && (
-                <>
-                  <p className="mb-2 mt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Languages</p>
-                  <div className="flex h-2.5 overflow-hidden rounded-full">
-                    {report.metrics.languages.map((l, i) => (
-                      <div key={l.name} style={{ width: `${l.share}%`, backgroundColor: ["#359462", "#0586d2", "#f59e0b", "#7B35F0", "#ec4899", "#c64e27"][i % 6] }} />
-                    ))}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-neutral-500">
-                    {report.metrics.languages.map((l, i) => (
-                      <span key={l.name} className="inline-flex items-center gap-1">
-                        <span className="size-2 rounded-full" style={{ backgroundColor: ["#359462", "#0586d2", "#f59e0b", "#7B35F0", "#ec4899", "#c64e27"][i % 6] }} />
-                        {l.name} {l.share}%
-                      </span>
-                    ))}
-                  </div>
-                </>
-              )}
-            </Card>
-          </div>
-
-          {/* Priya's review */}
-          <Card tint="sky" className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <img src="/people/priya.jpg" alt="Priya" className="size-14 shrink-0 rounded-2xl object-cover" />
+        <div ref={top} className="scroll-mt-20 space-y-4">
+          {/* which repo */}
+          <Card className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[14px] font-semibold text-neutral-950">Priya's review</p>
-                <span className="rounded-full bg-white/70 px-2 py-px text-[10.5px] font-semibold text-neutral-500">{report.review_model ? report.review_model : "built-in"}</span>
-                <button onClick={() => (speaker.speaking ? speaker.stop() : speaker.speak(report.review))} className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-neutral-800 shadow-sm">
-                  {speaker.speaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />} {speaker.speaking ? "Stop" : "Listen"}
-                </button>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                {report.repo.source === "github" ? <GithubMark className="size-4 shrink-0 text-neutral-500" /> : <FolderTree className="size-4 shrink-0 text-neutral-500" />}
+                {report.repo.url ? (
+                  <a href={report.repo.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.02em] text-neutral-950 hover:underline">
+                    {report.repo.owner ? `${report.repo.owner}/` : ""}
+                    {report.repo.name}
+                  </a>
+                ) : (
+                  <span className="min-w-0 truncate text-[18px] font-semibold tracking-[-0.02em] text-neutral-950">{report.repo.name}</span>
+                )}
+                {typeof report.repo.stars === "number" && (
+                  <span className="inline-flex items-center gap-1 text-[12px] text-neutral-500">
+                    <Star className="size-3" /> {report.repo.stars}
+                  </span>
+                )}
+                <span className="rounded-full bg-neutral-950 px-2.5 py-0.5 text-[11px] font-semibold text-white">{report.kind}</span>
               </div>
-              <p className="mt-2 text-[14px] leading-[1.6] text-neutral-800">{report.review}</p>
+              {report.repo.description && <p className="mt-1 text-[12.5px] text-neutral-500">{report.repo.description}</p>}
+            </div>
+            <div className="grid grid-cols-3 gap-2 lg:w-[340px]">
+              <button onClick={() => setTab("architecture")} className="rounded-2xl bg-neutral-50 px-3 py-2 text-left hover:bg-neutral-100">
+                <p className="flex items-center gap-1.5 text-[18px] font-semibold tabular-nums tracking-[-0.02em] text-neutral-950">
+                  <span className="flex size-5 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: GRADE_COLOR[report.grade] }}>
+                    {report.grade}
+                  </span>
+                  <NumberFlow value={report.score} />
+                </p>
+                <p className="text-[10.5px] text-neutral-500">health score</p>
+              </button>
+              <button onClick={() => setTab("bugs")} className="rounded-2xl bg-neutral-50 px-3 py-2 text-left hover:bg-neutral-100">
+                <p className="flex items-center gap-1.5 text-[18px] font-semibold tabular-nums tracking-[-0.02em] text-neutral-950">
+                  <Bug className={cn("size-4", bugCount ? "text-[#c64e27]" : "text-[#359462]")} />
+                  {report.bugs ? <NumberFlow value={bugCount} /> : "–"}
+                </p>
+                <p className="text-[10.5px] text-neutral-500">bugs to fix</p>
+              </button>
+              <button onClick={() => setTab("overview")} className="rounded-2xl bg-neutral-50 px-3 py-2 text-left hover:bg-neutral-100">
+                <p className="text-[18px] font-semibold tabular-nums tracking-[-0.02em] text-neutral-950">
+                  <NumberFlow value={report.metrics.files} />
+                </p>
+                <p className="text-[10.5px] text-neutral-500">files</p>
+              </button>
             </div>
           </Card>
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            {/* findings */}
+          {/* tabs — they scroll sideways on a phone; Ask Priya stays one tap away */}
+          <div className="sticky top-[57px] z-20 -mx-1 bg-neutral-50/70 px-1 py-2 backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <div role="tablist" aria-label="Report sections" className="no-scrollbar flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+                {tabs.map((x) => (
+                  <button
+                    key={x.id}
+                    role="tab"
+                    aria-selected={tab === x.id}
+                    onClick={() => setTab(x.id)}
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors",
+                      tab === x.id ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400",
+                    )}
+                  >
+                    <x.Icon className="size-3.5" />
+                    {x.label}
+                    {x.hint && <span className={cn("hidden text-[11px] font-medium sm:inline", tab === x.id ? "opacity-70" : "text-neutral-400")}>· {x.hint}</span>}
+                    {x.count !== null && (
+                      <span className={cn("rounded-full px-1.5 text-[10.5px] font-bold tabular-nums", tab === x.id ? "bg-white/20" : x.id === "bugs" && x.count ? "bg-[#fdeee8] text-[#a8401f]" : "bg-neutral-100 text-neutral-600")}>{x.count}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => askRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white py-1 pl-1 pr-3 text-[12.5px] font-semibold text-neutral-800 hover:border-neutral-950 2xl:hidden">
+                <img src="/people/priya.jpg" alt="" className="size-7 rounded-full object-cover" />
+                <span className="hidden sm:inline">Ask Priya</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_340px]">
             <div className="min-w-0">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <p className="mr-auto text-[18px] font-medium tracking-[-0.02em] text-neutral-950">What to fix ({report.findings.length})</p>
-                {(
-                  [
-                    ["all", `All`],
-                    ["high", `Fix first · ${counts.high}`],
-                    ["medium", `Soon · ${counts.medium}`],
-                    ["low", `Polish · ${counts.low}`],
-                  ] as ["all" | Severity, string][]
-                ).map(([k, label]) => (
-                  <button key={k} onClick={() => setSev(k)} className={cn("rounded-full border px-3 py-1 text-[12px] font-semibold", sev === k ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400")}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="space-y-2.5">
-                {findings.map((f) => (
-                  <FindingCard
-                    key={f.id}
-                    f={f}
-                    open={openId === f.id}
-                    onToggle={() => setOpenId((o) => (o === f.id ? null : f.id))}
-                    onAsk={(q) => {
-                      setPendingQ(q);
-                      askRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                    }}
-                  />
-                ))}
-                {report.findings.length === 0 && <Card className="text-[13px] text-neutral-600">Nothing important to fix — this is a well-kept project. 🎉</Card>}
-              </div>
-              {report.strengths.length > 0 && (
-                <div className="mt-6">
-                  <p className="mb-3 text-[18px] font-medium tracking-[-0.02em] text-neutral-950">Already good 👏</p>
-                  <div className="grid gap-2.5 sm:grid-cols-2">
-                    {report.strengths.map((s) => (
-                      <div key={s.title} className="flex items-start gap-2.5 rounded-2xl border border-[#cfe9c8] bg-[#eeffe8] px-4 py-3">
-                        <CircleCheck className="mt-0.5 size-4 shrink-0 text-[#359462]" />
-                        <div>
-                          <p className="text-[13px] font-semibold text-neutral-950">{s.title}</p>
-                          <p className="text-[12px] leading-[1.45] text-neutral-600">{s.detail}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <AnimatePresence mode="wait">
+                <motion.div key={`${report.id}-${tab}`} role="tabpanel" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
+                  {tab === "overview" && (report.overview ? <RepoOverview report={report} onAsk={ask} /> : <OldReport what="the beginner overview" onRerun={rerun} />)}
+                  {tab === "bugs" && (report.bugs ? <RepoBugs report={report} onAsk={ask} /> : <OldReport what="the bug check" onRerun={rerun} />)}
+                  {tab === "architecture" && <ArchitectureTab report={report} onAsk={ask} speaker={speaker} />}
+                  {tab === "roadmap" && <RoadmapTab report={report} onAsk={ask} />}
+                </motion.div>
+              </AnimatePresence>
             </div>
-
-            {/* layers + ask */}
-            <div className="min-w-0 space-y-6">
+            <aside ref={askRef} className="min-w-0 scroll-mt-32 2xl:sticky 2xl:top-[124px] 2xl:self-start">
               <Card>
-                <div className="mb-4 flex items-center gap-2">
-                  <Layers className="size-4 text-neutral-500" />
-                  <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">Your project's layers</p>
+                <div className="mb-3 flex items-center gap-2">
+                  <img src="/people/priya.jpg" alt="" className="size-6 rounded-full object-cover" />
+                  <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">Ask Priya about this repo</p>
                 </div>
-                <LayerDiagram report={report} />
+                <AskRepo key={report.id} report={report} pending={pendingQ} onConsumed={() => setPendingQ(null)} />
               </Card>
-              <div ref={askRef}>
-                <Card>
-                  <div className="mb-3 flex items-center gap-2">
-                    <img src="/people/priya.jpg" alt="" className="size-6 rounded-full object-cover" />
-                    <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">Ask Priya about this repo</p>
-                  </div>
-                  <AskRepo report={report} pending={pendingQ} onConsumed={() => setPendingQ(null)} />
-                </Card>
-              </div>
-            </div>
+            </aside>
           </div>
-
-          {/* roadmap + target */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <div className="mb-4 flex items-center gap-2">
-                <MapIcon className="size-4 text-neutral-500" />
-                <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">Your roadmap — one step at a time</p>
-              </div>
-              <ol className="relative space-y-4 pl-8">
-                <span className="absolute bottom-2 left-[11px] top-2 w-px bg-neutral-200" />
-                {report.roadmap.map((r, i) => (
-                  <motion.li key={r.step} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 + i * 0.08 }} className="relative">
-                    <span className="absolute -left-8 flex size-6 items-center justify-center rounded-full bg-neutral-950 text-[11px] font-bold text-white">{r.step}</span>
-                    <p className="text-[13.5px] font-semibold tracking-[-0.01em] text-neutral-950">{r.title}</p>
-                    <p className="mt-0.5 text-[12.5px] leading-[1.5] text-neutral-600">{r.detail}</p>
-                  </motion.li>
-                ))}
-                {report.roadmap.length === 0 && <li className="text-[13px] text-neutral-500">No steps needed — keep doing what you're doing.</li>}
-              </ol>
-            </Card>
-            <Card tint="green">
-              <div className="mb-2 flex items-center gap-2">
-                <Sparkles className="size-4 text-[#2f7c53]" />
-                <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">The shape to aim for (so it can scale)</p>
-              </div>
-              <p className="mb-4 text-[12.5px] leading-[1.5] text-neutral-600">{report.target.note}</p>
-              <div className="space-y-0">
-                {report.target.layers.map((l, i) => (
-                  <div key={l.label}>
-                    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.1 }} className="rounded-2xl border border-[#cfe9c8] bg-white/80 px-4 py-2.5">
-                      <div className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="text-[13.5px] font-semibold text-neutral-950">{l.label}</span>
-                        <code className="font-mono text-[11px] text-[#2f7c53]">{l.holds}</code>
-                      </div>
-                      <p className="mt-0.5 text-[12px] leading-[1.45] text-neutral-600">{l.rule}</p>
-                    </motion.div>
-                    {i < report.target.layers.length - 1 && <div className="mx-auto flex h-5 w-px items-center justify-center bg-[#cfe9c8] text-[10px] text-[#2f7c53]" />}
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          {report.learn.length > 0 && (
-            <Card>
-              <div className="mb-3 flex items-center gap-2">
-                <BookOpen className="size-4 text-neutral-500" />
-                <p className="text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">What to learn next</p>
-              </div>
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                {report.learn.map((l) => (
-                  <button key={l.topic} onClick={() => (setPendingQ(`Explain "${l.topic}" to me like I'm a beginner, using my repo as the example.`), askRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }))} className="rounded-2xl border border-[#ddd0ff] bg-[#f2eeff] px-4 py-3 text-left transition-transform hover:-translate-y-0.5">
-                    <p className="flex items-center justify-between text-[13.5px] font-semibold text-[#3f1d8a]">
-                      {l.topic} <ArrowRight className="size-3.5" />
-                    </p>
-                    <p className="mt-0.5 text-[12px] leading-[1.45] text-[#5e4a8f]">{l.why}</p>
-                  </button>
-                ))}
-              </div>
-            </Card>
-          )}
 
           <p className="text-center text-[11.5px] text-neutral-400">
-            Read {report.metrics.sampled_files} of {report.metrics.files} files in full{report.truncated ? " (GitHub truncated the file list — very large repo)" : ""}. Secrets are reported by file and line only — their values are never copied.
+            Read {report.metrics.sampled_files} of {report.metrics.files} files in full{report.truncated ? " (GitHub truncated the file list — very large repo)" : ""}. Secrets are reported by file and line only — their values are never copied, and a line that looks like a secret is never shown in a snippet.
           </p>
         </div>
       )}
