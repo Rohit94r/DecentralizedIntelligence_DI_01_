@@ -12,10 +12,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import NumberFlow from "@number-flow/react";
-import { ArrowRight, Bug, Building2, Crosshair, ExternalLink, Globe, GraduationCap, Plus, ShieldCheck, Trophy, Users, Zap } from "lucide-react";
+import { ArrowRight, Bug, Crosshair, ExternalLink, Plus, Trophy } from "lucide-react";
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { Card, PageHeading } from "@/components/app/bits";
+import { LogoTile, TechLogo } from "@/components/app/Logo";
 import { BountyExplainer } from "@/components/bounty/BountyExplainer";
+import { DirectorySection, EXTERNAL_PROGRAMS, companyName } from "@/components/bounty/Directory";
 import { HostForm } from "@/components/bounty/HostForm";
 import { SEVERITY_STYLE, StatusPill } from "@/components/bounty/bits";
 import { api, timeAgo, type BountyList, type BountyReport, type HostedProgram, type PlatformProgram } from "@/lib/api";
@@ -30,64 +32,39 @@ const DIFF: Record<PlatformProgram["difficulty"], string> = {
 
 function PlatformCard({ p, i }: { p: PlatformProgram; i: number }) {
   const found = p.stats.found_by_you;
+  const { name } = companyName(p.company);
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-      <Link href={`/bounty/${p.id}`} className="group flex h-full flex-col rounded-3xl border border-neutral-200/80 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-neutral-950 hover:shadow-[0_18px_40px_-24px_rgba(16,15,25,0.4)]">
-        <div className="flex items-start justify-between gap-3">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-neutral-100 text-2xl">{p.logo}</span>
-          <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-bold capitalize", DIFF[p.difficulty])}>{p.difficulty}</span>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+      <Link href={`/bounty/${p.id}`} className="group flex h-full flex-col rounded-2xl border border-neutral-200/80 bg-white p-5 transition-colors hover:border-neutral-400">
+        <div className="flex items-start gap-3">
+          <LogoTile src={p.logo} name={name} size={44} full />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold leading-tight text-neutral-950">{name}</p>
+            <p className="mt-0.5 text-[12px] text-neutral-500">{p.title.replace(/^[^—]+—\s*/, "")}</p>
+          </div>
+          <span className={cn("shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize", DIFF[p.difficulty])}>{p.difficulty}</span>
         </div>
-        <p className="mt-3 text-[11.5px] font-semibold text-neutral-500">{p.company}</p>
-        <p className="text-[16px] font-semibold leading-[1.3] tracking-[-0.02em] text-neutral-950">{p.title}</p>
-        <p className="mt-1 flex-1 text-[12.5px] leading-[1.5] text-neutral-600">{p.tagline}</p>
-        <div className="mt-3 flex flex-wrap gap-1">
+        <p className="mt-3 flex-1 text-[13px] leading-[1.5] text-neutral-600">{p.tagline}</p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {p.stack.map((s) => (
-            <span key={s} className="rounded-full border border-neutral-200 px-2 py-px text-[10.5px] font-medium text-neutral-600">
-              {s}
+            <span key={s} className="inline-flex items-center gap-1 rounded-md border border-neutral-200 px-1.5 py-0.5 text-[11px] font-medium text-neutral-600">
+              <TechLogo name={s} size={12} /> {s}
             </span>
           ))}
         </div>
-        <div className="mt-4 flex items-center gap-1">
-          {(["critical", "high", "medium", "low"] as const).flatMap((s) => Array.from({ length: p.by_severity[s] }, (_, k) => <span key={s + k} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: SEVERITY_STYLE[s].color }} title={`${s} bug`} />))}
+        <div className="mt-4 border-t border-neutral-100 pt-3">
+          <div className="flex items-center justify-between text-[12px]">
+            <span className="text-neutral-500">
+              <b className="font-semibold text-neutral-900">{found}</b> of {p.bug_count} bugs found
+            </span>
+            <span className="font-semibold tabular-nums text-neutral-900">up to {p.max_points.toLocaleString("en-IN")} pts</span>
+          </div>
+          <div className="mt-2 flex gap-[3px]">
+            {(["critical", "high", "medium", "low"] as const).flatMap((s) => Array.from({ length: p.by_severity[s] }, (_, k) => <span key={s + k} className="h-1 flex-1 rounded-full" style={{ backgroundColor: SEVERITY_STYLE[s].color }} title={`${s} bug`} />))}
+          </div>
         </div>
-        <div className="mt-3 flex items-center justify-between text-[12px]">
-          <span className="font-semibold text-neutral-800">
-            {found}/{p.bug_count} found{found === p.bug_count && found > 0 ? " 🏆" : ""}
-          </span>
-          <span className="inline-flex items-center gap-1 font-bold tabular-nums text-neutral-900">
-            <Zap className="size-3.5 fill-[#bbf451] text-[#4d7c0f]" /> up to {p.max_points.toLocaleString("en-IN")}
-          </span>
-        </div>
-        <span className="mt-4 inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-neutral-950 text-[13px] font-semibold text-white">
-          <Crosshair className="size-3.5" /> {found ? "Keep hunting" : "Start hunting"}
-        </span>
       </Link>
     </motion.div>
-  );
-}
-
-function HostedCard({ p }: { p: HostedProgram }) {
-  return (
-    <Link href={`/bounty/${p.id}`} className="group flex flex-col gap-3 rounded-3xl border border-neutral-200/80 bg-white p-5 transition-all hover:border-neutral-950 sm:flex-row sm:items-center">
-      <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-100 text-2xl">{p.logo}</span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[12px] font-semibold text-neutral-500">{p.company}</span>
-          {p.plan !== "community" && <span className="rounded-full bg-[#bbf451] px-2 py-px text-[10px] font-bold text-[#1a2e05]">{p.plan_name}</span>}
-          {p.status === "awaiting_payment" && <span className="rounded-full bg-[#f59e0b]/15 px-2 py-px text-[10px] font-bold text-[#96681c]">waiting for payment</span>}
-        </div>
-        <p className="truncate text-[15px] font-semibold tracking-[-0.01em] text-neutral-950">{p.title}</p>
-        <p className="line-clamp-2 text-[12.5px] leading-[1.45] text-neutral-600">{p.summary}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-4 sm:flex-col sm:items-end sm:gap-1">
-        <span className="inline-flex items-center gap-1 text-[13px] font-bold tabular-nums text-neutral-900">
-          <Zap className="size-3.5 fill-[#bbf451] text-[#4d7c0f]" /> {p.pays_points ? `up to ${p.rewards.critical.toLocaleString("en-IN")}` : "reputation"}
-        </span>
-        <span className="text-[11.5px] text-neutral-500">
-          {p.stats.valid} confirmed · {p.stats.hunters} hunter{p.stats.hunters === 1 ? "" : "s"}
-        </span>
-      </div>
-    </Link>
   );
 }
 
@@ -95,7 +72,7 @@ function ReportsList({ reports }: { reports: BountyReport[] }) {
   if (!reports.length)
     return (
       <Card className="text-center">
-        <p className="text-3xl">🕵️</p>
+        <Bug className="mx-auto size-6 text-neutral-300" />
         <p className="mt-2 text-[14px] font-semibold text-neutral-900">No reports yet</p>
         <p className="mt-1 text-[12.5px] text-neutral-500">Pick a program, read the code like an attacker, and file your first report.</p>
       </Card>
@@ -142,35 +119,44 @@ export default function BountyPage() {
 
   return (
     <AppShell title="Bug Bounty" subtitle="Find real bugs · report them well · get rewarded" wide>
-      <PageHeading eyebrow="Bug Bounty" title="Hunt real bugs." accent="Get rewarded." body="Security teams pay people who find problems before attackers do. Learn the craft on Layerflow's own programs — real code with real bugs — then take on company and open-source programs. Every confirmed bug pays points, and 100 points are worth ₹10." />
+      <PageHeading title="Bug Bounty" body="Find security bugs, report them clearly, and get paid in points (100 points = ₹10). Start with the practice programs, then move on to company and open-source programs." />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <BountyExplainer />
-        <div className="grid content-start gap-3 sm:grid-cols-2 xl:grid-cols-2">
-          {[
-            { k: "Programs", v: data?.stats.programs ?? 0, icon: ShieldCheck },
-            { k: "Bugs confirmed", v: data?.stats.valid ?? 0, icon: Bug },
-            { k: "Hunters", v: data?.stats.hunters ?? 0, icon: Users },
-            { k: "You've earned", v: earned, icon: Zap, suffix: "pts" },
-          ].map(({ k, v, icon: Icon, suffix }) => (
-            <div key={k} className="rounded-3xl border border-neutral-200/80 bg-white px-5 py-4">
-              <Icon className="size-4 text-neutral-400" />
-              <p className="mt-2 text-[28px] font-medium tabular-nums leading-none tracking-[-0.04em] text-neutral-950">
-                <NumberFlow value={v} />
-                {suffix && <span className="ml-1 text-[13px] font-medium text-neutral-400">{suffix}</span>}
-              </p>
-              <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">{k}</p>
-            </div>
-          ))}
-          <Link href="/bug-factory" className="group flex items-center gap-3 rounded-3xl border border-[#ddd0ff] bg-[#f2eeff] px-5 py-4 lf-tint-purple sm:col-span-2">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#5e2ac4] text-white">
-              <GraduationCap className="size-5" />
+        <div className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-neutral-200/80 bg-white">
+            {[
+              { k: "Programs", v: data?.stats.programs ?? 0 },
+              { k: "Bugs confirmed", v: data?.stats.valid ?? 0 },
+              { k: "Hunters", v: data?.stats.hunters ?? 0 },
+              { k: "You've earned", v: earned, suffix: "pts" },
+            ].map(({ k, v, suffix }, i) => (
+              <div key={k} className={cn("px-5 py-4", i % 2 === 1 && "border-l border-neutral-100", i > 1 && "border-t border-neutral-100")}>
+                <p className="text-[24px] font-semibold tabular-nums leading-none tracking-[-0.03em] text-neutral-950">
+                  <NumberFlow value={v} />
+                  {suffix && <span className="ml-1 text-[12px] font-medium text-neutral-400">{suffix}</span>}
+                </p>
+                <p className="mt-1.5 text-[12px] text-neutral-500">{k}</p>
+              </div>
+            ))}
+          </div>
+          <Card>
+            <p className="text-[14px] font-semibold text-neutral-950">How it works</p>
+            <ol className="mt-2.5 space-y-2 text-[13px] leading-[1.45] text-neutral-600">
+              {["Pick a program and read its scope — what you may test.", "Find a bug in the code or the app.", "Report it: where it is, what's wrong, what an attacker could do.", "When it's confirmed, the points are yours."].map((s, i) => (
+                <li key={s} className="flex gap-2.5">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-[11px] font-semibold text-neutral-600">{i + 1}</span>
+                  {s}
+                </li>
+              ))}
+            </ol>
+          </Card>
+          <Link href="/bug-factory" className="group flex items-center justify-between gap-3 rounded-2xl border border-neutral-200/80 bg-white px-5 py-3.5 hover:border-neutral-400">
+            <span>
+              <span className="block text-[13.5px] font-semibold text-neutral-950">New to this? Start in the training range</span>
+              <span className="block text-[12px] text-neutral-500">One bug in a 10-line program, based on your own most common mistake.</span>
             </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-semibold text-[#151515]">New to this? Warm up in the training range</span>
-              <span className="block text-[12px] leading-[1.4] text-[#4a3d6b] dark:text-neutral-300">Find one bug in a 10-line program built from your own most common mistake — then fix it.</span>
-            </span>
-            <ArrowRight className="size-4 shrink-0 text-[#5e2ac4] transition-transform group-hover:translate-x-0.5" />
+            <ArrowRight className="size-4 shrink-0 text-neutral-400 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
       </div>
@@ -199,13 +185,11 @@ export default function BountyPage() {
               ))}
             </div>
           ) : tab === "programs" ? (
-            <div className="space-y-8">
+            <div className="space-y-9">
               <section>
-                <div className="mb-3 flex items-baseline justify-between gap-3">
-                  <div>
-                    <p className="text-[20px] font-medium tracking-[-0.03em] text-neutral-950">Layerflow programs</p>
-                    <p className="text-[12.5px] text-neutral-500">Real codebases with real bugs planted in them. Point at the line, name the bug, get it confirmed instantly.</p>
-                  </div>
+                <div className="mb-3">
+                  <p className="text-[18px] font-semibold tracking-[-0.02em] text-neutral-950">Practice programs</p>
+                  <p className="text-[12.5px] text-neutral-500">Small apps with real bugs planted in them. Read the code, click the line, and get an answer in seconds.</p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {data.platform.map((p, i) => (
@@ -213,30 +197,23 @@ export default function BountyPage() {
                   ))}
                 </div>
               </section>
-              <section>
-                <div className="mb-3 flex items-center gap-2">
-                  <Building2 className="size-4 text-neutral-500" />
-                  <p className="text-[20px] font-medium tracking-[-0.03em] text-neutral-950">Company programs</p>
-                </div>
-                <div className="space-y-3">
-                  {data.company.map((p) => (
-                    <HostedCard key={p.id} p={p} />
-                  ))}
-                  {!data.company.length && <Card className="text-[13px] text-neutral-500">No company programs yet.</Card>}
-                </div>
-              </section>
-              <section>
-                <div className="mb-3 flex items-center gap-2">
-                  <Globe className="size-4 text-neutral-500" />
-                  <p className="text-[20px] font-medium tracking-[-0.03em] text-neutral-950">Open source</p>
-                </div>
-                <div className="space-y-3">
-                  {data.open_source.map((p) => (
-                    <HostedCard key={p.id} p={p} />
-                  ))}
-                  {!data.open_source.length && <Card className="text-[13px] text-neutral-500">No open-source programs yet.</Card>}
-                </div>
-              </section>
+              <DirectorySection
+                title="Company programs"
+                note="Companies pay for bugs in their own products. Programs hosted here are triaged by the company on Layerflow."
+                hosted={data.company}
+                external={EXTERNAL_PROGRAMS.filter((x) => x.kind === "company")}
+                empty="No company has hosted a program here yet."
+              />
+              <DirectorySection
+                title="Open source programs"
+                note="Projects whose code anyone can read — a good next step once the practice programs feel easy."
+                hosted={data.open_source}
+                external={EXTERNAL_PROGRAMS.filter((x) => x.kind === "open_source")}
+                empty="No open-source project has hosted a program here yet."
+              />
+              <p className="text-[11.5px] leading-[1.5] text-neutral-400">
+                Programs marked "On HackerOne" or "Own site" are run by those companies, not by Layerflow — sign up and report on their platform, and read their policy before you test anything.
+              </p>
             </div>
           ) : tab === "mine" ? (
             <ReportsList reports={mine} />
