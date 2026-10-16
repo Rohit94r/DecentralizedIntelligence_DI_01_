@@ -1,0 +1,11 @@
+{
+  "name": "@dojo/runner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The sandbox child process: Pyodide (CPython → WebAssembly) in a worker thread, policed by a supervisor thread.",
+  "main": "src/supervisor.mjs",
+  "dependencies": {
+    "pyodide": "314.0.7"
+  }
+}
