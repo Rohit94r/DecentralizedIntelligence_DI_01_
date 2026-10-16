@@ -275,6 +275,38 @@ export interface RepoBug {
   practice?: { label: string; href: string };
 }
 
+export type SiteCategory = "security" | "performance" | "seo" | "accessibility" | "best";
+
+export interface SiteIssue {
+  id: string;
+  category: SiteCategory;
+  severity: Severity;
+  title: string;
+  detail: string;
+  why: string;
+  fix: string;
+  evidence: string[];
+}
+
+/** Website Analyse — a live URL instead of a repo (see packages/core/src/site-audit.ts). */
+export interface SiteReport {
+  id: string;
+  kind: "site";
+  site: { input: string; url: string; host: string; title: string | null; description: string | null; favicon: string | null; image: string | null; lang: string | null; https: boolean; status: number; server: string | null; redirects: string[] };
+  score: number;
+  grade: "A" | "B" | "C" | "D" | "E";
+  summary: string;
+  categories: { id: SiteCategory; label: string; score: number; passed: number; total: number }[];
+  tech: { name: string; kind: string; version: string | null; evidence: string }[];
+  issues: SiteIssue[];
+  passed: { category: SiteCategory; title: string }[];
+  metrics: { html_kb: number; ttfb_ms: number; total_ms: number; scripts: number; external_scripts: number; styles: number; images: number; links: number; tags: number; third_party: string[]; sampled: number; sampled_kb: number; inline_script_kb: number };
+  review?: string;
+  truncated: boolean;
+}
+
+export const isSiteReport = (r: RepoReport | SiteReport | null): r is SiteReport => !!r && (r as SiteReport).kind === "site" && "site" in r;
+
 export interface RepoReport {
   id: string;
   repo: { name: string; owner?: string; url?: string; source: "github" | "local"; description?: string | null; stars?: number; branch?: string };
@@ -731,7 +763,8 @@ export const api = {
   // ── Repo Analyse ──
   analyzeRepo: (body: { url?: string; local?: boolean; learner_id?: string | null }) => req<RepoReport>("POST", "/api/repo/analyze", { ...body, learner_id: body.learner_id ?? undefined }),
   repoReports: (learner_id?: string | null) => req<{ reports: { id: string; repo: string; source: string; score: number; grade: string; created_at: string }[] }>("GET", `/api/repo/reports${learner_id ? `?learner_id=${encodeURIComponent(learner_id)}` : ""}`),
-  repoReport: (id: string) => req<RepoReport>("GET", `/api/repo/reports/${encodeURIComponent(id)}`),
+  repoReport: (id: string) => req<RepoReport | SiteReport>("GET", `/api/repo/reports/${encodeURIComponent(id)}`),
+  analyzeSite: (body: { url: string; learner_id?: string | null }) => req<SiteReport>("POST", "/api/site/analyze", { ...body, learner_id: body.learner_id ?? undefined }),
 
   // ── Community ──
   communityMeta: () => req<{ kinds: { kind: PostKind; label: string; emoji: string; help: string }[]; challenges: { id: string; title: string }[]; mentor: Mentor }>("GET", "/api/community/meta"),
