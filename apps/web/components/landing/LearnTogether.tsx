@@ -126,7 +126,7 @@ export function LearnTogether() {
       title: "Repo Analyse",
       accent: "#359462",
       tint: "border-[#cfe9c8]/80 bg-[#eeffe8]",
-      body: "Paste your GitHub project. Get a health score, the layers you're missing, what to fix first and why — and the shape to aim for so it can scale.",
+      body: "Paste your GitHub project — or just a website. Get a health score, the exact lines that look like bugs, what to fix first and why, and the shape to aim for so it can scale.",
       mock: <RepoMock />,
     },
     {

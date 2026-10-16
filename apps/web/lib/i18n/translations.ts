@@ -15,11 +15,11 @@ export const UI_LANGUAGE_OPTIONS: { value: UiLanguage; label: string; nativeLabe
 
 const en = {
   common: { brand: "Layerflow", start: "Start practising", dashboard: "Dashboard", judges: "Judges" },
-  nav: { home: "Home", stats: "Proof", features: "Features", preview: "Live", openMenu: "Open menu", closeMenu: "Close menu" },
+  nav: { home: "Home", stats: "Proof", features: "Features", earn: "Earn", preview: "Live", openMenu: "Open menu", closeMenu: "Close menu" },
   hero: {
     headline: "Find the bug. Keep the skill.",
     subhead:
-      "A coding coach for beginner Python programmers. It runs your code safely, explains what went wrong in plain words, and gives hints that get sharper — without ever handing you the answer.",
+      "A coding coach for beginner Python programmers. It runs your code safely, explains what went wrong in plain words, and gives hints that get sharper — without ever handing you the answer. Then hunt real bugs, check real projects and earn rewards.",
     ctaPrimary: "Start practising",
     ctaSecondary: "See how it works",
     sidebar: { results: "Results", hints: "Hint ladder", linemap: "Line Map", mastery: "Mastery" },
@@ -131,11 +131,11 @@ type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? (T[K] extends unk
 
 const hi: DeepPartial<Dictionary> = {
   common: { brand: "Layerflow", start: "अभ्यास शुरू करें", dashboard: "डैशबोर्ड", judges: "जज" },
-  nav: { home: "होम", stats: "प्रमाण", features: "फ़ीचर", preview: "लाइव", openMenu: "मेनू खोलें", closeMenu: "मेनू बंद करें" },
+  nav: { home: "होम", stats: "प्रमाण", features: "फ़ीचर", earn: "कमाई", preview: "लाइव", openMenu: "मेनू खोलें", closeMenu: "मेनू बंद करें" },
   hero: {
     headline: "बग ढूँढो। हुनर अपना बनाओ।",
     subhead:
-      "शुरुआती Python प्रोग्रामर्स के लिए एक कोडिंग कोच। यह आपका कोड सुरक्षित रूप से चलाता है, आसान शब्दों में बताता है कि क्या गड़बड़ हुई, और ऐसे हिंट देता है जो हर बार और सटीक होते जाते हैं — पर जवाब कभी नहीं देता।",
+      "शुरुआती Python प्रोग्रामर्स के लिए एक कोडिंग कोच। यह आपका कोड सुरक्षित रूप से चलाता है, आसान शब्दों में बताता है कि क्या गड़बड़ हुई, और ऐसे हिंट देता है जो हर बार और सटीक होते जाते हैं — पर जवाब कभी नहीं देता। फिर असली बग खोजो, असली प्रोजेक्ट जाँचो और इनाम कमाओ।",
     ctaPrimary: "अभ्यास शुरू करें",
     ctaSecondary: "देखें यह कैसे काम करता है",
     sidebar: { results: "नतीजे", hints: "हिंट सीढ़ी", linemap: "लाइन मैप", mastery: "महारत" },
@@ -235,11 +235,11 @@ const hi: DeepPartial<Dictionary> = {
 
 const mr: DeepPartial<Dictionary> = {
   common: { brand: "Layerflow", start: "सराव सुरू करा", dashboard: "डॅशबोर्ड", judges: "परीक्षक" },
-  nav: { home: "होम", stats: "पुरावा", features: "वैशिष्ट्ये", preview: "लाइव्ह", openMenu: "मेनू उघडा", closeMenu: "मेनू बंद करा" },
+  nav: { home: "होम", stats: "पुरावा", features: "वैशिष्ट्ये", earn: "कमाई", preview: "लाइव्ह", openMenu: "मेनू उघडा", closeMenu: "मेनू बंद करा" },
   hero: {
     headline: "बग शोधा. कौशल्य आपलं करा.",
     subhead:
-      "नवशिक्या Python प्रोग्रामर्ससाठी एक कोडिंग कोच. तो तुमचा कोड सुरक्षितपणे चालवतो, सोप्या शब्दांत सांगतो काय चुकलं, आणि दर वेळी अधिक नेमके होत जाणारे हिंट देतो — पण उत्तर कधीच देत नाही.",
+      "नवशिक्या Python प्रोग्रामर्ससाठी एक कोडिंग कोच. तो तुमचा कोड सुरक्षितपणे चालवतो, सोप्या शब्दांत सांगतो काय चुकलं, आणि दर वेळी अधिक नेमके होत जाणारे हिंट देतो — पण उत्तर कधीच देत नाही. मग खरे बग शोधा, खरे प्रोजेक्ट तपासा आणि बक्षिसं कमवा.",
     ctaPrimary: "सराव सुरू करा",
     ctaSecondary: "हे कसं काम करतं ते पाहा",
     sidebar: { results: "निकाल", hints: "हिंट शिडी", linemap: "लाइन मॅप", mastery: "प्रावीण्य" },

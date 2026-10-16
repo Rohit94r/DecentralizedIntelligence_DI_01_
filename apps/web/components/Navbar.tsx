@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-const NAV_LINK_IDS = ["home", "stats", "features", "preview"] as const;
+const NAV_LINK_IDS = ["home", "stats", "features", "earn", "preview"] as const;
 
 export const Navbar = () => {
   const { t } = useI18n();

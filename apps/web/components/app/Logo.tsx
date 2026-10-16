@@ -26,7 +26,7 @@ export function LogoTile({ src, name, size = 44, dark = false, full = false, cla
   // a brand mark that already has its own background fills the tile
   if (full) return <img src={src} alt="" width={size} height={size} className={cn("shrink-0 object-cover", className)} style={{ width: size, height: size, borderRadius: radius }} />;
   return (
-    <span className={cn("flex shrink-0 items-center justify-center border", dark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200/80 bg-white", className)} style={{ width: size, height: size, borderRadius: radius }}>
+    <span className={cn("flex shrink-0 items-center justify-center border", dark ? "border-neutral-800 bg-neutral-900" : "border-neutral-200/80 bg-[#ffffff] dark:border-white/10", className)} style={{ width: size, height: size, borderRadius: radius }}>
       <img src={src} alt="" className="object-contain" style={{ width: Math.round(size * 0.56), height: Math.round(size * 0.56) }} />
     </span>
   );

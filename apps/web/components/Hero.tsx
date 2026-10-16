@@ -22,6 +22,7 @@ import AppShowcase from "./landing/AppShowcase";
 import { DashboardPreview } from "./landing/DashboardPreview";
 import { HintWheelBox } from "./landing/HintWheelBox";
 import { LearnTogether } from "./landing/LearnTogether";
+import { MoreFeatures } from "./landing/MoreFeatures";
 import { ChatWidget } from "./chat/ChatWidget";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
@@ -370,6 +371,8 @@ export const Hero = () => {
       </section>
 
       <LearnTogether />
+
+      <MoreFeatures />
 
       <section id="preview" className="bg-neutral-50 py-16 md:py-24">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-center gap-5 px-4 sm:px-6 lg:px-8">
