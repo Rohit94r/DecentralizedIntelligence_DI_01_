@@ -474,7 +474,7 @@ export default function RewardsPage() {
                     )}
                   </div>
                 ))}
-                {!r.redemptions.length && <p className="py-3 text-[13px] text-neutral-500">Nothing redeemed yet — your first goodie is {Math.max(0, 1500 - r.points.balance).toLocaleString("en-IN")} points away.</p>}
+                {!r.redemptions.length && <p className="py-3 text-[13px] text-neutral-500">{r.points.balance >= 1500 ? "Nothing redeemed yet — you already have enough points for your first goodie." : `Nothing redeemed yet — your first goodie is ${(1500 - r.points.balance).toLocaleString("en-IN")} points away.`}</p>}
               </div>
             </Card>
             <Card>
