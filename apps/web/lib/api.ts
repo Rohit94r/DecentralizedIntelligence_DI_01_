@@ -84,6 +84,7 @@ export interface LearnerView {
   tag_labels: Record<string, string>;
   mastery_timeline: { at: string; label: string; mastery: Record<string, number> }[];
   streak_days: number;
+  streak: { current: number; longest: number; today_done: boolean; at_risk: boolean; points: number };
   totals: { submissions: number; passes: number; challenges_cleared: number; first_try_passes: number; hints: number };
   bug_factory: { challenge_id: string; tag: string; reason: string };
   activity: { day: string; n: number }[];
@@ -233,6 +234,47 @@ export interface RepoFinding {
   files?: string[];
 }
 
+export type RepoPartId = "frontend" | "backend" | "database" | "mobile" | "ml" | "devops" | "tests" | "tooling";
+
+export interface RepoPart {
+  id: RepoPartId;
+  label: string;
+  simple: string;
+  languages: string[];
+  tech: string[];
+  folders: string[];
+  files: number;
+}
+
+export interface RepoOverview {
+  summary: string;
+  parts: RepoPart[];
+  languages: { name: string; files: number; lines: number; share: number; color: string; what: string; kind: "code" | "markup" | "style" | "data" | "docs" }[];
+  tech: { name: string; kind: string; what: string; part: RepoPartId }[];
+  folders: { path: string; files: number; role: string }[];
+  start_here: { path: string; why: string }[];
+  how_it_runs: string[];
+  flow: { part: RepoPartId | "user"; text: string }[];
+  commands: { label: string; cmd: string }[];
+}
+
+export type BugCategory = "logic" | "security" | "crash" | "async" | "performance" | "data";
+
+export interface RepoBug {
+  id: string;
+  severity: Severity;
+  confidence: "likely" | "possible";
+  category: BugCategory;
+  title: string;
+  file: string;
+  line: number;
+  snippet: { start: number; lines: string[] };
+  why: string;
+  fix: string;
+  learn: string;
+  practice?: { label: string; href: string };
+}
+
 export interface RepoReport {
   id: string;
   repo: { name: string; owner?: string; url?: string; source: "github" | "local"; description?: string | null; stars?: number; branch?: string };
@@ -263,6 +305,9 @@ export interface RepoReport {
   review_model?: string | null;
   truncated: boolean;
   created_at?: string;
+  /** optional: reports saved before the beginner overview and bug detection existed don't have them */
+  overview?: RepoOverview;
+  bugs?: RepoBug[];
 }
 
 /* ── Community ── */
@@ -301,6 +346,8 @@ export interface Post extends Authored {
   accepted_reply_id: number | null;
   reply_count: number;
   teacher_replies: number;
+  /** who replied (no bodies) — only on the posts list */
+  replies_lite?: { id: number; author_id: string; author_name: string; author_role: Role; author_avatar: string | null; ai: boolean; score: number; created_at: string }[];
 }
 
 export interface Reply extends Authored {
@@ -334,10 +381,298 @@ export interface TeacherDesk {
   open_questions: { id: number; title: string; author_name: string; challenge_id: string | null; created_at: string }[];
 }
 
+/* ── Rewards (streak · points · redeem) ── */
+
+export interface StreakView {
+  current: number;
+  longest: number;
+  today_done: boolean;
+  at_risk: boolean;
+  today: string;
+  last7: { day: string; done: boolean }[];
+  active_days: number;
+  next_milestone: number;
+}
+
+export interface Goodie {
+  id: string;
+  name: string;
+  blurb: string;
+  points: number;
+  emoji: string;
+  sizes?: string[];
+  tint: "green" | "purple" | "orange" | "sky" | "amber";
+  inr: string;
+  affordable: boolean;
+}
+
+export type RedemptionStatus = "requested" | "approved" | "paid" | "shipped" | "delivered" | "rejected" | "cancelled";
+
+export interface Redemption {
+  id: string;
+  kind: "cash" | "goodie";
+  item_id: string | null;
+  item_name: string | null;
+  item_emoji: string | null;
+  size: string | null;
+  points: number;
+  inr: string;
+  upi: string | null;
+  ship_to: string | null;
+  status: RedemptionStatus;
+  note: string | null;
+  payout_ref: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RewardsView {
+  learner_id: string;
+  streak: StreakView;
+  calendar: { day: string; done: boolean }[];
+  points: { balance: number; earned: number; streak: number; bounty: number; redeemed: number; inr: string; earned_inr: string };
+  rules: { points_per_day: number; points_per_rupee: number; min_cash_points: number; cash_step_points: number; day_counts_when: string; timezone_offset_min: number; payouts: "demo" | "manual" };
+  today_pick: { challenge_id: string; title: string; reason: string };
+  ledger: { id: number; delta: number; kind: "streak_day" | "bounty" | "redeem" | "refund" | "adjust"; ref: string; note: string; created_at: string }[];
+  redemptions: Redemption[];
+  goodies: Goodie[];
+  has_pin: boolean;
+}
+
+export interface RewardsSummary {
+  learner_id: string;
+  streak: number;
+  today_done: boolean;
+  at_risk: boolean;
+  points: number;
+  inr: string;
+  has_pin: boolean;
+}
+
+export interface Shipping {
+  name: string;
+  phone: string;
+  address: string;
+  city: string;
+  pincode: string;
+}
+
+/* ── Bug Bounty ── */
+
+export type BountySeverity = "critical" | "high" | "medium" | "low";
+export type ReportStatus = "triage" | "valid" | "duplicate" | "needs_info" | "invalid";
+
+export interface BountyCategory {
+  id: string;
+  label: string;
+  simple: string;
+}
+
+export interface BountySeverityInfo {
+  id: BountySeverity;
+  label: string;
+  color: string;
+  simple: string;
+}
+
+export interface PlatformProgram {
+  id: string;
+  kind: "platform";
+  company: string;
+  logo: string;
+  title: string;
+  tagline: string;
+  difficulty: "beginner" | "intermediate" | "advanced";
+  stack: string[];
+  summary: string;
+  scope: string[];
+  out_of_scope: string[];
+  rules: string[];
+  rewards: Record<BountySeverity, number>;
+  bug_count: number;
+  by_severity: Record<BountySeverity, number>;
+  max_points: number;
+  file_count?: number;
+  stats: { reports: number; valid: number; hunters: number; found_by_you: number };
+}
+
+export interface HostedProgram {
+  id: string;
+  kind: "company" | "open_source";
+  company: string;
+  logo: string;
+  title: string;
+  tagline: string;
+  summary: string;
+  owner_id: string;
+  owner_name: string;
+  repo_url: string | null;
+  website: string | null;
+  scope: string[];
+  out_of_scope: string[];
+  rewards: Record<BountySeverity, number>;
+  plan: string;
+  plan_name: string;
+  points_pool: number;
+  points_left: number;
+  pays_points: boolean;
+  status: "awaiting_payment" | "open" | "paused" | "closed";
+  created_at: string;
+  stats: { reports: number; valid: number; hunters: number };
+}
+
+export interface BountyReport {
+  id: string;
+  program_id: string;
+  learner_id: string;
+  title: string;
+  category: string;
+  severity: string;
+  final_severity: string | null;
+  file: string | null;
+  line: number | null;
+  status: ReportStatus;
+  points: number;
+  triage_note: string | null;
+  created_at: string;
+  triaged_at: string | null;
+  description?: string;
+  steps?: string | null;
+  impact?: string | null;
+  fix?: string | null;
+  program_title?: string;
+  company?: string;
+  reporter_name?: string;
+}
+
+export interface FoundBug {
+  id: string;
+  title: string;
+  severity: BountySeverity;
+  category: string;
+  file: string;
+  line: number;
+  explanation: string;
+  fix: string;
+  points: number;
+}
+
+export interface BountyPlan {
+  id: "community" | "starter" | "growth";
+  name: string;
+  price_inr: number;
+  points_pool: number;
+  perks: string[];
+}
+
+export interface BountyBoardRow {
+  learner_id: string;
+  name: string;
+  points: number;
+  valid: number;
+  reports?: number;
+  inr?: string;
+  signal?: number;
+}
+
+export interface BountyList {
+  platform: PlatformProgram[];
+  company: HostedProgram[];
+  open_source: HostedProgram[];
+  stats: { reports: number; valid: number; hunters: number; points_paid: number; programs: number; inr_paid: string };
+  board: BountyBoardRow[];
+  plans: BountyPlan[];
+  categories: BountyCategory[];
+  severities: BountySeverityInfo[];
+  payments_enabled: boolean;
+  payments_mode: string | null;
+}
+
+interface ProgramCommon {
+  board: BountyBoardRow[];
+  checklist: string[];
+  categories: BountyCategory[];
+  severities: BountySeverityInfo[];
+  my_reports: BountyReport[];
+  reports_left_today: number;
+}
+
+export type PlatformProgramDetail = PlatformProgram &
+  ProgramCommon & {
+    files: { path: string; language: string; content: string; lines: number }[];
+    found: FoundBug[];
+    nudges_taken: number;
+    is_owner: false;
+  };
+
+export type HostedProgramDetail = HostedProgram &
+  ProgramCommon & {
+    is_owner: boolean;
+    queue: BountyReport[];
+    payments: { id: string; status: string; amount: string; checkout_url: string | null; created_at: string }[];
+    payments_enabled: boolean;
+  };
+
+export type ProgramDetail = PlatformProgramDetail | HostedProgramDetail;
+
+export type ExplainerVisual =
+  | { kind: "title"; heading: string; sub: string }
+  | { kind: "flow"; steps: { icon: string; label: string }[] }
+  | { kind: "scope"; inside: string[]; outside: string[] }
+  | { kind: "recon"; tree: string[]; focus: string; to: string }
+  | { kind: "classes"; items: { icon: string; label: string; ask: string }[] }
+  | { kind: "prove"; code: string[]; line: number; note: string }
+  | { kind: "report"; fields: { label: string; value: string }[] }
+  | { kind: "reward"; rows: { severity: string; points: number; color: string }[]; rate: string }
+  | { kind: "rules"; rules: { icon: string; text: string }[] }
+  | { kind: "outro"; cta: string[] };
+
+export interface ExplainerScene {
+  id: string;
+  chapter: string;
+  say: string;
+  visual: ExplainerVisual;
+}
+
+export interface FileReportResult {
+  report: BountyReport;
+  outcome: ReportStatus;
+  message: string;
+  bug?: FoundBug;
+  remaining?: number;
+}
+
+export interface PaymentsStatus {
+  enabled: boolean;
+  ready: boolean;
+  message: string;
+  mode: string | null;
+  webhook: boolean;
+}
+
+export interface AdminRedemption extends Redemption {
+  learner_id: string;
+  upi_id: string | null;
+  shipping: Shipping | null;
+  next: RedemptionStatus[];
+}
+
+/** Admin calls carry the token saved on the /admin page (only needed when LAYERFLOW_ADMIN_TOKEN is set). */
+function adminToken(): string {
+  try {
+    return localStorage.getItem("layerflow-admin-token") ?? "";
+  } catch {
+    return "";
+  }
+}
+
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body) headers["content-type"] = "application/json";
+  if (url.startsWith("/api/admin/")) headers["x-admin-token"] = adminToken();
   const res = await fetch(url, {
     method,
-    headers: body ? { "content-type": "application/json" } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
@@ -398,7 +733,59 @@ export const api = {
   teacherDesk: () => req<TeacherDesk>("GET", "/api/community/teacher-desk"),
   profile: (id: string) => req<Profile>("GET", `/api/profile/${encodeURIComponent(id)}`),
   saveProfile: (b: { id: string; display_name?: string; role?: "student" | "teacher"; bio?: string }) => req<Profile>("POST", "/api/profile", b),
+
+  // ── Rewards ──
+  rewards: (id: string) => req<RewardsView>("GET", `/api/rewards/${encodeURIComponent(id)}`),
+  rewardsSummary: (id: string) => req<RewardsSummary>("GET", `/api/rewards/${encodeURIComponent(id)}/summary`),
+  setPin: (learner_id: string, pin: string) => req<{ ok: boolean }>("POST", "/api/rewards/pin", { learner_id, pin }),
+  redeem: (b: { learner_id: string; pin: string; kind: "cash" | "goodie"; points?: number; upi_id?: string; item_id?: string; size?: string; shipping?: Shipping }) =>
+    req<{ redemption: Redemption; message: string; payout?: { mode: "demo" | "manual"; ref: string | null } }>("POST", "/api/rewards/redeem", b),
+  cancelRedemption: (id: string, learner_id: string, pin: string) => req<{ redemption: Redemption }>("POST", `/api/rewards/redemptions/${encodeURIComponent(id)}/cancel`, { learner_id, pin }),
+
+  // ── Bug Bounty ──
+  bountyPrograms: (viewer?: string | null) => req<BountyList>("GET", `/api/bounty/programs${viewer ? `?viewer=${encodeURIComponent(viewer)}` : ""}`),
+  bountyProgram: (id: string, viewer?: string | null) => req<ProgramDetail>("GET", `/api/bounty/programs/${encodeURIComponent(id)}${viewer ? `?viewer=${encodeURIComponent(viewer)}` : ""}`),
+  bountyReports: (learner_id: string) => req<{ reports: BountyReport[] }>("GET", `/api/bounty/reports?learner_id=${encodeURIComponent(learner_id)}`),
+  fileReport: (b: { program_id: string; learner_id: string; title: string; category: string; severity: BountySeverity; file?: string | null; line?: number | null; description: string; steps?: string | null; impact?: string | null; fix?: string | null }) =>
+    req<FileReportResult>("POST", "/api/bounty/reports", b),
+  bountyNudge: (learner_id: string, program_id: string) => req<{ nudge: string; severity: BountySeverity | null; cost: number; message?: string; all_found: boolean }>("POST", "/api/bounty/nudge", { learner_id, program_id }),
+  createProgram: (b: {
+    owner_id: string;
+    pin: string;
+    kind: "company" | "open_source";
+    company: string;
+    title: string;
+    summary: string;
+    repo_url?: string | null;
+    website?: string | null;
+    scope: string[];
+    out_of_scope: string[];
+    rewards: Record<BountySeverity, number>;
+    plan: BountyPlan["id"];
+    return_base: string;
+  }) => req<{ id: string; status: "open" | "awaiting_payment"; checkout_url: string | null }>("POST", "/api/bounty/programs", b),
+  programCheckout: (id: string, owner_id: string, pin: string, return_base: string) => req<{ payment: string; checkout_url: string }>("POST", `/api/bounty/programs/${encodeURIComponent(id)}/checkout`, { owner_id, pin, return_base }),
+  triageReport: (id: string, b: { actor_id: string; pin: string; status: "valid" | "duplicate" | "needs_info" | "invalid"; final_severity?: BountySeverity; note?: string }) =>
+    req<{ report: BountyReport }>("POST", `/api/bounty/reports/${encodeURIComponent(id)}/triage`, b),
+  explainer: (lang = "en") => req<{ lang: string; scenes: ExplainerScene[] }>("GET", `/api/bounty/explainer?lang=${encodeURIComponent(lang)}`),
+
+  // ── payments (Dodo) ──
+  paymentsStatus: () => req<PaymentsStatus>("GET", "/api/payments/status"),
+  syncPayment: (payment: string, payment_id: string) => req<{ status: string }>("POST", "/api/payments/sync", { payment, payment_id }),
+
+  // ── admin desk ──
+  adminStatus: () => req<{ ok: boolean; open: boolean; payouts: "demo" | "manual"; payments: PaymentsStatus }>("GET", "/api/admin/status"),
+  adminRedemptions: (status?: string) => req<{ redemptions: AdminRedemption[] }>("GET", `/api/admin/redemptions${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  adminUpdateRedemption: (id: string, b: { status: RedemptionStatus; note?: string; payout_ref?: string }) => req<Redemption>("POST", `/api/admin/redemptions/${encodeURIComponent(id)}`, b),
+  adminReports: () => req<{ reports: BountyReport[] }>("GET", "/api/admin/reports"),
+  adminTriage: (id: string, b: { status: "valid" | "duplicate" | "needs_info" | "invalid"; final_severity?: BountySeverity; note?: string }) =>
+    req<{ report: BountyReport }>("POST", `/api/admin/reports/${encodeURIComponent(id)}/triage`, b),
 };
+
+/** Tell the header's streak/points chip to refresh (after a pass, a confirmed bug, a redemption). */
+export function refreshPoints(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("layerflow-points-refresh"));
+}
 
 export const OUTCOME_LABEL: Record<Outcome, string> = {
   passed: "passed",
