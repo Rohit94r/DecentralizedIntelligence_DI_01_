@@ -6,22 +6,21 @@
  * mentor, gives every new question a first nudge. A post that contains a
  * full solution is blurred for anyone who hasn't solved that problem yet.
  *
- * Layout: header (heading, who's around, student/teacher switch, 4 stat
- * tiles) · channels rail (wide screens; a chip row otherwise) · the feed ·
- * a right rail with the Teacher desk, mentors, top helpers and guidelines.
- * Sorting, smart filters, top helpers and "who's active" are all computed
- * here from what the community endpoints already return.
+ * Layout, kept simple: a plain header with a one-line summary, then the
+ * feed (composer, channel chips, sort, search, posts) beside one column with
+ * the Teacher desk (for teachers), mentors and guidelines. Sorting, filters
+ * and "who's active" are computed here from what the endpoints return.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { BookOpen, CircleAlert, CircleCheck, CircleDashed, Clock, Flame, MessagesSquare, PenLine, Search, SearchX, Sparkles, UserRound, X } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { Portal } from "@/components/app/Portal";
-import { ChannelChips, ChannelRail, type Counts } from "@/components/community/Channels";
+import { ChannelChips, type Counts } from "@/components/community/Channels";
 import { Composer, type DraftPost } from "@/components/community/Composer";
 import { CommunityHeader } from "@/components/community/Header";
 import { PostCard, PostCardSkeleton } from "@/components/community/PostCard";
-import { GuidelinesCard, MentorsCard, TeacherAccountToggle, TeacherDeskCard, TopHelpersCard } from "@/components/community/Rail";
+import { GuidelinesCard, MentorsCard, TeacherAccountToggle, TeacherDeskCard } from "@/components/community/Rail";
 import { ThreadDrawer } from "@/components/community/ThreadDrawer";
 import {
   FOCUS,
@@ -33,7 +32,6 @@ import {
   applySort,
   threadSig,
   toThreadInfo,
-  topHelpers,
   type Smart,
   type Sort,
   type ThreadCache,
@@ -63,7 +61,7 @@ export default function CommunityPage() {
   const [desk, setDesk] = useState<TeacherDesk | null>(null);
 
   const [feed, setFeed] = useState<Post[] | null>(null); // what the server returns for the current kind / problem / search
-  const [base, setBase] = useState<Post[] | null>(null); // the whole community, for counts, helpers and "who's active"
+  const [base, setBase] = useState<Post[] | null>(null); // the whole community, for counts and "who's active"
   const [stats, setStats] = useState<CommunityStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [threads, setThreads] = useState<ThreadCache>({});
@@ -188,11 +186,8 @@ export default function CommunityPage() {
   }, [base]);
 
   const shown = useMemo(() => (feed ? applySort(applySmart(feed, smart, viewer, threads), sort, threads) : null), [feed, smart, sort, viewer, threads]);
-  const helpers = useMemo(() => topHelpers(base ?? [], threads), [base, threads]);
   const active = useMemo(() => activePeople(base ?? [], threads), [base, threads]);
   const weekPosts = useMemo(() => (base ? base.filter((p) => Date.now() - new Date(p.created_at).getTime() < WEEK_MS).length : null), [base]);
-  const cachedCount = base ? base.filter((p) => p.reply_count > 0 && threads[p.id]).length : 0;
-  const helpersLoading = !base || cachedCount < Math.min(base.filter((p) => p.reply_count > 0).length, 30);
 
   const problemTitle = (id: string) => challenges.find((c) => c.id === id)?.title ?? base?.find((p) => p.challenge_id === id)?.challenge_title ?? id;
   const anyFilter = !!(kind || problem || smart || q.trim());
@@ -321,14 +316,7 @@ export default function CommunityPage() {
       />
 
       <div className="@container/board">
-        <div className="grid gap-6 @min-[50rem]:grid-cols-[minmax(0,1fr)_18rem] @5xl:grid-cols-[12.5rem_minmax(0,1fr)_19rem] @5xl:gap-7">
-          {/* channels — wide screens */}
-          <aside className="hidden @5xl:block">
-            <div className="sticky top-[81px]">
-              <ChannelRail {...channelProps} />
-            </div>
-          </aside>
-
+        <div className="grid gap-6 @min-[50rem]:grid-cols-[minmax(0,1fr)_18rem] @5xl:grid-cols-[minmax(0,1fr)_20rem] @5xl:gap-8">
           {/* the feed */}
           <section aria-label="Posts" className="@container/feed min-w-0 space-y-4">
             <div ref={composerRef} className="scroll-mt-24">
@@ -366,10 +354,8 @@ export default function CommunityPage() {
               )}
             </AnimatePresence>
 
-            {/* channels — everything narrower */}
-            <div className="@5xl/board:hidden">
-              <ChannelChips {...channelProps} />
-            </div>
+            {/* channels */}
+            <ChannelChips {...channelProps} />
 
             {/* sort + search */}
             <div className="flex flex-col gap-2.5 @md/feed:flex-row @md/feed:items-center @md/feed:justify-between">
@@ -457,16 +443,6 @@ export default function CommunityPage() {
               </div>
             )}
             <MentorsCard teachers={teachers} />
-            <TopHelpersCard
-              helpers={helpers}
-              loading={helpersLoading}
-              me={viewer}
-              onFindUnanswered={() => {
-                setSmart("unanswered");
-                setSort("latest");
-                requestAnimationFrame(() => composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-              }}
-            />
             <GuidelinesCard />
             {view === "student" && me && learner && <TeacherAccountToggle learner={learner} me={me} onMakeTeacher={makeTeacher} onMakeStudent={makeStudent} />}
           </aside>
