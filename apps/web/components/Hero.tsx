@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * The Debug Dojo landing page — section for section the reference layout
+ * The Layerflow landing page — section for section the reference layout
  * (floating pill navbar, illustrated hero + dark app mockup, video stat cards,
  * pastel bento features, tabbed app showcase, live table, CTA, partner card,
- * footer), carrying Debug Dojo's product and its real numbers.
+ * footer), carrying Layerflow's product and its real numbers.
  */
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -429,7 +429,7 @@ export const Hero = () => {
                 ))}
               </TableBody>
             </Table>
-            <p className="px-4 pb-1 pt-3 text-right text-[11px] text-neutral-400">{live ? "● live from this dojo's database" : "sample rows — start the API to see live ones"}</p>
+            <p className="px-4 pb-1 pt-3 text-right text-[11px] text-neutral-400">{live ? "● live from this Layerflow database" : "sample rows — start the API to see live ones"}</p>
           </div>
         </div>
       </section>

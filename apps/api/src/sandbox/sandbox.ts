@@ -10,11 +10,11 @@
  *  • Hard limit on concurrent runners; excess work queues instead of
  *    overloading the machine. Nothing in here can throw into a route.
  */
-import type { AnalyzeJob, LineMap, RunJob, RunResult, Sandbox, SandboxSession, TraceJob, TraceResult } from "@dojo/core";
+import type { AnalyzeJob, LineMap, RunJob, RunResult, Sandbox, SandboxSession, TraceJob, TraceResult } from "@layerflow/core";
 import { RunnerProcess } from "./runner-process.ts";
 
-const WARM = Number(process.env.DOJO_WARM ?? 3);
-const MAX_PROCS = Number(process.env.DOJO_MAX_RUNNERS ?? 8);
+const WARM = Number(process.env.LAYERFLOW_WARM ?? 3);
+const MAX_PROCS = Number(process.env.LAYERFLOW_MAX_RUNNERS ?? 8);
 const PARALLEL_AFTER_TIMEOUT = 4;
 
 type Waiter = (p: RunnerProcess) => void;

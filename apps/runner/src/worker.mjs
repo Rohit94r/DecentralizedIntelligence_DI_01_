@@ -13,7 +13,7 @@ import path from "node:path";
 // --permission model forbids. Hand it the constants and nothing else.
 process.binding = (name) => {
   if (name === "constants") return { fs: fsConstants };
-  throw new Error("process.binding is not available in the dojo runner");
+  throw new Error("process.binding is not available in the Layerflow runner");
 };
 
 const { indexURL, sab, harnessPath } = workerData;
@@ -23,7 +23,7 @@ const py = await loadPyodide({
   indexURL: indexURL.endsWith(path.sep) ? indexURL : indexURL + path.sep,
   stdout: () => {},
   stderr: () => {},
-  env: { HOME: "/home/dojo", USER: "dojo" },
+  env: { HOME: "/home/learner", USER: "learner" },
 });
 
 py.setInterruptBuffer(new Int32Array(sab));
@@ -44,11 +44,11 @@ for _k in [k for k in list(sys.modules) if k in ("js", "pyodide_js") or k.starts
 `);
 
 py.runPython(readFileSync(harnessPath, "utf8"));
-const dispatch = py.globals.get("dojo_dispatch");
+const dispatch = py.globals.get("layerflow_dispatch");
 
 // Defence in depth: even if Python somehow regained a JS handle, these are gone.
 const refuse = () => {
-  throw new Error("not available in the dojo runner");
+  throw new Error("not available in the Layerflow runner");
 };
 for (const key of ["fetch", "WebSocket", "EventSource", "XMLHttpRequest", "Request", "BroadcastChannel"]) {
   try {

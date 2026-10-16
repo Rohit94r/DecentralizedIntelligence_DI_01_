@@ -8,7 +8,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { DICTIONARIES, EN, type Dictionary, type UiLanguage } from "./translations";
 
-const STORAGE_KEY = "debug-dojo-ui-lang";
+const STORAGE_KEY = "layerflow-ui-lang";
 
 interface I18nContextValue {
   lang: UiLanguage;

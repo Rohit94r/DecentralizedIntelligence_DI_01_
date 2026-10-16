@@ -1,5 +1,5 @@
 /**
- * Typed client for the Debug Dojo API. Same origin (/api is proxied to the
+ * Typed client for the Layerflow API. Same origin (/api is proxied to the
  * Fastify server by next.config.ts), so no CORS and one URL for the judges.
  * The browser never receives a hidden test — these types have no room for one.
  */

@@ -1,9 +1,9 @@
 {
-  "name": "debug-dojo",
+  "name": "layerflow",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Debug Dojo — a coding coach that helps you find the bug without handing you the answer (DI-01, Kurukshetra 2026).",
+  "description": "Layerflow — a coding coach that helps you find the bug without handing you the answer (DI-01, Kurukshetra 2026).",
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -15,12 +15,12 @@
     "start": "node scripts/start.mjs",
     "dev": "node scripts/start.mjs --dev",
     "api": "tsx apps/api/src/server.ts",
-    "web": "npm run dev -w @dojo/web",
-    "build": "npm run build -w @dojo/web",
+    "web": "npm run dev -w @layerflow/web",
+    "build": "npm run build -w @layerflow/web",
     "seed": "tsx apps/api/src/seed.ts",
     "harness": "tsx harness/all.ts",
     "test:unit": "tsx packages/core/test/unit.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck -w @dojo/web",
+    "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck -w @layerflow/web",
     "url": "ngrok http 3000"
   },
   "devDependencies": {

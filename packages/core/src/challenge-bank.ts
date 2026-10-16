@@ -242,7 +242,7 @@ const FIRST_N_SQUARES: Challenge = {
     print_not_return: "The result is a whole list that must be handed back, not printed.",
   },
   mechanisms: {
-    off_by_one: "Your range goes one step too far or stops one step short, so the number of squares is off by one.",
+    off_by_one: "Check where your range stops: it decides exactly which squares get made, and right now that stop is one step off.",
     unhandled_short_input: "Line {line} writes into a position the list doesn't have when n is 0.",
     boundary_comparison: "Your list starts with a square already in it, so when n is 0 it can't come out empty.",
     print_not_return: "Your function prints the squares but hands back nothing.",

@@ -1,5 +1,5 @@
 /**
- * @dojo/db — the ONLY module that touches SQL.
+ * @layerflow/db — the ONLY module that touches SQL.
  *
  * node:sqlite (built into Node ≥ 22.13): zero install, no native build, one
  * file, WAL mode so the judges' parallel submissions and readers never block
@@ -26,7 +26,7 @@ import {
   type MistakeTag,
   type Store,
   type SubmissionRecord,
-} from "@dojo/core";
+} from "@layerflow/core";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -59,7 +59,7 @@ export interface LedgerRow {
 
 type Row = Record<string, unknown>;
 
-export class DojoStore implements Store {
+export class LayerflowStore implements Store {
   readonly db: DatabaseSync;
 
   constructor(readonly file: string) {
@@ -366,5 +366,5 @@ export class DojoStore implements Store {
 }
 
 export function defaultDbFile(): string {
-  return process.env.DOJO_DB ?? path.resolve(here, "../../../apps/api/data/dojo.db");
+  return process.env.LAYERFLOW_DB ?? path.resolve(here, "../../../apps/api/data/layerflow.db");
 }

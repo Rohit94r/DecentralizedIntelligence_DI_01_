@@ -2,7 +2,7 @@
 
 /**
  * The dark app mockup under the hero — same frame, sidebar and sizes as the
- * reference's dashboard preview, showing the REAL output Debug Dojo produces
+ * reference's dashboard preview, showing the REAL output Layerflow produces
  * for the statement's own example (Rohan's last_k_total).
  */
 import React, { useEffect, useState } from "react";

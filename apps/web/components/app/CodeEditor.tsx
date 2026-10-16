@@ -59,7 +59,7 @@ export function CodeEditor({ value, onChange, readOnly, culpritLine, culpritNote
   };
 
   return (
-    <div className={cn("dojo-editor overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 text-neutral-100 shadow-[0_16px_40px_-16px_rgba(16,15,25,0.35)]", className)}>
+    <div className={cn("lf-editor overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 text-neutral-100 shadow-[0_16px_40px_-16px_rgba(16,15,25,0.35)]", className)}>
       {/* Line Map strip: where to look, never what to write */}
       <AnimatePresence initial={false}>
         {culpritLine && culpritNote && (

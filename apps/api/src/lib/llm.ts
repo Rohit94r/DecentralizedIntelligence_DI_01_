@@ -11,9 +11,9 @@
  * hidden output or exception message — so it cannot leak one.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import type { Challenge, Rewriter } from "@dojo/core";
+import type { Challenge, Rewriter } from "@layerflow/core";
 
-const SYSTEM = `You are the voice of Debug Dojo, a coding coach for beginner Python programmers.
+const SYSTEM = `You are the voice of Layerflow, a coding coach for beginner Python programmers.
 You help learners FIND their bug; you never hand over the answer.
 Hard rules — breaking any of them makes your reply unusable:
 - Write plain English prose only. No code at all: no code blocks, no Python statements, no assignments, no comparison operators, no function calls, no slices.
@@ -30,8 +30,8 @@ function textOf(content: Anthropic.Beta.BetaContentBlock[]): string {
 }
 
 export function createRewriter(log: (msg: string) => void = () => {}): Rewriter | null {
-  if (!process.env.ANTHROPIC_API_KEY || process.env.DOJO_LLM === "off") return null;
-  const model = process.env.DOJO_LLM_MODEL ?? "claude-opus-5-5";
+  if (!process.env.ANTHROPIC_API_KEY || process.env.LAYERFLOW_LLM === "off") return null;
+  const model = process.env.LAYERFLOW_LLM_MODEL ?? "claude-opus-5-5";
   const client = new Anthropic({ timeout: 15_000, maxRetries: 1 });
 
   async function ask(user: string): Promise<string | null> {

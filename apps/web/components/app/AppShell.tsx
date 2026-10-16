@@ -137,7 +137,7 @@ export function AppShell({ title, subtitle, actions, children, wide = false }: {
       >
         <div className="flex items-center justify-between px-5 py-5">
           <Link href="/" className="group flex items-center gap-2.5">
-            <div className="flex size-7 items-center justify-center rounded-[9px] bg-neutral-950 text-[11px] font-bold text-[#bbf451]">D</div>
+            <div className="flex size-7 items-center justify-center rounded-[9px] bg-neutral-950 text-[11px] font-bold text-[#bbf451]">L</div>
             <span className="font-gothic text-[15px] tracking-wide text-neutral-950">{t("common.brand")}</span>
             <ArrowUpRight className="size-3.5 text-neutral-300 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-neutral-500" />
           </Link>

@@ -13,7 +13,7 @@ import { ESCAPE_ATTEMPTS, HOSTILE_PROGRAMS, KNOWN_GOOD, type HostileProgram } fr
 import { CANARY, check, connect, isMain, printSuite, type Check, type SuiteResult } from "./lib.ts";
 
 function secretsIn(raw: string): string | null {
-  const markers = [CANARY, "root:x:0:0", "dojo_dispatch", "_policy_check", os.homedir(), process.cwd(), os.hostname(), process.env.PATH?.split(/[;:]/)[0] ?? "__none__"];
+  const markers = [CANARY, "root:x:0:0", "layerflow_dispatch", "_policy_check", os.homedir(), process.cwd(), os.hostname(), process.env.PATH?.split(/[;:]/)[0] ?? "__none__"];
   for (const m of markers) if (m && m.length > 3 && raw.includes(m)) return m;
   return null;
 }

@@ -14,7 +14,7 @@ export const UI_LANGUAGE_OPTIONS: { value: UiLanguage; label: string; nativeLabe
 ];
 
 const en = {
-  common: { brand: "Debug Dojo", start: "Start practising", dashboard: "Dashboard", judges: "Judges" },
+  common: { brand: "Layerflow", start: "Start practising", dashboard: "Dashboard", judges: "Judges" },
   nav: { home: "Home", stats: "Proof", features: "Features", preview: "Live", openMenu: "Open menu", closeMenu: "Close menu" },
   hero: {
     headline: "Find the bug. Keep the skill.",
@@ -24,7 +24,7 @@ const en = {
     ctaSecondary: "See how it works",
     sidebar: { results: "Results", hints: "Hint ladder", linemap: "Line Map", mastery: "Mastery" },
     learner: "rohan · learner",
-    livePreview: "LIVE PREVIEW · REAL DOJO OUTPUT",
+    livePreview: "LIVE PREVIEW · REAL LAYERFLOW OUTPUT",
     submit: "Submit",
     running: "Running in the sandbox…",
     visible: "visible",
@@ -58,10 +58,10 @@ const en = {
     more: "More",
     noPractice: "no practice",
     practiced: "{n} attempts",
-    box4Title: "Live from the dojo",
+    box4Title: "Live from Layerflow",
     box4Body: "Every attempt is diagnosed — the mistake, the kind of input, the exact line.",
     box5Title: "Works anywhere, offline",
-    box5Body: "No API key, no internet, no install beyond Node. One command and the whole dojo is running.",
+    box5Body: "No API key, no internet, no install beyond Node. One command and Layerflow is running.",
   },
   feed: [
     { name: "unhandled_short_input", description: "Line 3 · a case where k is larger than the list", time: "2m ago" },
@@ -70,7 +70,7 @@ const en = {
     { name: "Guardrail fired", description: "A hint draft quoted code — rejected", time: "14m ago" },
     { name: "Contained", description: "while True → timeout · server still up", time: "20m ago" },
   ],
-  showcase: { heading: "Inside the dojo", subhead: "Practice, mistakes, learners and progress — all in one place." },
+  showcase: { heading: "Inside Layerflow", subhead: "Practice, mistakes, learners and progress — all in one place." },
   previewSection: {
     heading: "Real attempts, real diagnoses",
     subhead: "Recent submissions. The mistake is named — the hidden values never are.",
@@ -100,7 +100,7 @@ const en = {
     primary: "Open the judges' page",
     secondary: "Browse the Hint Ledger",
   },
-  footer: { rights: "© {year} Debug Dojo · Kurukshetra 2026 · DI-01", builtBy: "Built by", quote: "Rohan never needed the answer. He needed someone to point him to the right place to look." },
+  footer: { rights: "© {year} Layerflow · Kurukshetra 2026 · DI-01", builtBy: "Built by", quote: "Rohan never needed the answer. He needed someone to point him to the right place to look." },
   app: {
     practice: "Practice",
     bugFactory: "Bug Factory",
@@ -122,7 +122,7 @@ export type Dictionary = typeof en;
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? (T[K] extends unknown[] ? T[K] : DeepPartial<T[K]>) : string };
 
 const hi: DeepPartial<Dictionary> = {
-  common: { brand: "Debug Dojo", start: "अभ्यास शुरू करें", dashboard: "डैशबोर्ड", judges: "जज" },
+  common: { brand: "Layerflow", start: "अभ्यास शुरू करें", dashboard: "डैशबोर्ड", judges: "जज" },
   nav: { home: "होम", stats: "प्रमाण", features: "फ़ीचर", preview: "लाइव", openMenu: "मेनू खोलें", closeMenu: "मेनू बंद करें" },
   hero: {
     headline: "बग ढूँढो। हुनर अपना बनाओ।",
@@ -131,7 +131,7 @@ const hi: DeepPartial<Dictionary> = {
     ctaPrimary: "अभ्यास शुरू करें",
     ctaSecondary: "देखें यह कैसे काम करता है",
     sidebar: { results: "नतीजे", hints: "हिंट सीढ़ी", linemap: "लाइन मैप", mastery: "महारत" },
-    livePreview: "लाइव प्रीव्यू · असली डोजो आउटपुट",
+    livePreview: "लाइव प्रीव्यू · असली Layerflow आउटपुट",
     submit: "सबमिट",
     running: "सैंडबॉक्स में चल रहा है…",
     visible: "दिखने वाले",
@@ -164,12 +164,12 @@ const hi: DeepPartial<Dictionary> = {
     more: "ज़्यादा",
     noPractice: "कोई अभ्यास नहीं",
     practiced: "{n} कोशिशें",
-    box4Title: "डोजो से लाइव",
+    box4Title: "Layerflow से लाइव",
     box4Body: "हर कोशिश का निदान — ग़लती, इनपुट का प्रकार, और सटीक लाइन।",
     box5Title: "कहीं भी, ऑफ़लाइन",
-    box5Body: "न API key, न इंटरनेट, Node के अलावा कुछ इंस्टॉल नहीं। एक कमांड और पूरा डोजो चालू।",
+    box5Body: "न API key, न इंटरनेट, Node के अलावा कुछ इंस्टॉल नहीं। एक कमांड और पूरा Layerflow चालू।",
   },
-  showcase: { heading: "डोजो के अंदर", subhead: "अभ्यास, ग़लतियाँ, सीखने वाले और प्रगति — सब एक जगह।" },
+  showcase: { heading: "Layerflow के अंदर", subhead: "अभ्यास, ग़लतियाँ, सीखने वाले और प्रगति — सब एक जगह।" },
   previewSection: {
     heading: "असली कोशिशें, असली निदान",
     subhead: "हाल के सबमिशन। ग़लती का नाम बताया जाता है — छिपे मान कभी नहीं।",
@@ -218,7 +218,7 @@ const hi: DeepPartial<Dictionary> = {
 };
 
 const mr: DeepPartial<Dictionary> = {
-  common: { brand: "Debug Dojo", start: "सराव सुरू करा", dashboard: "डॅशबोर्ड", judges: "परीक्षक" },
+  common: { brand: "Layerflow", start: "सराव सुरू करा", dashboard: "डॅशबोर्ड", judges: "परीक्षक" },
   nav: { home: "होम", stats: "पुरावा", features: "वैशिष्ट्ये", preview: "लाइव्ह", openMenu: "मेनू उघडा", closeMenu: "मेनू बंद करा" },
   hero: {
     headline: "बग शोधा. कौशल्य आपलं करा.",
@@ -227,7 +227,7 @@ const mr: DeepPartial<Dictionary> = {
     ctaPrimary: "सराव सुरू करा",
     ctaSecondary: "हे कसं काम करतं ते पाहा",
     sidebar: { results: "निकाल", hints: "हिंट शिडी", linemap: "लाइन मॅप", mastery: "प्रावीण्य" },
-    livePreview: "लाइव्ह प्रिव्ह्यू · खरा डोजो आउटपुट",
+    livePreview: "लाइव्ह प्रिव्ह्यू · खरा Layerflow आउटपुट",
     submit: "सबमिट",
     running: "सँडबॉक्समध्ये चालू आहे…",
     visible: "दिसणाऱ्या",
@@ -260,12 +260,12 @@ const mr: DeepPartial<Dictionary> = {
     more: "जास्त",
     noPractice: "सराव नाही",
     practiced: "{n} प्रयत्न",
-    box4Title: "डोजोमधून लाइव्ह",
+    box4Title: "Layerflow मधून लाइव्ह",
     box4Body: "प्रत्येक प्रयत्नाचं निदान — चूक, इनपुटचा प्रकार, आणि नेमकी ओळ.",
     box5Title: "कुठेही, ऑफलाइन",
-    box5Body: "API key नाही, इंटरनेट नाही, Node शिवाय काहीही इन्स्टॉल नाही. एक कमांड आणि संपूर्ण डोजो सुरू.",
+    box5Body: "API key नाही, इंटरनेट नाही, Node शिवाय काहीही इन्स्टॉल नाही. एक कमांड आणि संपूर्ण Layerflow सुरू.",
   },
-  showcase: { heading: "डोजोच्या आत", subhead: "सराव, चुका, शिकणारे आणि प्रगती — सगळं एकाच ठिकाणी." },
+  showcase: { heading: "Layerflow मध्ये", subhead: "सराव, चुका, शिकणारे आणि प्रगती — सगळं एकाच ठिकाणी." },
   previewSection: {
     heading: "खरे प्रयत्न, खरं निदान",
     subhead: "अलीकडचे सबमिशन. चुकीचं नाव सांगितलं जातं — लपलेली मूल्यं कधीच नाही.",

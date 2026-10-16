@@ -325,7 +325,7 @@
   background-image: linear-gradient(to bottom, #0b0d10, rgba(11,13,16,.7), transparent) !important;
 }
 /* ===========================================================================
- * Debug Dojo additions — the app pages (practice, challenge, dashboard,
+ * Layerflow additions — the app pages (practice, challenge, dashboard,
  * ledger, taxonomy, judges, bug factory) reuse the landing page's language:
  * neutral-50 canvas, white rounded-3xl cards, ONE pastel tint per big card,
  * lime (#bbf451) for "active", black pills for primary actions.
@@ -371,13 +371,13 @@
 }
 
 /* ── the code editor (dark in both themes, like the landing page's app mockup) ── */
-.dojo-editor {
+.lf-editor {
   font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13.5px;
   line-height: 22px;
   tab-size: 4;
 }
-.dojo-editor textarea {
+.lf-editor textarea {
   caret-color: #bbf451;
   -webkit-text-fill-color: transparent;
   color: transparent;
@@ -386,12 +386,12 @@
   white-space: pre;
   overflow-wrap: normal;
 }
-.dojo-editor textarea::selection {
+.lf-editor textarea::selection {
   background: rgba(187, 244, 81, 0.25);
   -webkit-text-fill-color: transparent;
 }
-.dojo-editor pre,
-.dojo-editor textarea {
+.lf-editor pre,
+.lf-editor textarea {
   font: inherit;
   letter-spacing: normal;
   line-height: 22px;
@@ -430,26 +430,26 @@
 
 /* pastel cards keep their light tint in dark mode, so their dark ink stays readable;
    the few pastel surfaces used as page backgrounds get a dark tint instead */
-.dark .dojo-tint-green { background-color: rgba(53, 148, 98, 0.12) !important; border-color: rgba(53, 148, 98, 0.3) !important; }
-.dark .dojo-tint-purple { background-color: rgba(94, 42, 196, 0.14) !important; border-color: rgba(94, 42, 196, 0.32) !important; }
-.dark .dojo-tint-orange { background-color: rgba(198, 78, 39, 0.12) !important; border-color: rgba(198, 78, 39, 0.3) !important; }
-.dark .dojo-tint-sky { background-color: rgba(5, 134, 210, 0.12) !important; border-color: rgba(5, 134, 210, 0.3) !important; }
-.dark .dojo-tint-amber { background-color: rgba(245, 158, 11, 0.12) !important; border-color: rgba(245, 158, 11, 0.3) !important; }
-.dark .dojo-tint-green .text-\[\#151515\],
-.dark .dojo-tint-purple .text-\[\#151515\],
-.dark .dojo-tint-orange .text-\[\#151515\],
-.dark .dojo-tint-sky .text-\[\#151515\],
-.dark .dojo-tint-amber .text-\[\#151515\],
-.dark .dojo-tint-green .text-\[\#17152A\],
-.dark .dojo-tint-purple .text-\[\#17152A\],
-.dark .dojo-tint-orange .text-\[\#17152A\],
-.dark .dojo-tint-sky .text-\[\#17152A\],
-.dark .dojo-tint-amber .text-\[\#17152A\] { color: #f5f5f5 !important; }
-.dark .dojo-tint-green .text-\[\#6D6878\],
-.dark .dojo-tint-purple .text-\[\#6D6878\],
-.dark .dojo-tint-orange .text-\[\#6D6878\],
-.dark .dojo-tint-sky .text-\[\#6D6878\],
-.dark .dojo-tint-amber .text-\[\#6D6878\] { color: #b9bcc4 !important; }
+.dark .lf-tint-green { background-color: rgba(53, 148, 98, 0.12) !important; border-color: rgba(53, 148, 98, 0.3) !important; }
+.dark .lf-tint-purple { background-color: rgba(94, 42, 196, 0.14) !important; border-color: rgba(94, 42, 196, 0.32) !important; }
+.dark .lf-tint-orange { background-color: rgba(198, 78, 39, 0.12) !important; border-color: rgba(198, 78, 39, 0.3) !important; }
+.dark .lf-tint-sky { background-color: rgba(5, 134, 210, 0.12) !important; border-color: rgba(5, 134, 210, 0.3) !important; }
+.dark .lf-tint-amber { background-color: rgba(245, 158, 11, 0.12) !important; border-color: rgba(245, 158, 11, 0.3) !important; }
+.dark .lf-tint-green .text-\[\#151515\],
+.dark .lf-tint-purple .text-\[\#151515\],
+.dark .lf-tint-orange .text-\[\#151515\],
+.dark .lf-tint-sky .text-\[\#151515\],
+.dark .lf-tint-amber .text-\[\#151515\],
+.dark .lf-tint-green .text-\[\#17152A\],
+.dark .lf-tint-purple .text-\[\#17152A\],
+.dark .lf-tint-orange .text-\[\#17152A\],
+.dark .lf-tint-sky .text-\[\#17152A\],
+.dark .lf-tint-amber .text-\[\#17152A\] { color: #f5f5f5 !important; }
+.dark .lf-tint-green .text-\[\#6D6878\],
+.dark .lf-tint-purple .text-\[\#6D6878\],
+.dark .lf-tint-orange .text-\[\#6D6878\],
+.dark .lf-tint-sky .text-\[\#6D6878\],
+.dark .lf-tint-amber .text-\[\#6D6878\] { color: #b9bcc4 !important; }
 
 @media print {
   .no-print { display: none !important; }

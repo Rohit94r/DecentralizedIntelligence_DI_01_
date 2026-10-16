@@ -1,4 +1,4 @@
-# Architecture — how Debug Dojo runs learner code safely
+# Architecture — how Layerflow runs learner code safely
 
 ## Runtime topology
 
@@ -12,11 +12,11 @@
 ┌───────────────────────▼─────────────────────────────────────────────────┐
 │  API PROCESS — Fastify (apps/api) on :4000           ← every scoring rule │
 │                                                                          │
-│  @dojo/core (pure, no I/O)                                               │
+│  @layerflow/core (pure, no I/O)                                               │
 │    challenge-bank.ts  ← 18 challenges + HIDDEN TESTS ██ memory only ██    │
 │    classifier · detectors · hints + validator · explain · secrecy        │
 │    mastery · recurrence · engine                                         │
-│  @dojo/db — node:sqlite, WAL, apps/api/data/dojo.db                     │
+│  @layerflow/db — node:sqlite, WAL, apps/api/data/layerflow.db                     │
 │  sandbox/ — warm pool · per-submission sessions · backstop timers         │
 └───────────────────────┬─────────────────────────────────────────────────┘
                         │ stdin  : {code, fn, args}      ← INPUTS ONLY

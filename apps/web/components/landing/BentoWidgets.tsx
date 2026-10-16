@@ -2,7 +2,7 @@
 
 /**
  * The showcase widgets — same shapes, sizes and pastel tints as the reference
- * bento widgets, carrying Debug Dojo's content.
+ * bento widgets, carrying Layerflow's content.
  */
 import React, { useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
@@ -124,7 +124,7 @@ export function BentoSettingsWidget() {
 
   return (
     <div className="rounded-3xl border border-[#bbf451]/40 bg-[#fffbe8] px-6 py-6 shadow-sm">
-      <h3 className="font-instrumental text-2xl leading-none text-[#151515]">Your dojo</h3>
+      <h3 className="font-instrumental text-2xl leading-none text-[#151515]">Your setup</h3>
       <div className="mt-6 flex flex-col gap-5">
         <div>
           <p className="font-poppins text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">Theme</p>

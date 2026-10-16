@@ -1,5 +1,5 @@
 /**
- * Shared types for the whole product. No I/O lives in @dojo/core — the API
+ * Shared types for the whole product. No I/O lives in @layerflow/core — the API
  * injects a runner and a store, so every decision here is a pure function
  * that the unit tests can drive directly.
  */

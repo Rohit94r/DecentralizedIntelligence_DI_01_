@@ -66,11 +66,11 @@ export function MasteryBar({ label, value, delta, color = "#359462" }: { label: 
 
 export function Card({ children, className, tint }: { children: React.ReactNode; className?: string; tint?: "green" | "purple" | "orange" | "sky" | "amber" }) {
   const tints = {
-    green: "dojo-tint-green border-[#cfe9c8]/80 bg-[#eeffe8]",
-    purple: "dojo-tint-purple border-[#ddd0ff]/70 bg-[#f2eeff]",
-    orange: "dojo-tint-orange border-[#f0d9b8]/70 bg-[#fff2df]",
-    sky: "dojo-tint-sky border-sky-200/60 bg-sky-50",
-    amber: "dojo-tint-amber border-[#fde1a8]/80 bg-[#fff6e3]",
+    green: "lf-tint-green border-[#cfe9c8]/80 bg-[#eeffe8]",
+    purple: "lf-tint-purple border-[#ddd0ff]/70 bg-[#f2eeff]",
+    orange: "lf-tint-orange border-[#f0d9b8]/70 bg-[#fff2df]",
+    sky: "lf-tint-sky border-sky-200/60 bg-sky-50",
+    amber: "lf-tint-amber border-[#fde1a8]/80 bg-[#fff6e3]",
   };
   return <div className={cn("rounded-3xl border p-5 sm:p-6", tint ? tints[tint] : "border-neutral-200/80 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.02)]", className)}>{children}</div>;
 }

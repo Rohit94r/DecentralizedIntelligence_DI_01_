@@ -1,5 +1,5 @@
 {
-  "name": "@dojo/runner",
+  "name": "@layerflow/runner",
   "version": "1.0.0",
   "private": true,
   "type": "module",

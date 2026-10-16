@@ -58,7 +58,7 @@ export const HOSTILE_PROGRAMS: HostileProgram[] = [
     code: "import socket\n" + F + "    socket.create_connection(('1.1.1.1', 80))\n    return 0\n",
     outcomes: ["runtime_error"],
     details: ["sandbox policy"],
-    why: "socket is not importable in the dojo, and the runner's JS network globals are removed.",
+    why: "socket is not importable in the Layerflow sandbox, and the runner's JS network globals are removed.",
   },
   {
     id: 5,
@@ -68,7 +68,7 @@ export const HOSTILE_PROGRAMS: HostileProgram[] = [
     code: "import urllib.request\n" + F + "    return urllib.request.urlopen('http://example.com').read()\n",
     outcomes: ["runtime_error"],
     details: ["sandbox policy"],
-    why: "urllib is not importable in the dojo.",
+    why: "urllib is not importable in the Layerflow sandbox.",
   },
   {
     id: 6,

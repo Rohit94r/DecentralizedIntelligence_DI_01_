@@ -1,5 +1,5 @@
 {
-  "name": "@dojo/db",
+  "name": "@layerflow/db",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@dojo/core": "1.0.0"
+    "@layerflow/core": "1.0.0"
   }
 }

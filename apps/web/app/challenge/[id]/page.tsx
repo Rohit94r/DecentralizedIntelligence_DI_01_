@@ -53,7 +53,7 @@ function Workspace() {
   const [before, setBefore] = useState<LearnerView | null>(null);
   const [after, setAfter] = useState<LearnerView | null>(null);
   const autoran = useRef(false);
-  const draftKey = learner ? `dojo-draft:${learner}:${id}` : null;
+  const draftKey = learner ? `layerflow-draft:${learner}:${id}` : null;
 
   useEffect(() => {
     api
@@ -319,7 +319,7 @@ function Workspace() {
                   <Sparkles className="mx-auto size-6 text-[#359462]" />
                   <p className="mt-3 text-[15px] font-semibold text-neutral-900">Run your code to see what happens</p>
                   <p className="mx-auto mt-1 max-w-sm text-[13px] leading-5 text-neutral-500">
-                    Visible tests show their values. Hidden tests only show whether they pass — the dojo tells you what <em>kind</em> of input broke, never the input itself.
+                    Visible tests show their values. Hidden tests only show whether they pass — Layerflow tells you what <em>kind</em> of input broke, never the input itself.
                   </p>
                 </Card>
               )}

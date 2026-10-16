@@ -1,6 +1,6 @@
-# 🧠 prompt.md — THE COMPLETE BUILD SPEC FOR DEBUG DOJO (as built)
+# 🧠 prompt.md — THE COMPLETE BUILD SPEC FOR LAYERFLOW (as built)
 
-> **Purpose:** this file is a *build prompt* and the single description of the product. Paste it into a coding agent and it has everything needed to rebuild Debug Dojo end-to-end — every package, file, contract, rule and test. It describes **what is actually in this repository**, and §20 lists every place where the build deliberately differs from the first draft of this spec, with the reason.
+> **Purpose:** this file is a *build prompt* and the single description of the product. Paste it into a coding agent and it has everything needed to rebuild Layerflow end-to-end — every package, file, contract, rule and test. It describes **what is actually in this repository**, and §20 lists every place where the build deliberately differs from the first draft of this spec, with the reason.
 > **Statement:** DI-01 Debug Dojo · "A coding coach that helps you find the bug without handing you the answer."
 > **Scored out of 100 points** (§0). **Learner language:** Python only.
 
@@ -59,7 +59,7 @@ KURUKSHETRA-IMPIC/
 ├─ scripts/start.mjs           ← the one command: build web once → API → wait healthy → web → banner
 ├─ docs/  architecture.md · test-harness.md · viva.md · EVENT-MANUAL.md (event field manual)
 ├─ apps/
-│  ├─ api/      @dojo/api — Fastify server (THE product's brain)
+│  ├─ api/      @layerflow/api — Fastify server (THE product's brain)
 │  │  └─ src/
 │  │     server.ts       boot, first-boot seed, listen :4000, parent-pid watchdog
 │  │     app.ts          every route + response schemas + error handler
@@ -70,12 +70,12 @@ KURUKSHETRA-IMPIC/
 │  │     lib/llm.ts      optional Tier-2 rewriter (@anthropic-ai/sdk)
 │  │     sandbox/runner-process.ts   spawn one runner (flags, env, ulimit), request/response, kill
 │  │     sandbox/sandbox.ts          warm pool, per-submission sessions, parallel fan-out, backoff
-│  ├─ runner/   @dojo/runner — THE CHILD PROCESS (never inside the API process)
+│  ├─ runner/   @layerflow/runner — THE CHILD PROCESS (never inside the API process)
 │  │  └─ src/
 │  │     supervisor.mjs  main thread: NDJSON protocol, wall clock, memory watchdog, terminate
 │  │     worker.mjs      worker thread: loads Pyodide, cuts the JS bridge, runs harness.py
 │  │     harness.py      the in-sandbox harness: policy, restricted built-ins, run / analyze / trace
-│  └─ web/      @dojo/web — Next.js 16 app (cloned design system from VH26-IMPIC)
+│  └─ web/      @layerflow/web — Next.js 16 app (cloned design system from VH26-IMPIC)
 │     ├─ next.config.ts          rewrites /api/* → http://127.0.0.1:4000 (one origin, no CORS)
 │     ├─ app/  layout · page (landing) · practice · challenge/[id] · dashboard · bug-factory · ledger · taxonomy · judges · icon.svg · globals.css
 │     ├─ components/  Hero · Navbar · footer · LanguageSwitcher · ThemeToggle · theme-provider · wheel-picker
@@ -84,12 +84,12 @@ KURUKSHETRA-IMPIC/
 │     ├─ lib/  api.ts (typed client) · learner.ts (pseudonymous id) · python.ts (highlighter) · i18n/ (en · hi · mr)
 │     └─ public/  fonts, trendybg.png, cta.jpeg, video1-3.webm, firstbox.mp4 (from VH26-IMPIC)
 ├─ packages/
-│  ├─ core/     @dojo/core — pure, NO I/O
+│  ├─ core/     @layerflow/core — pure, NO I/O
 │  │  └─ src/  types · challenge-bank (hidden tests) · compare · classifier · detectors · hints (+validator)
 │  │           explain · secrecy · mastery · recurrence · taxonomy · redteam · public · engine · reference (harness only)
 │  │     test/unit.ts
-│  └─ db/       @dojo/db — the ONLY module that touches SQL
-│     └─ src/  index.ts (DojoStore) · schema.sql
+│  └─ db/       @layerflow/db — the ONLY module that touches SQL
+│     └─ src/  index.ts (LayerflowStore) · schema.sql
 └─ harness/   lib.ts · redteam · labels · secrecy · leakage · learner · explain · all.ts (scoreboard)
 ```
 
@@ -126,7 +126,7 @@ POST /api/submit {learner_id, challenge_id, code}
  8 respond: visible[] with values · hidden[] = {test, outcome} · debug{culprit_line, confidence, reason, trace_ref, passed, detail, headline}
 ```
 
-A warm pool keeps **3** runners booted (Pyodide takes ~1.1 s to load); `DOJO_MAX_RUNNERS=8` caps concurrency; excess work queues; `acquire()` rejects with HTTP 503 after 45 s instead of hanging; OS spawn failures (EMFILE, EROFS…) are caught and retried with exponential backoff — nothing can throw into a route or a timer.
+A warm pool keeps **3** runners booted (Pyodide takes ~1.1 s to load); `LAYERFLOW_MAX_RUNNERS=8` caps concurrency; excess work queues; `acquire()` rejects with HTTP 503 after 45 s instead of hanging; OS spawn failures (EMFILE, EROFS…) are caught and retried with exponential backoff — nothing can throw into a route or a timer.
 
 ---
 
@@ -168,7 +168,7 @@ The API holds the expected values; the child gets `{code, fn, args}` and returns
 - **Restricted built-ins** per test (fresh dict): no `eval/exec/compile/getattr/setattr/delattr/vars/globals/locals/dir/help/breakpoint/memoryview`; `open` → in-memory scratch (reads only files this program wrote; 1 MB write quota → `disk limit`); `input` → EOFError.
 - **Import allowlist** with **proxy modules** (public, non-module attributes only): `math cmath random itertools collections functools heapq bisect statistics fractions decimal re time datetime`. `os`/`sys` are **stubs** (`environ = {}`, `fork/system/popen…` → `process limit`, `kill/remove/chdir…` → refused, fake `argv`). Everything else → `ImportError` + `sandbox policy`.
 - **Capped stdout** 256 KB → `output limit` (a `BaseException`, flag kept even if caught). Recursion limit ~1000 → `recursion limit`. `MemoryError` / index-size `OverflowError` → `memory limit`. `KeyboardInterrupt` → timeout.
-- Learner code is loaded fresh **per test** in a new namespace (`__name__ = "__dojo__"`), args deep-copied; mutation check (snapshot vs after) and a second-call check when the first call took < 150 ms.
+- Learner code is loaded fresh **per test** in a new namespace (`__name__ = "__layerflow__"`), args deep-copied; mutation check (snapshot vs after) and a second-call check when the first call took < 150 ms.
 - Ops: `run` (one test), `analyze` (Line Map), `trace` (Replay).
 
 ## 5.3 Layer 2 — WebAssembly (`worker.mjs`)
@@ -247,13 +247,13 @@ Errors: JSON `{error}`; 404 unknown ids; 400 schema; 503 sandbox busy; 500 gener
 
 ---
 
-# §12 — FRONTEND (`apps/web`) — the VH26-IMPIC design, carrying Debug Dojo
+# §12 — FRONTEND (`apps/web`) — the VH26-IMPIC design, carrying Layerflow
 
 **Cloned from `github.com/icancodefyi/VH26-IMPIC/apps/web`:** Next.js 16 App Router, Tailwind 4 + `tw-animate-css` + `shadcn/tailwind.css`, the full `globals.css` (oklch tokens + the dark-mode remap block), fonts (Special Gothic Expanded One · Instrument Serif · Poppins · Inter · Geist Mono), `trendybg.png` hero, `cta.jpeg`, the three stat videos and `firstbox.mp4`, the floating pill navbar with the lime `#bbf451` active state, `ThemeToggle` + `next-themes` (`d` hotkey), the `LanguageSwitcher` + i18n context (English · हिन्दी · मराठी), `NumberFlow`, `cobe` globe, `AnimatedList`, wheel picker, shadcn button/card/table/tabs/tooltip, the pastel bento palette (purple `#7B35F0`, sky `#0586d2`, orange `#c64e27`, green `#359462`), the dark app-mockup frame, the tabbed showcase, CTA-11, the image partner card and the footer. App pages use the reference chat page's shell (white 19rem sidebar, small-caps section labels, translucent 57px header).
 
 | Route | What it does |
 |---|---|
-| `/` | Landing, section for section like the reference: hero + dark mockup with 4 live tabs (Results — the statement's example · Hint ladder — rung by rung, "give me the answer" moves one · Line Map + Replay · Mastery) · proof stats (15/15 · 12/12 · 0) · bento (safe runs · hint-ladder wheel picker · practice heatmap · live feed · offline globe) · "Inside the dojo" tabs · live submissions table (`/api/feed`) · CTA with live counts · judges' partner card · footer with Rohan's quote |
+| `/` | Landing, section for section like the reference: hero + dark mockup with 4 live tabs (Results — the statement's example · Hint ladder — rung by rung, "give me the answer" moves one · Line Map + Replay · Mastery) · proof stats (15/15 · 12/12 · 0) · bento (safe runs · hint-ladder wheel picker · practice heatmap · live feed · offline globe) · "Inside Layerflow" tabs · live submissions table (`/api/feed`) · CTA with live counts · judges' partner card · footer with Rohan's quote |
 | `/practice` | 30-second onboarding (pick a level → first challenge), "next for you" with reason, your patterns (recurring vs one-off), filter (all · the 4 judge challenges · level), cards with status |
 | `/challenge/[id]` | Task + visible examples · dark editor (highlighted overlay, Tab/auto-indent, Ctrl+Enter, draft saved per learner) · Submit with a scanning sweep · results: headline (never "wrong"), counts, tag badge, visible rows (failing rows shake), hidden chips, "what happened", **Line Map** strip + highlighted line · **hint ladder** (locked rungs blurred, "just tell me the answer") · **Time-Travel Replay** (scrubber, play, step cards, first wrong step pulses, public kinds, own input) · mastery bars with deltas · next challenge with reason · confetti + self-drawing check on a pass. `?submission=` reloads a past result, `?autorun=1` submits the starter, `?fresh=1` resets the draft |
 | `/dashboard` | Totals, rotate-in "why this next", mastery bars + timeline, recurring (with where) vs one-off, Bug Factory pick, 12-week heatmap + streak, history linking back to each result |
@@ -272,7 +272,7 @@ In-process by default (real Fastify via `inject`, real runners, temp DB) or `--u
 ---
 
 # §14 — DATA (`packages/db/src/schema.sql`, `node:sqlite`)
-File `apps/api/data/dojo.db` (+ `-wal`/`-shm`, gitignored). PRAGMAs: `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=5000`, `synchronous=NORMAL`. Tables: `learners(id, created_at)` · `mastery(learner_id, concept, alpha, beta)` · `submissions(id 's_0001', seq UNIQUE, learner_id, challenge_id, code, passed, mistake_tags JSON, explanation, hints_used, ladder_key, analysis JSON, duration_ms, created_at)` · `test_results(submission_id, kind CHECK visible|hidden, test_no, outcome CHECK 4 labels, detail CHECK fixed vocabulary, got CHECK (kind='visible' OR got IS NULL))` · `hints(submission_id, idx, rung, learner_id, challenge_id, ladder_key, text, asked_for_answer, created_at)` · `ledger(id, ts, kind, learner_id, submission_id, prompt, response, model NULL=deterministic, rejected_for_code)` · `bug_seeds(challenge_id UNIQUE, mistake_tag, buggy_code, culprit_line, hint, difficulty)` · `bug_finds(learner_id, challenge_id, line, correct, created_at)`. **No challenges table.** One transaction per submission and per hint; written before the response.
+File `apps/api/data/layerflow.db` (+ `-wal`/`-shm`, gitignored). PRAGMAs: `journal_mode=WAL`, `foreign_keys=ON`, `busy_timeout=5000`, `synchronous=NORMAL`. Tables: `learners(id, created_at)` · `mastery(learner_id, concept, alpha, beta)` · `submissions(id 's_0001', seq UNIQUE, learner_id, challenge_id, code, passed, mistake_tags JSON, explanation, hints_used, ladder_key, analysis JSON, duration_ms, created_at)` · `test_results(submission_id, kind CHECK visible|hidden, test_no, outcome CHECK 4 labels, detail CHECK fixed vocabulary, got CHECK (kind='visible' OR got IS NULL))` · `hints(submission_id, idx, rung, learner_id, challenge_id, ladder_key, text, asked_for_answer, created_at)` · `ledger(id, ts, kind, learner_id, submission_id, prompt, response, model NULL=deterministic, rejected_for_code)` · `bug_seeds(challenge_id UNIQUE, mistake_tag, buggy_code, culprit_line, hint, difficulty)` · `bug_finds(learner_id, challenge_id, line, correct, created_at)`. **No challenges table.** One transaction per submission and per hint; written before the response.
 
 ---
 
@@ -282,7 +282,7 @@ Played through the **real** engine and sandbox, timestamps spread over the last 
 ---
 
 # §16 — ONE COMMAND + PUBLIC URL
-`npm install && npm start` → `scripts/start.mjs`: checks Node ≥ 22.13 → `next build` if `.next/BUILD_ID` is missing → starts the API (`tsx apps/api/src/server.ts`, seeds on first boot) → waits for `/api/health` → starts `next start -p 3000` with `DOJO_API_URL` → banner with the learner, judges and API URLs. Ctrl+C stops everything (Windows: whole process trees via `taskkill /T`; the API also exits if its launcher disappears). `npm run url` → `ngrok http 3000` — judges get one URL for the app **and** the API.
+`npm install && npm start` → `scripts/start.mjs`: checks Node ≥ 22.13 → `next build` if `.next/BUILD_ID` is missing → starts the API (`tsx apps/api/src/server.ts`, seeds on first boot) → waits for `/api/health` → starts `next start -p 3000` with `LAYERFLOW_API_URL` → banner with the learner, judges and API URLs. Ctrl+C stops everything (Windows: whole process trees via `taskkill /T`; the API also exits if its launcher disappears). `npm run url` → `ngrok http 3000` — judges get one URL for the app **and** the API.
 
 ---
 
@@ -321,5 +321,6 @@ Isolation (4 layers + parent-memory) · harness (24 hostile, 12 labels + referen
 | Validator rejects every `()`, `=` and "return" | allows the challenge's own function on literals, literal subscripts and the prose word "return" | The statement's own model ladder uses `last_k_total([2, 5], 3)`, `marks[-1]` and "return" — and must ship verbatim. |
 | Scripted learner step 10: last-k-total `boundary_comparison` | the `while count < k and i > 0` loop | A real beginner boundary bug that is wrong only when k ≥ len. |
 | Node 26 on macOS | Node ≥ 22.13, tested on Windows 11 / Node 24 | Works on the laptops we actually have. |
+| Product called "Debug Dojo" (the statement's title) | Product named **Layerflow**; the statement is still DI-01 · Debug Dojo | The team's product name. Packages are `@layerflow/*`, env vars `LAYERFLOW_*`, the DB file `layerflow.db`. |
 
 > *"Rohan never needed the answer. He needed someone to point him to the right place to look."* — The Line Map points at the place. The Replay shows why. The Bug Factory makes him stop doing it. The validator makes sure he never gets the answer.

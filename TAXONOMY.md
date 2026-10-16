@@ -1,4 +1,4 @@
-# Debug Dojo — Mistake Taxonomy (hand-in #3)
+# Layerflow — Mistake Taxonomy (hand-in #3)
 
 Every detector is **deterministic** — no LLM decides a tag. Each one reads only (a) what the learner's **own code** did in the sandbox, (b) the declared **shape** of the input (`edge`, `short` in the challenge bank) and (c) the comparison the parent already made. Hidden values never leave the comparison. Source: `packages/core/src/detectors.ts` · unit tests: `packages/core/test/unit.ts` · live page: **`/taxonomy`** · JSON: **`GET /api/taxonomy`**.
 

@@ -1,5 +1,5 @@
 /**
- * Pure unit tests for @dojo/core — no sandbox, no server. Each detector has a
+ * Pure unit tests for @layerflow/core — no sandbox, no server. Each detector has a
  * planted-bug test with the name the taxonomy promises (det_short_input …),
  * plus classifier order, the hint validator, mastery maths, recurrence
  * counting and a self-check of the whole challenge bank.

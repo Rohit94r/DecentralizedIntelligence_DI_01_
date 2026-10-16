@@ -1,5 +1,5 @@
 """
-Debug Dojo sandbox harness — runs INSIDE the sandbox (Pyodide/WebAssembly).
+Layerflow sandbox harness — runs INSIDE the sandbox (Pyodide/WebAssembly).
 
 It never sees an expected value: the parent sends code + inputs, and this
 file reports only what the learner's own code did. Layer 1 of 4:
@@ -25,7 +25,7 @@ import types
 
 LIMIT_OUTPUT = 256 * 1024
 LIMIT_DISK = 1024 * 1024
-LEARNER_FILE = "<dojo>"
+LEARNER_FILE = "<learner>"
 MAX_RECURSION = 1000
 
 sys.setrecursionlimit(MAX_RECURSION + 60)
@@ -40,10 +40,10 @@ BAD_ATTRS = {"mro", "format_map"}
 
 
 class SandboxPolicy(Exception):
-    """Raised when learner code uses something the dojo does not allow."""
+    """Raised when learner code uses something Layerflow does not allow."""
 
 
-class _DojoLimit(BaseException):
+class _SandboxLimit(BaseException):
     """A resource limit — a BaseException so `except Exception` can't swallow it."""
 
 
@@ -57,19 +57,19 @@ def _policy_check(tree):
         if isinstance(node, ast.Attribute):
             a = node.attr
             if a.startswith("_") and a not in OK_DUNDERS:
-                raise SandboxPolicy(f"names starting with an underscore (like .{a}) aren't available in the dojo (line {node.lineno})")
+                raise SandboxPolicy(f"names starting with an underscore (like .{a}) aren't available in the Layerflow sandbox (line {node.lineno})")
             if a.startswith(BAD_ATTR_PREFIX) or a in BAD_ATTRS:
-                raise SandboxPolicy(f".{a} isn't available in the dojo (line {node.lineno})")
+                raise SandboxPolicy(f".{a} isn't available in the Layerflow sandbox (line {node.lineno})")
         elif isinstance(node, ast.Name):
             if node.id.startswith("__") and node.id not in OK_DUNDERS:
-                raise SandboxPolicy(f"{node.id} isn't available in the dojo (line {node.lineno})")
+                raise SandboxPolicy(f"{node.id} isn't available in the Layerflow sandbox (line {node.lineno})")
         elif isinstance(node, ast.MatchClass):
             for k in node.kwd_attrs:
                 if k.startswith("_"):
-                    raise SandboxPolicy(f"pattern attribute {k} isn't available in the dojo (line {node.lineno})")
+                    raise SandboxPolicy(f"pattern attribute {k} isn't available in the Layerflow sandbox (line {node.lineno})")
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             if isinstance(node, ast.ImportFrom) and node.level:
-                raise SandboxPolicy(f"relative imports aren't available in the dojo (line {node.lineno})")
+                raise SandboxPolicy(f"relative imports aren't available in the Layerflow sandbox (line {node.lineno})")
 
 
 # ─────────────────────────── capped I/O ───────────────────────────
@@ -84,7 +84,7 @@ class _CappedOut:
         self.n += len(s)
         if self.n > LIMIT_OUTPUT:
             STATE["killed"] = "output"
-            raise _DojoLimit("output limit")
+            raise _SandboxLimit("output limit")
         self.parts.append(s)
         return len(s)
 
@@ -107,7 +107,7 @@ class _QuotaFile:
         STATE["disk"] += n
         if STATE["disk"] > LIMIT_DISK:
             STATE["killed"] = "disk"
-            raise _DojoLimit("disk limit")
+            raise _SandboxLimit("disk limit")
         self.buf.append(data)
         return n
 
@@ -138,7 +138,7 @@ def _sandbox_open(file, mode="r", *args, **kwargs):
     if name in STATE["vfs"]:
         data = STATE["vfs"][name]
         return io.BytesIO(data) if isinstance(data, bytes) else io.StringIO(data)
-    raise FileNotFoundError(2, "No such file in the dojo sandbox", name)
+    raise FileNotFoundError(2, "No such file in the Layerflow sandbox", name)
 
 
 def _no_input(*args, **kwargs):
@@ -149,13 +149,13 @@ def _no_input(*args, **kwargs):
 
 def _process_limit(*args, **kwargs):
     STATE["killed"] = "process"
-    raise OSError("process limit: the dojo sandbox cannot start processes")
+    raise OSError("process limit: the Layerflow sandbox cannot start processes")
 
 
 def _refuse(what):
     def f(*args, **kwargs):
         STATE["policy"] = what
-        raise PermissionError(f"{what} isn't allowed in the dojo sandbox")
+        raise PermissionError(f"{what} isn't allowed in the Layerflow sandbox")
     return f
 
 
@@ -180,8 +180,8 @@ def _make_sys(out):
     m = types.ModuleType("sys")
     m.argv = ["solution.py"]
     m.maxsize = 2 ** 63 - 1
-    m.platform = "dojo"
-    m.version = "3 (Debug Dojo sandbox)"
+    m.platform = "layerflow"
+    m.version = "3 (Layerflow sandbox)"
     m.stdout = out
     m.exit = _sys_exit
     m.getrecursionlimit = lambda: MAX_RECURSION
@@ -218,12 +218,12 @@ def _proxy(name):
 def _make_import(stubs):
     def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
         if level:
-            raise ImportError("relative imports aren't available in the dojo")
+            raise ImportError("relative imports aren't available in the Layerflow sandbox")
         if name in stubs:
             return stubs[name]
         if name not in ALLOWED_MODULES:
             STATE["policy"] = f"import {name.split('.')[0]}"
-            raise ImportError(f"module '{name}' isn't available in the dojo sandbox")
+            raise ImportError(f"module '{name}' isn't available in the Layerflow sandbox")
         return _proxy(name)
     return guarded_import
 
@@ -249,7 +249,7 @@ def _fresh_namespace(out):
     safe["input"] = _no_input
     stubs = {"os": _make_os(), "sys": _make_sys(out)}
     safe["__import__"] = _make_import(stubs)
-    return {"__builtins__": safe, "__name__": "__dojo__"}
+    return {"__builtins__": safe, "__name__": "__layerflow__"}
 
 
 # ─────────────────────────── value serialisation ───────────────────────────
@@ -299,7 +299,7 @@ def _exc_line(tb):
 
 
 def _classify_exception(e):
-    if isinstance(e, _DojoLimit):
+    if isinstance(e, _SandboxLimit):
         return STATE["killed"] or "output"
     if isinstance(e, KeyboardInterrupt):
         return "wall_clock"
@@ -593,7 +593,7 @@ def op_trace(job):
             if len(steps) >= max_steps:
                 state["truncated"] = True
                 sys.settrace(None)
-                raise _DojoLimit("trace")
+                raise _SandboxLimit("trace")
             step = {"step": len(steps) + 1, "line": frame.f_lineno, "event": event, "locals": snapshot(frame)}
             note = None
             if event == "line":
@@ -620,7 +620,7 @@ def op_trace(job):
         sys.settrace(tracer)
         try:
             result = _safe_repr(fn(*_copy.deepcopy(args)), 200)
-        except _DojoLimit:
+        except _SandboxLimit:
             pass
         except BaseException as e:
             error = f"{type(e).__name__}: {e}"[:200]
@@ -638,7 +638,7 @@ def op_trace(job):
 OPS = {"run": op_run, "analyze": op_analyze, "trace": op_trace}
 
 
-def dojo_dispatch(job_json):
+def layerflow_dispatch(job_json):
     job = json.loads(job_json)
     try:
         res = OPS[job["op"]](job)

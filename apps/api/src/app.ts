@@ -1,12 +1,12 @@
 /**
- * The Debug Dojo HTTP API (Fastify).
+ * The Layerflow HTTP API (Fastify).
  *
  * Required by the statement:  POST /api/submit · POST /api/hint · GET /api/learner/:id
  * Plus: challenges, submissions, replay (OB2), bug factory (OB3), ledger,
  * taxonomy, red-team corpus, stats/feed for the landing page, health, dev reset.
  *
  * Secrecy is enforced in three places: hidden tests never leave
- * @dojo/core except as {test, outcome}; the response SCHEMA for /api/submit
+ * @layerflow/core except as {test, outcome}; the response SCHEMA for /api/submit
  * only knows those two keys for hidden rows (Fastify's serializer drops
  * anything else); and every outgoing text passed findLeak() in the engine.
  */
@@ -35,12 +35,12 @@ import {
   type HistoryItem,
   type Rewriter,
   type Sandbox,
-} from "@dojo/core";
-import type { DojoStore } from "@dojo/db";
+} from "@layerflow/core";
+import type { LayerflowStore } from "@layerflow/db";
 import { doHint, doSubmit } from "./service.ts";
 
 export interface AppDeps {
-  store: DojoStore;
+  store: LayerflowStore;
   sandbox: Sandbox;
   rewriter: Rewriter | null;
   pool?: { status(): unknown };

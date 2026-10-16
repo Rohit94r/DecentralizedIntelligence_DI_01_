@@ -333,9 +333,9 @@ export async function nextHint(x: HintInput, rewriter?: Rewriter | null): Promis
   const line = x.lineMap?.culprit_line ?? null;
   const lineText = line ? (x.code.split(/\r?\n/)[line - 1] ?? "").trim() : "";
 
-  // A sharper, contextual draft: point at their line. If quoting it would put
-  // code in the hint, the guardrail rejects the draft and we keep the prose.
-  if (rung >= 2 && line && lineText) {
+  // Rung 2 ("specific") points at their line. If quoting it would put code in
+  // the hint, the guardrail rejects the draft and we keep the prose.
+  if (rung === 2 && line && lineText) {
     const draft = `${base} Look at line ${line}: \`${lineText}\`.`;
     const v = validateHint(draft, { fn });
     if (v.ok) text = draft;

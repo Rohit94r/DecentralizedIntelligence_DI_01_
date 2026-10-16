@@ -26,7 +26,7 @@ const RUNNER_DIR = path.resolve(here, "../../../runner/src");
 const require = createRequire(path.join(RUNNER_DIR, "..", "package.json"));
 const PYODIDE_DIR = path.dirname(require.resolve("pyodide/package.json"));
 const IS_WIN = process.platform === "win32";
-const MEM_BUDGET_MB = Number(process.env.DOJO_MEM_MB ?? 320);
+const MEM_BUDGET_MB = Number(process.env.LAYERFLOW_MEM_MB ?? 320);
 const READY_TIMEOUT_MS = 30_000;
 
 export interface RunnerResponse {
@@ -46,7 +46,7 @@ export class RunnerProcess {
   private tmp: string;
 
   constructor() {
-    this.tmp = mkdtempSync(path.join(os.tmpdir(), "dojo-run-"));
+    this.tmp = mkdtempSync(path.join(os.tmpdir(), "layerflow-run-"));
     const nodeArgs = [
       "--permission",
       `--allow-fs-read=${RUNNER_DIR}`,

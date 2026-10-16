@@ -45,7 +45,7 @@ export default function PracticePage() {
 
   return (
     <AppShell title="Practice" subtitle={`${list.length} challenges · Python`}>
-      <PageHeading eyebrow="Practice" title="Pick a bug to hunt." accent="Learn the pattern." body="Every challenge starts with a beginner's attempt that almost works. Fix it. The dojo runs it safely, tells you what kind of input broke it, and points at the line — but never writes the code for you." />
+      <PageHeading eyebrow="Practice" title="Pick a bug to hunt." accent="Learn the pattern." body="Every challenge starts with a beginner's attempt that almost works. Fix it. Layerflow runs it safely, tells you what kind of input broke it, and points at the line — but never writes the code for you." />
 
       {err && <Card className="mb-5 text-sm text-[#a8401f]">Couldn&apos;t reach the API ({err}). Start it with <code className="rounded bg-neutral-100 px-1">npm start</code>.</Card>}
 

@@ -9,7 +9,7 @@
  * Plain Node, no shell — works the same on Windows, macOS and Linux.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,11 +19,11 @@ const webDir = path.join(root, "apps/web");
 const TSX = path.join(root, "node_modules/tsx/dist/cli.mjs");
 const NEXT = path.join(root, "node_modules/next/dist/bin/next");
 const WEB_PORT = process.env.PORT ?? "3000";
-const API_PORT = process.env.DOJO_API_PORT ?? "4000";
+const API_PORT = process.env.LAYERFLOW_API_PORT ?? "4000";
 
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (major < 22 || (major === 22 && minor < 13)) {
-  console.error(`Debug Dojo needs Node 22.13+ (for the built-in node:sqlite and --permission). You have ${process.versions.node}.`);
+  console.error(`Layerflow needs Node 22.13+ (for the built-in node:sqlite and --permission). You have ${process.versions.node}.`);
   process.exit(1);
 }
 if (!existsSync(TSX) || !existsSync(NEXT)) {
@@ -74,8 +74,25 @@ function shutdown(code = 0) {
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 
-if (!dev && !existsSync(path.join(webDir, ".next/BUILD_ID"))) {
-  console.log(color("36", "[build]") + " first run — building the web app (one-time, ~1 min)…");
+/** Newest modification time under the web app's sources — a build older than this is stale. */
+function newestSource() {
+  let newest = 0;
+  const visit = (p) => {
+    const s = statSync(p);
+    if (s.isDirectory()) for (const f of readdirSync(p)) visit(path.join(p, f));
+    else newest = Math.max(newest, s.mtimeMs);
+  };
+  for (const p of ["app", "components", "lib", "public", "next.config.ts", "package.json"]) {
+    const full = path.join(webDir, p);
+    if (existsSync(full)) visit(full);
+  }
+  return newest;
+}
+
+const buildId = path.join(webDir, ".next/BUILD_ID");
+const stale = existsSync(buildId) && statSync(buildId).mtimeMs < newestSource();
+if (!dev && (!existsSync(buildId) || stale)) {
+  console.log(color("36", "[build]") + (stale ? " web sources changed — rebuilding the web app (~1 min)…" : " first run — building the web app (one-time, ~1 min)…"));
   const b = spawnSync(process.execPath, [NEXT, "build"], { cwd: webDir, stdio: "inherit", env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1" } });
   if (b.status !== 0) {
     console.error("Web build failed — see the output above.");
@@ -83,7 +100,7 @@ if (!dev && !existsSync(path.join(webDir, ".next/BUILD_ID"))) {
   }
 }
 
-run("api", "33", [TSX, path.join(root, "apps/api/src/server.ts")], root, { DOJO_API_PORT: API_PORT, DOJO_PARENT_PID: String(process.pid) });
+run("api", "33", [TSX, path.join(root, "apps/api/src/server.ts")], root, { LAYERFLOW_API_PORT: API_PORT, LAYERFLOW_PARENT_PID: String(process.pid) });
 const started = Date.now();
 const wait = async (url) => {
   for (;;) {
@@ -99,7 +116,7 @@ const wait = async (url) => {
 
 // The web app starts once the API answers (first boot seeds the demo learners first).
 await wait(`http://127.0.0.1:${API_PORT}/api/health`);
-run("web", "36", [NEXT, dev ? "dev" : "start", "-p", WEB_PORT], webDir, { DOJO_API_URL: `http://127.0.0.1:${API_PORT}`, NEXT_TELEMETRY_DISABLED: "1" });
+run("web", "36", [NEXT, dev ? "dev" : "start", "-p", WEB_PORT], webDir, { LAYERFLOW_API_URL: `http://127.0.0.1:${API_PORT}`, NEXT_TELEMETRY_DISABLED: "1" });
 
 // Banner once the API answers through the web proxy.
 const poll = setInterval(async () => {
@@ -108,7 +125,7 @@ const poll = setInterval(async () => {
     if (r.ok) {
       clearInterval(poll);
       const line = "─".repeat(58);
-      console.log(`\n${color("32", line)}\n  🥋 Debug Dojo is running   (${((Date.now() - started) / 1000).toFixed(0)} s)\n`);
+      console.log(`\n${color("32", line)}\n  Layerflow is running   (${((Date.now() - started) / 1000).toFixed(0)} s)\n`);
       console.log(`  Learners  →  http://localhost:${WEB_PORT}`);
       console.log(`  Judges    →  http://localhost:${WEB_PORT}/judges`);
       console.log(`  API       →  http://localhost:${WEB_PORT}/api/health   (also :${API_PORT} directly)`);

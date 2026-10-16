@@ -7,8 +7,8 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
-const KEY = "debug-dojo-learner";
-const EVENT = "debug-dojo-learner-change";
+const KEY = "layerflow-learner";
+const EVENT = "layerflow-learner-change";
 export const DEMO_LEARNERS = ["rohan", "meera", "kabir"];
 
 function freshGuest(): string {

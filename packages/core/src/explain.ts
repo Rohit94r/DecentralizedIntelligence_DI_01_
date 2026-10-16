@@ -45,10 +45,29 @@ function kindSentence(challenge: Challenge, failing: TestResult[], onlyHidden: b
     const subject = onlyHidden ? `All ${word(failing.length)}` : `All ${word(failing.length)} failing ${allHidden ? "hidden " : ""}tests`;
     return `${subject} are ${challenge.edges[k].many}.`;
   }
+  // Ordinary inputs fail too → it isn't an edge-case problem; saying so is more useful than listing kinds.
+  if (unique.includes(null) && failing.some((r) => r.kind === "visible")) {
+    return "It isn't only an edge case — ordinary inputs fail too, including your visible examples.";
+  }
   const described = unique
     .slice(0, 3)
     .map((k) => (k && challenge.edges[k] ? challenge.edges[k].one : "an ordinary input"));
   return `They include ${joinAnd(described)}.`;
+}
+
+/** Off-by-one direction, read from a VISIBLE (public) test only. */
+function directionSentence(results: TestResult[]): string {
+  const v = results.find((r) => r.kind === "visible" && r.outcome === "wrong_output" && r.run.status === "ok");
+  if (!v) return "";
+  const got = v.run.ret;
+  const exp = v.case.expected;
+  if (Array.isArray(got) && Array.isArray(exp) && got.length !== exp.length) {
+    return got.length > exp.length ? `On visible example ${v.test} your list has one item too many.` : `On visible example ${v.test} your list is one item short.`;
+  }
+  if (typeof got === "number" && typeof exp === "number" && got !== exp) {
+    return got > exp ? `On visible example ${v.test} your answer comes out one step too high.` : `On visible example ${v.test} your answer comes out one step too low.`;
+  }
+  return "";
 }
 
 export function mechanismSentence(
@@ -107,7 +126,7 @@ export function buildExplanation(x: ExplainInput): string {
   const moduleFail = x.results.find((r) => r.run.phase === "module" && r.outcome !== "passed");
   if (moduleFail) {
     if (moduleFail.run.killedBy === "policy") {
-      return `Your code uses something the dojo sandbox doesn't allow (${moduleFail.run.policy ?? "a blocked feature"}), so none of the tests could run. Remove it and submit again.`;
+      return `Your code uses something the Layerflow sandbox doesn't allow (${moduleFail.run.policy ?? "a blocked feature"}), so none of the tests could run. Remove it and submit again.`;
     }
     if (moduleFail.outcome === "timeout") {
       return "Your file never finishes loading, so none of the tests could call your function. Look for a loop outside the function that never stops.";
@@ -122,17 +141,24 @@ export function buildExplanation(x: ExplainInput): string {
   else if (visPass === 0) first = `None of the ${visible.length} visible tests pass yet`;
   else first = `${visPass} of the ${visible.length} visible tests pass`;
 
-  let second: string;
-  if (!hidFail.length) second = `, and all ${hidden.length} hidden tests pass`;
-  else {
-    const joiner = visPass === visible.length ? ", but " : ", and ";
-    second = `${joiner}${hidFail.length} of the ${hidden.length} hidden tests fail: ${breakdown(hidFail, x.challenge.resultNoun)}`;
+  const joiner = visPass === visible.length ? ", but " : ", and ";
+  const howMany = hidFail.length === hidden.length ? `all ${hidden.length}` : `${hidFail.length} of the ${hidden.length}`;
+  const why = mechanismSentence(x.challenge, x.ladderKey, x.code, x.lineMap);
+
+  // Printing instead of returning: every test sees None — say that, not "wrong list".
+  if (x.tag === "print_not_return") {
+    const second = hidFail.length ? `${joiner}${howMany} hidden tests fail` : `, and all ${hidden.length} hidden tests pass`;
+    return `${first}${second}: each one gets None back. The value you print looks right — but tests only see what a function hands back. ${why}`.replace(/\s+/g, " ").trim();
   }
 
-  const failingForKind = hidFail.length ? hidFail : visFail;
+  let second: string;
+  if (!hidFail.length) second = `, and all ${hidden.length} hidden tests pass`;
+  else second = `${joiner}${howMany} hidden tests fail: ${breakdown(hidFail, x.challenge.resultNoun)}`;
+
+  const failingForKind = hidFail.length ? [...hidFail, ...(hidFail.some((r) => !r.case.edge) ? visFail : [])] : visFail;
   const kind = kindSentence(x.challenge, failingForKind, hidFail.length > 0 && !visFail.length);
-  const why = mechanismSentence(x.challenge, x.ladderKey, x.code, x.lineMap);
-  return `${first}${second}. ${kind} ${why}`.replace(/\s+/g, " ").trim();
+  const direction = x.tag === "off_by_one" ? directionSentence(x.results) : "";
+  return `${first}${second}. ${kind} ${direction} ${why}`.replace(/\s+/g, " ").trim();
 }
 
 /** The encouraging headline shown above the explanation — never "wrong", always a next step. */

@@ -19,18 +19,18 @@ export interface Api {
   mode: string;
 }
 
-export const CANARY = `dojo-canary-${Math.random().toString(36).slice(2, 10)}`;
+export const CANARY = `layerflow-canary-${Math.random().toString(36).slice(2, 10)}`;
 
 function urlArg(): string | null {
   const i = process.argv.indexOf("--url");
-  return i > 0 ? process.argv[i + 1] : (process.env.DOJO_URL ?? null);
+  return i > 0 ? process.argv[i + 1] : (process.env.LAYERFLOW_URL ?? null);
 }
 
 let shared: Api | null = null;
 
 export async function connect(): Promise<Api> {
   if (shared) return shared;
-  process.env.DOJO_CANARY_SECRET = CANARY; // the API process has a secret; the sandbox must never see it
+  process.env.LAYERFLOW_CANARY_SECRET = CANARY; // the API process has a secret; the sandbox must never see it
   process.removeAllListeners("warning");
   const live = urlArg();
   if (live) {
@@ -49,7 +49,7 @@ export async function connect(): Promise<Api> {
     shared = { get: (u) => call("GET", u), post: (u, b) => call("POST", u, b), rt: null, close: async () => {}, mode: `live ${base}` };
     return shared;
   }
-  const dir = mkdtempSync(path.join(os.tmpdir(), "dojo-harness-"));
+  const dir = mkdtempSync(path.join(os.tmpdir(), "layerflow-harness-"));
   const rt = createRuntime({ dbFile: path.join(dir, "harness.db"), llm: false, warm: 4 });
   const app = await buildApp({ ...rt, pool: rt.pool, logSubmissions: false });
   const call = async (method: "GET" | "POST", url: string, body?: unknown) => {

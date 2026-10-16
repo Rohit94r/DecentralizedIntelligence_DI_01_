@@ -17,7 +17,7 @@ import * as learner from "./learner.test.ts";
 import * as explain from "./explain.test.ts";
 
 const started = Date.now();
-console.log("\n🥋 DEBUG DOJO — self-test harness");
+console.log("\nLAYERFLOW — self-test harness");
 const api = await connect();
 console.log(`   mode: ${api.mode}`);
 

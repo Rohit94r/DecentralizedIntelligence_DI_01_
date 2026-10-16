@@ -2,12 +2,12 @@
  * One code path for submit + hint, shared by the HTTP routes, the seed and the
  * harness — so the demo data is produced by exactly the product the judges test.
  */
-import { RUNG_NAMES, getChallenge, isAnswerRequest, nextHint, submit, type Rewriter, type Sandbox } from "@dojo/core";
-import type { DojoStore } from "@dojo/db";
+import { RUNG_NAMES, getChallenge, isAnswerRequest, nextHint, submit, type Rewriter, type Sandbox } from "@layerflow/core";
+import type { LayerflowStore } from "@layerflow/db";
 import type { ScriptStep } from "./fixtures.ts";
 
 export interface Ctx {
-  store: DojoStore;
+  store: LayerflowStore;
   sandbox: Sandbox;
   rewriter: Rewriter | null;
 }

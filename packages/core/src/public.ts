@@ -39,6 +39,6 @@ export function publicChallenge(c: Challenge) {
       call: callString(c.fn, args),
     })),
     targets: c.targets,
-    source: c.source ?? "Original Debug Dojo content",
+    source: c.source ?? "Original Layerflow content",
   };
 }

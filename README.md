@@ -1,9 +1,9 @@
-# 🥋 Debug Dojo
+# Layerflow
 
 **A coding coach that helps you find the bug without handing you the answer.**
-DI-01 · Decentralized Intelligence · Kurukshetra 2026 · learner language: **Python**
+Built for problem statement **DI-01 · Debug Dojo** · Decentralized Intelligence · Kurukshetra 2026 · learner language: **Python**
 
-Debug Dojo runs a beginner's Python **safely**, labels every test honestly (`passed` / `wrong_output` / `runtime_error` / `timeout`), explains failures in plain language **without revealing hidden tests**, gives a **hint ladder that never contains code**, detects which **mistakes recur across different challenges**, picks the **next challenge to fix them — with the reason**, and tracks **mastery per concept** where a pass without hints counts for more.
+Layerflow runs a beginner's Python **safely**, labels every test honestly (`passed` / `wrong_output` / `runtime_error` / `timeout`), explains failures in plain language **without revealing hidden tests**, gives a **hint ladder that never contains code**, detects which **mistakes recur across different challenges**, picks the **next challenge to fix them — with the reason**, and tracks **mastery per concept** where a pass without hints counts for more.
 
 ---
 
@@ -122,11 +122,11 @@ TAXONOMY.md hand-in #3 · prompt.md the full build spec · dojo.md / features.md
 
 ## Optional LLM tier
 
-The product is complete with **zero API keys** — every explanation and hint has a deterministic Tier 1. If `ANTHROPIC_API_KEY` is set, explanations and hints may be reworded by `claude-opus-5-5` (configurable with `DOJO_LLM_MODEL`); the model only ever sees the public task, the learner's own code and the already-safe Tier-1 draft, and its text must pass the same validator and leak check or Tier 1 ships. Every prompt and response is logged in the Hint Ledger. See [.env.example](.env.example).
+The product is complete with **zero API keys** — every explanation and hint has a deterministic Tier 1. If `ANTHROPIC_API_KEY` is set, explanations and hints may be reworded by `claude-opus-5-5` (configurable with `LAYERFLOW_LLM_MODEL`); the model only ever sees the public task, the learner's own code and the already-safe Tier-1 draft, and its text must pass the same validator and leak check or Tier 1 ships. Every prompt and response is logged in the Hint Ledger. See [.env.example](.env.example).
 
 ## Data & privacy
 
-Pseudonymous learner ids only (`rohan`, `meera`, `kabir`, or any nickname) — no accounts, no real student data. One SQLite file at `apps/api/data/dojo.db` (gitignored); delete it or run `npm run seed` to reset.
+Pseudonymous learner ids only (`rohan`, `meera`, `kabir`, or any nickname) — no accounts, no real student data. One SQLite file at `apps/api/data/layerflow.db` (gitignored); delete it or run `npm run seed` to reset.
 
 ## Credits
 

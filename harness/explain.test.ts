@@ -30,7 +30,7 @@ export async function run(): Promise<SuiteResult> {
     const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean).length;
     const kinds = Object.values(c.edges).flatMap((e) => [e.one, e.many]);
     const ok =
-      !findLeak(text, c, [], f.code) && !text.includes("```") && sentences <= 4 && (kinds.some((k) => text.includes(k)) || /ordinary input|before the tests/.test(text));
+      !findLeak(text, c, [], f.code) && !text.includes("```") && sentences <= 4 && (kinds.some((k) => text.includes(k)) || /ordinary input|before the tests|gets None back/.test(text));
     check(checks, `explanation ${i + 1} (${f.challenge}) — safe, names the kind, ≤ 4 sentences`, ok, ok ? undefined : text);
     if (!quiet) {
       console.log(`│\n│ ${i + 1}. ${f.challenge} — ${f.label}   [tags: ${r.body.mistake_tags.join(", ") || "none"} · culprit line ${r.body.debug?.culprit_line ?? "—"}]`);

@@ -1,5 +1,5 @@
--- Debug Dojo — the system of record. One local SQLite file (node:sqlite, built into Node).
--- Works with the network cable pulled. Reset = delete apps/api/data/dojo.db* and `npm run seed`.
+-- Layerflow — the system of record. One local SQLite file (node:sqlite, built into Node).
+-- Works with the network cable pulled. Reset = delete apps/api/data/layerflow.db* and `npm run seed`.
 --
 -- 🔒 There is NO challenges table: challenges and their hidden tests are static
 --    code in packages/core/src/challenge-bank.ts, held in API memory only.

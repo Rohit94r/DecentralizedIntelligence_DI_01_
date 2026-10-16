@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#0a0a0a"/>
-  <path d="M18 22h10.5c7.5 0 12.5 4.2 12.5 10s-5 10-12.5 10H18z" fill="none" stroke="#bbf451" stroke-width="5" stroke-linejoin="round"/>
-  <circle cx="46" cy="22" r="4" fill="#bbf451"/>
+  <!-- Layerflow: stacked layers that narrow as they flow down to one point -->
+  <path d="M16 20h32" stroke="#bbf451" stroke-width="5" stroke-linecap="round"/>
+  <path d="M20 32h24" stroke="#bbf451" stroke-width="5" stroke-linecap="round" opacity="0.75"/>
+  <path d="M25 44h14" stroke="#bbf451" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+  <circle cx="32" cy="52" r="3" fill="#bbf451"/>
 </svg>
