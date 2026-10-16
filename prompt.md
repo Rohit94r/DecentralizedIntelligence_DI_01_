@@ -50,7 +50,9 @@ Build a **web practice platform for beginner Python programmers** that:
 | Never | Why |
 |---|---|
 | **Docker / docker-compose** | Not needed, not installed, slows everything down |
-| **PostgreSQL / MySQL / MongoDB / Redis / Prisma** | Overkill. Use JSON file persistence |
+| **PostgreSQL / MySQL / MongoDB / Redis / Prisma** | Overkill, and would need installing |
+| **`better-sqlite3` / any native DB module** | Requires native compilation — can fail. Use the **built-in `node:sqlite`** instead (see §2.1) |
+| **JSON files as the system of record** | Read-modify-write races under the judges' parallel submissions. Fine only as a backup |
 | **Kubernetes** | Absurd here |
 | **Next.js / React / Vite build step** | Unnecessary complexity + build failures. Plain HTML + ES modules |
 | **Judge0 / Piston / nsjail / E2B / CodeSandbox** | External services. Judging self-contained is the whole point |
@@ -108,19 +110,30 @@ dojo/
 │        ├─ css/app.css
 │        └─ js/ (app.js, editor.js, anim.js, replay.js, linemap.js, confetti.js)
 ├─ packages/
-│  └─ core/                      ← shared, no I/O, fully unit-testable
+│  ├─ core/                      ← shared, NO I/O, fully unit-testable
+│  │  ├─ package.json
+│  │  └─ src/
+│  │     ├─ types.ts             ← all shared TS types
+│  │     ├─ challenge-bank.ts    ← ALL challenges + hidden tests (§4) — STATIC, never in the DB
+│  │     ├─ reference.ts         ← correct reference solutions for the 4 judge challenges
+│  │     ├─ classifier.ts        ← outcome labelling (§6)
+│  │     ├─ detectors.ts         ← 5 mistake detectors (§7)
+│  │     ├─ hints.ts             ← ladder + prose validator (§8)
+│  │     ├─ explain.ts           ← deterministic explanations + optional LLM (§9)
+│  │     ├─ mastery.ts           ← Beta posterior (§10)
+│  │     ├─ recurrence.ts        ← recurring detection + next challenge (§10)
+│  │     └─ engine.ts            ← orchestrates submit() end-to-end (no I/O)
+│  └─ db/                        ← THE ONLY MODULE THAT TOUCHES SQL
 │     ├─ package.json
 │     └─ src/
-│        ├─ types.ts             ← all shared TS types
-│        ├─ challenge-bank.ts    ← ALL challenges + hidden tests (§4)
-│        ├─ reference.ts         ← correct reference solutions for the 4 judge challenges
-│        ├─ classifier.ts        ← outcome labelling (§6)
-│        ├─ detectors.ts         ← 5 mistake detectors (§7)
-│        ├─ hints.ts             ← ladder + prose validator (§8)
-│        ├─ explain.ts           ← deterministic explanations + optional LLM (§9)
-│        ├─ mastery.ts           ← Beta posterior (§10)
-│        ├─ recurrence.ts        ← recurring detection + next challenge (§10)
-│        └─ engine.ts            ← orchestrates submit() end-to-end (no I/O)
+│        ├─ index.ts             ← open db (apps/api/data/dojo.db), PRAGMAs, migrate()
+│        ├─ schema.sql           ← exact DDL in §2.1
+│        └─ repos/
+│           ├─ learners.ts       ← upsert learner, fetch history
+│           ├─ submissions.ts    ← insert submission + its test_results (transaction)
+│           ├─ hints.ts          ← append hint, get next rung
+│           ├─ ledger.ts         ← append prompt/response + rejection counter
+│           └─ mastery.ts        ← read/apply α,β per concept
 └─ harness/
    ├─ labels.test.ts             ← 12-label corpus  (15 pts)
    ├─ secrecy.test.ts            ← hidden-test leak assertions (15 pts)
@@ -130,6 +143,126 @@ dojo/
    ├─ explain.test.ts            ← self-rating helper for blind judge prep (15 pts)
    └─ all.ts                     ← runs every suite, prints a scoreboard
 ```
+
+## 2.1 THE DATA LAYER — where everything is stored
+
+### Decision: **`node:sqlite`** (SQLite built into Node 26) — *verified working on this machine: 100 parallel writes, zero loss*
+
+| Option | Verdict | Reason |
+|---|---|---|
+| **`node:sqlite`** | ✅ **USE THIS** | Built into Node 26 · **zero install** · WAL = safe under the judges' parallel submissions · single file · real SQL |
+| Neon / Supabase / MongoDB Atlas | ❌ | Need accounts + a live network. **Venue Wi-Fi dies → judges get a dead product → up to 30 points gone at 08:00** |
+| `better-sqlite3` | ❌ | Native compilation — can fail mid-event, buys nothing over the built-in |
+| PostgreSQL / Redis / MongoDB local | ❌ | Not installed, needs a server process, migration time |
+| JSON files as system of record | ⚠️ backup only | Read-modify-write races under parallel submissions |
+
+> **Rule: the system of record is a local file. The product must work with the network cable pulled.**
+
+### File location
+```
+apps/api/data/dojo.db        ← single SQLite file        (gitignore it)
+apps/api/data/dojo.db-wal    ← WAL sidecar               (gitignore it)
+apps/api/data/seed/*.json    ← seed fixtures             (committed)
+```
+Reset for judges = **delete `dojo.db*`, re-run `npm run seed`.** One command, zero drift.
+
+### What is stored vs what is NEVER stored
+| ✅ Stored in SQLite | ❌ Never stored anywhere persistent |
+|---|---|
+| learners (pseudonymous ids only) | **hidden tests** — memory only, inside the API process |
+| mastery (α, β per concept) | any hidden test input / expected output / exception message |
+| submissions (code, tags, explanation) | any real student data |
+| test_results (outcome + limit **name**) | a complete answer key on disk |
+| hints (validator-passed prose) | |
+| ledger (prompt/response + rejection counter) | |
+| bug_seeds (Bug Factory templates) | |
+
+### Exact DDL — `packages/db/src/schema.sql`
+```sql
+PRAGMA journal_mode = WAL;          -- parallel writes are safe
+PRAGMA foreign_keys = ON;
+PRAGMA busy_timeout = 5000;         -- never surface SQLITE_BUSY to the judges
+
+CREATE TABLE learners (
+  id         TEXT PRIMARY KEY,      -- pseudonymous: rohan, meera, kabir
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE mastery (
+  learner_id TEXT NOT NULL,
+  concept    TEXT NOT NULL,
+  alpha      REAL NOT NULL DEFAULT 1,   -- Beta posterior (see §10.1)
+  beta       REAL NOT NULL DEFAULT 1,
+  PRIMARY KEY (learner_id, concept)
+);
+
+CREATE TABLE submissions (
+  id           TEXT PRIMARY KEY,        -- e.g. s_0142
+  learner_id   TEXT NOT NULL,
+  challenge_id TEXT NOT NULL,
+  code         TEXT NOT NULL,
+  passed       INTEGER NOT NULL,
+  mistake_tags TEXT NOT NULL,          -- JSON array of tags
+  explanation  TEXT NOT NULL,
+  hints_used   INTEGER NOT NULL DEFAULT 0,
+  duration_ms  INTEGER,
+  created_at   TEXT NOT NULL
+);
+
+CREATE TABLE test_results (
+  submission_id TEXT NOT NULL,
+  kind          TEXT NOT NULL,         -- 'visible' | 'hidden'
+  test_no       INTEGER NOT NULL,
+  outcome       TEXT NOT NULL,         -- passed | wrong_output | runtime_error | timeout
+  detail        TEXT,                  -- limit NAME only — NEVER hidden values
+  PRIMARY KEY (submission_id, kind, test_no)
+);
+
+CREATE TABLE hints (
+  submission_id TEXT NOT NULL,
+  idx           INTEGER NOT NULL,      -- 1..4
+  rung          INTEGER NOT NULL,      -- 1 nudge | 2 specific | 3 mechanism | 4 builtin
+  text          TEXT NOT NULL,         -- prose only; passed the §8.1 validator
+  created_at    TEXT NOT NULL,
+  PRIMARY KEY (submission_id, idx)
+);
+
+CREATE TABLE ledger (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts                TEXT NOT NULL,
+  kind              TEXT NOT NULL,     -- 'explanation' | 'hint'
+  learner_id        TEXT,
+  submission_id     TEXT,
+  prompt            TEXT NOT NULL,
+  response          TEXT NOT NULL,
+  model             TEXT,               -- NULL when the deterministic tier was used
+  rejected_for_code INTEGER NOT NULL DEFAULT 0   -- proof the guardrail fired
+);
+
+CREATE TABLE bug_seeds (              -- OB3 Bug Factory
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  mistake_tag  TEXT NOT NULL,
+  buggy_code   TEXT NOT NULL,
+  culprit_line INTEGER NOT NULL,
+  hint         TEXT NOT NULL,
+  difficulty   INTEGER NOT NULL DEFAULT 2
+);
+
+CREATE INDEX idx_sub_learner   ON submissions(learner_id, created_at);
+CREATE INDEX idx_sub_challenge ON submissions(learner_id, challenge_id);
+CREATE INDEX idx_ledger        ON ledger(learner_id);
+CREATE INDEX idx_hints_sub     ON hints(submission_id, idx);
+```
+
+### 🔒 Two non-negotiable data rules
+1. **There is no `challenges` table.** Challenges are static code in `packages/core/challenge-bank.ts`. Hidden tests exist only in the API process's memory.
+2. **`test_results.detail` may only ever contain a limit name** (`"memory limit"`, `"output limit"`, `"cpu limit"`, `"process limit"`). A hidden input, expected value, program output or exception message must **never** be written to disk or returned.
+
+### Write discipline
+- One **transaction per submission**: the `submissions` row + all `test_results` rows + the mastery update + the ledger entry commit together.
+- Write **before** responding, so a judge refreshing mid-slot never sees a ghost.
+
+---
 
 ## Root `package.json`
 ```json
@@ -152,8 +285,79 @@ dojo/
 
 ---
 
-# §3 — VERIFIED DEPENDENCIES (exact versions — these were checked against the npm registry)
+# §3 — THE COMPLETE TECH STACK
 
+## 3.1 Layer by layer
+| Layer | Technology | Version | Why this one |
+|---|---|---|---|
+| **Runtime** | Node.js | **26.10.0** (installed) | Already on the machine |
+| **Language** | TypeScript, run directly by `tsx` | **5.9.3** / tsx **4.23.15** | **No build step.** `tsc` only for editor types |
+| **Monorepo** | **npm workspaces** | built into npm 11.19.1 | Zero extra tooling. No turbo/pnpm |
+| **API server** | **Fastify** + `@fastify/static` | **5.12.7** / **10.1.6** | JSON-schema validation validates the judges' exact response shape |
+| **Sandbox runtime** | **Pyodide** (CPython → WebAssembly) | **314.0.7** | **No real filesystem + no importable `os`/`socket`** → red-team fails by construction. Assets vendored locally so runtime needs no network |
+| **Sandbox isolation** | `child_process.spawn` via `sh -c 'ulimit …'`, `detached:true`, `process.kill(-pid)` | built-in | OS limits + whole-process-group kill. Node has no `setrlimit` |
+| **Code analysis (OB1)** | Python `ast` inside the sandbox | stdlib | Locates the culprit line in the learner's own code |
+| **Execution trace (OB2)** | Python `sys.settrace` inside the sandbox | stdlib | Per-step variable values for Time-Travel Replay |
+| **Database** | **`node:sqlite`** (built-in SQLite) | Node 26 | **Zero install**, WAL-safe under parallel submissions, single file, works offline |
+| **Frontend** | **Plain HTML + ES modules + hand-written CSS** | — | No framework, no bundler, no CORS (same origin) |
+| **Animation** | **GSAP** + **canvas-confetti** | **3.15.0** / **1.9.4** | Timeline-choreographed, "crazy learning" feel; confetti for the pass moment |
+| **Code editor** | `<textarea>` → CodeMirror later | — | Plain box works for pasting; upgrade only for design points |
+| **LLM (optional)** | Any API — Anthropic / Gemini / Groq / Ollama | — | *"any model or API is fine"*. **Optional by design** — see §9 |
+| **IDs** | `nanoid` | **6.0.2** | Short unique submission ids like `s_0142` |
+| **Test harness** | `tsx` scripts + `node:assert` | — | No Jest/Vitest/Playwright needed |
+| **Public URL** | **ngrok** | **3.37.2** (installed) | One command, free, instant |
+| **Secrets scan** | `gitleaks` | brew | Required before every push |
+| **Source control** | git + gh CLI | installed, authed as `Rohit94r` | History is the plagiarism alibi |
+
+## 3.2 Runtime topology — 3 processes
+```
+┌─────────────── BROWSER (served by the API itself, same origin) ───────────────┐
+│  index · challenge · dashboard · ledger · taxonomy · judges                 │
+│  GSAP timelines · CodeMirror/textarea · canvas-confetti                     │
+└───────────────────────────────┬──────────────────────────────────────────────┘
+                                │  HTTP (fetch) — no CORS
+┌───────────────────────────────▼──────────────────────────────────────────────┐
+│  PROCESS 1 — API (Fastify, port 3000)                    ← ALL 100 PTS LIVE  │
+│                                                                              │
+│  routes/  submit · hint · learner · challenges · ledger · health · dev       │
+│  ┌────────────────────────────────────────────────────────────────────────┐  │
+│  │ packages/core  (pure, no I/O, unit-testable)                          │  │
+│  │   challenge-bank.ts  ← challenges + HIDDEN TESTS  ██ MEMORY ONLY ██    │  │
+│  │   classifier · detectors · hints+validator · explain · mastery        │  │
+│  │   recurrence · engine                                                   │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│  ┌────────────────┐   ┌──────────────────────────────────────────┐          │
+│  │ packages/db    │   │ sandbox/orchestrator.ts                   │          │
+│  │  node:sqlite   │   │  spawn sh -c 'ulimit -v -t -f -u …'     │          │
+│  │  dojo.db (WAL) │   │  detached:true, timeout → kill(-pid)     │          │
+│  └────────────────┘   └───────────────────┬──────────────────────┘          │
+└──────────────────────────────────────────┼───────────────────────────────────┘
+                                           │ stdin: {code, input}  ← NO expected value
+                                           │ stdout: {stdout, ret, exc, killed_by, ms}
+┌──────────────────────────────────────────▼───────────────────────────────────┐
+│  PROCESS 2 — RUNNER (child, Pyodide/WebAssembly)                            │
+│  virtual FS only · no os/socket importable · rlimits · stdout byte cap      │
+│  inject.py (exec learner code) · analysis.py (AST line map + trace)         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## 3.3 One submit request, end to end
+```
+POST /api/submit {learner_id, challenge_id, code}
+ 1. core.engine.submit()
+ 2. for each of (3 visible + ≥5 hidden) tests:
+      orchestrator.run(code, test.input)      ← input ONLY, expected stays behind
+        └─ PROCESS 2: Pyodide executes, returns {stdout, ret, exc, killed_by}
+      core.classifier.classify(result, test.expected)   ← parent compares
+      core.detectors.detect(...)                        ← mistake tag
+ 3. core.explain.build(...)                             ← deterministic tier first
+ 4. core.mastery.apply(...)                             ← α, β per concept
+ 5. core.recurrence.rollup(...)                         ← ≥2 DISTINCT challenge_ids
+ 6. db: ONE transaction → submission + test_results + mastery + ledger
+ 7. return exact JSON shape (§11.1) — hidden[] = {test, outcome} ONLY
+```
+
+## 3.4 Verified dependency manifest
 ```jsonc
 // apps/api
 "dependencies": { "fastify": "5.12.7", "@fastify/static": "10.1.6", "nanoid": "6.0.2" },
