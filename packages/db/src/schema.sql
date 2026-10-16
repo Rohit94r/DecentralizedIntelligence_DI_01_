@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS repo_reports (
   id         TEXT PRIMARY KEY,                   -- r_0001
   learner_id TEXT,
   repo       TEXT NOT NULL,                      -- owner/name or "local"
-  source     TEXT NOT NULL CHECK (source IN ('github', 'local')),
+  source     TEXT NOT NULL CHECK (source IN ('github', 'local', 'site')),  -- site = Website Analyse (a live URL)
   score      INTEGER NOT NULL,
   grade      TEXT NOT NULL,
   report     TEXT NOT NULL,                      -- RepoReport JSON (never contains a secret's value)

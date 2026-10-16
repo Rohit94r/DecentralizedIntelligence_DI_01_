@@ -346,7 +346,22 @@ export class LayerflowStore implements Store {
     this.db = new DatabaseSync(file);
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;");
     this.db.exec(readFileSync(path.join(here, "schema.sql"), "utf8"));
+    this.migrate();
     this.seedBugTemplates();
+  }
+
+  /** Older databases: repo_reports only allowed github / local sources — rebuild it to allow 'site' too. */
+  private migrate(): void {
+    const row = this.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'repo_reports'").get() as { sql?: string } | undefined;
+    if (row?.sql && !row.sql.includes("'site'")) {
+      this.tx(() => {
+        this.db.exec("ALTER TABLE repo_reports RENAME TO repo_reports_old");
+        this.db.exec(readFileSync(path.join(here, "schema.sql"), "utf8"));
+        this.db.exec("INSERT INTO repo_reports SELECT id, learner_id, repo, source, score, grade, report, created_at FROM repo_reports_old");
+        this.db.exec("DROP TABLE repo_reports_old");
+        this.db.exec(readFileSync(path.join(here, "schema.sql"), "utf8")); // the index went with the old table
+      });
+    }
   }
 
   private tx<T>(fn: () => T): T {
@@ -786,7 +801,7 @@ export class LayerflowStore implements Store {
 
   /* ── Repo Analyse ── */
 
-  saveRepoReport(r: { learner_id: string | null; repo: string; source: "github" | "local"; score: number; grade: string; report: unknown }): string {
+  saveRepoReport(r: { learner_id: string | null; repo: string; source: "github" | "local" | "site"; score: number; grade: string; report: unknown }): string {
     const n = (this.db.prepare("SELECT COUNT(*) AS n FROM repo_reports").get() as { n: number }).n;
     let id = `r_${String(Number(n) + 1).padStart(4, "0")}`;
     while (this.db.prepare("SELECT 1 FROM repo_reports WHERE id = ?").get(id)) id = `r_${Math.random().toString(36).slice(2, 8)}`;
