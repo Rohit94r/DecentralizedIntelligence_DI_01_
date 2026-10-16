@@ -35,7 +35,7 @@ import {
 } from "@layerflow/core";
 import type { LayerflowStore, ProgramRow, ReportRow, ReportStatus } from "@layerflow/db";
 import { parseJsonReply, type Ai } from "./lib/ai.ts";
-import { DodoError, configuredProduct, createCheckout, createProduct, dodoConfig, getPayment, paymentsEnabled, type DodoPayment } from "./lib/dodo.ts";
+import { DodoError, checkoutMode, configuredProduct, createCheckout, createProduct, dodoConfig, getPayment, paymentsEnabled, type DodoPayment } from "./lib/dodo.ts";
 import { displayName } from "./learning.ts";
 import { checkPin, setPin, syncStreakPoints, todayStartIso as TODAY_START } from "./rewards.ts";
 
@@ -315,17 +315,18 @@ export async function createProgram(ctx: BountyCtx, b: CreateProgramBody) {
   const problem = validateProgram(input);
   if (problem) throw err(problem, 400);
   const plan = getPlan(input.plan)!;
-  if (plan.price_inr > 0 && !paymentsEnabled()) throw err("Paid plans need payments to be set up on this server (DODO_PAYMENTS_API_KEY). Choose the Community plan for now.", 503);
+  const mode = plan.price_inr > 0 ? await checkoutMode() : null;
+  if (mode === "dodo" && !paymentsEnabled()) throw err("Paid plans need payments to be set up on this server (DODO_PAYMENTS_API_KEY). Choose the Community plan for now.", 503);
   // the owner's PIN protects triage — it's where points get paid out
   if (!store.walletPin(input.owner_id)) setPin(store, input.owner_id, b.pin);
   else checkPin(store, input.owner_id, b.pin);
 
   const id = store.createProgram({ ...input, repo_url: input.repo_url ?? null, website: input.website ?? null, points_pool: 0, status: plan.price_inr > 0 ? "awaiting_payment" : "open" });
-  if (plan.price_inr === 0) return { id, status: "open" as const, checkout_url: null };
+  if (plan.price_inr === 0) return { id, status: "open" as const, checkout_url: null, demo_checkout: null };
   const base = safeBase(b.return_base);
   if (!base) throw err("Missing return address for the checkout.", 400);
   const checkout = await startPlanCheckout(ctx, id, plan.id, base);
-  return { id, status: "awaiting_payment" as const, checkout_url: checkout.checkout_url };
+  return { id, status: "awaiting_payment" as const, checkout_url: checkout.checkout_url, demo_checkout: checkout.demo_checkout };
 }
 
 async function planProduct(store: LayerflowStore, planId: string): Promise<string> {
@@ -354,6 +355,12 @@ async function planProduct(store: LayerflowStore, planId: string): Promise<strin
 export async function startPlanCheckout(ctx: BountyCtx, programId: string, planId: string, base: string) {
   const { store } = ctx;
   const plan = getPlan(planId)!;
+  if ((await checkoutMode()) === "demo") {
+    const payId = store.createPayment({ purpose: "bounty_plan", ref: programId, sku: `bounty-plan-${plan.id}`, amount_paise: plan.price_inr * 100 });
+    store.updatePayment(payId, { session_id: `demo_${payId}` });
+    ctx.log?.(`[payments] demo checkout ${payId} for ${programId} (${plan.name}, ₹${plan.price_inr}) — nothing is charged`);
+    return { payment: payId, checkout_url: null, demo_checkout: { payment: payId, program_id: programId, plan: plan.id, plan_name: plan.name, amount_inr: plan.price_inr } };
+  }
   const productId = await planProduct(store, plan.id);
   const payId = store.createPayment({ purpose: "bounty_plan", ref: programId, sku: `bounty-plan-${plan.id}`, amount_paise: plan.price_inr * 100 });
   try {
@@ -365,7 +372,7 @@ export async function startPlanCheckout(ctx: BountyCtx, programId: string, planI
     });
     store.updatePayment(payId, { session_id: c.session_id, checkout_url: c.checkout_url });
     ctx.log?.(`[payments] checkout ${c.session_id} for ${programId} (${plan.name}, ₹${plan.price_inr})`);
-    return { payment: payId, checkout_url: c.checkout_url };
+    return { payment: payId, checkout_url: c.checkout_url as string | null, demo_checkout: null };
   } catch (e) {
     store.updatePayment(payId, { status: "failed" });
     throw e;
@@ -399,6 +406,22 @@ export function applyPayment(ctx: BountyCtx, ourId: string, dodo: Pick<DodoPayme
     ctx.log?.(`[payments] ${ourId} succeeded → program ${pay.ref} is open`);
   }
   return { ok: true, status };
+}
+
+/**
+ * Finishes a demo checkout (only while checkout runs in demo mode): the plan is
+ * applied exactly as a real Dodo payment would apply it, with a demo payment id.
+ */
+export async function completeDemoPayment(ctx: BountyCtx, ourId: string, ownerId: string) {
+  if ((await checkoutMode()) !== "demo") throw err("Real Dodo Payments checkout is on — demo payments are switched off.", 409);
+  const pay = ctx.store.payment(ourId);
+  if (!pay || !pay.session_id?.startsWith("demo_")) throw err("No such demo payment.", 404);
+  const program = ctx.store.program(pay.ref);
+  if (!program || program.owner_id !== ownerId) throw err("Only the program's owner can pay for it.", 403);
+  if (pay.status === "succeeded") return { status: "succeeded" as const, payment_id: pay.payment_id };
+  const paymentId = `pay_demo_${Math.random().toString(36).slice(2, 12)}`;
+  const r = applyPayment(ctx, ourId, { payment_id: paymentId, status: "succeeded", total_amount: pay.amount_paise, currency: "INR" });
+  return { status: r.ok ? ("succeeded" as const) : ("failed" as const), payment_id: paymentId };
 }
 
 /** The return page asks us to check with Dodo directly (in case the webhook hasn't arrived). */

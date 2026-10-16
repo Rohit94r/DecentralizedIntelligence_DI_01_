@@ -62,6 +62,17 @@ export async function checkKey(): Promise<{ ok: boolean; message: string }> {
   return keyCheck;
 }
 
+/**
+ * How a paid plan is checked out: Dodo's hosted checkout when the key works,
+ * otherwise a demo checkout that runs in the app and charges nothing.
+ * LAYERFLOW_CHECKOUT=dodo|demo forces one.
+ */
+export async function checkoutMode(): Promise<"dodo" | "demo"> {
+  const want = process.env.LAYERFLOW_CHECKOUT;
+  if (want === "demo" || want === "dodo") return want;
+  return (await checkKey()).ok ? "dodo" : "demo";
+}
+
 /** Product id for a paid plan: from .env, or (test mode only) created on first use. */
 export function configuredProduct(planId: string): string | undefined {
   return process.env[`DODO_PRODUCT_BOUNTY_${planId.toUpperCase()}`] || undefined;
