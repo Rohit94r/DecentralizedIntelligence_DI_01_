@@ -42,7 +42,8 @@ function kindSentence(challenge: Challenge, failing: TestResult[], onlyHidden: b
     }
     if (failing.length === 1) return `It is ${challenge.edges[k].one}.`;
     const allHidden = failing.every((r) => r.kind === "hidden");
-    const subject = onlyHidden ? `All ${word(failing.length)}` : `All ${word(failing.length)} failing ${allHidden ? "hidden " : ""}tests`;
+    const all = failing.length === 2 ? "Both" : `All ${word(failing.length)}`;
+    const subject = onlyHidden ? all : `${all} failing ${allHidden ? "hidden " : ""}tests`;
     return `${subject} are ${challenge.edges[k].many}.`;
   }
   // Ordinary inputs fail too → it isn't an edge-case problem; saying so is more useful than listing kinds.
@@ -139,21 +140,23 @@ export function buildExplanation(x: ExplainInput): string {
   let first: string;
   if (visPass === visible.length) first = `All ${visible.length} visible tests pass`;
   else if (visPass === 0) first = `None of the ${visible.length} visible tests pass yet`;
-  else first = `${visPass} of the ${visible.length} visible tests pass`;
+  else first = `${visPass} of the ${visible.length} visible tests ${visPass === 1 ? "passes" : "pass"}`;
 
   const joiner = visPass === visible.length ? ", but " : ", and ";
   const howMany = hidFail.length === hidden.length ? `all ${hidden.length}` : `${hidFail.length} of the ${hidden.length}`;
+  // "1 of the 6 hidden tests fails" · "3 of the 6 hidden tests fail"
+  const fail = hidFail.length === 1 && hidden.length > 1 ? "fails" : "fail";
   const why = mechanismSentence(x.challenge, x.ladderKey, x.code, x.lineMap);
 
   // Printing instead of returning: every test sees None — say that, not "wrong list".
   if (x.tag === "print_not_return") {
-    const second = hidFail.length ? `${joiner}${howMany} hidden tests fail` : `, and all ${hidden.length} hidden tests pass`;
+    const second = hidFail.length ? `${joiner}${howMany} hidden tests ${fail}` : `, and all ${hidden.length} hidden tests pass`;
     return `${first}${second}: each one gets None back. The value you print looks right — but tests only see what a function hands back. ${why}`.replace(/\s+/g, " ").trim();
   }
 
   let second: string;
   if (!hidFail.length) second = `, and all ${hidden.length} hidden tests pass`;
-  else second = `${joiner}${howMany} hidden tests fail: ${breakdown(hidFail, x.challenge.resultNoun)}`;
+  else second = `${joiner}${howMany} hidden tests ${fail}: ${breakdown(hidFail, x.challenge.resultNoun)}`;
 
   const failingForKind = hidFail.length ? [...hidFail, ...(hidFail.some((r) => !r.case.edge) ? visFail : [])] : visFail;
   const kind = kindSentence(x.challenge, failingForKind, hidFail.length > 0 && !visFail.length);
