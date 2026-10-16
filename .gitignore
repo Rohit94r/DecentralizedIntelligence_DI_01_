@@ -1,0 +1,40 @@
+# ---- secrets (NEVER commit these) ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+service-account*.json
+
+# ---- dependencies / builds ----
+node_modules/
+.pnp
+.pnp.js
+dist/
+build/
+.next/
+out/
+.vercel/
+.netlify/
+*.tsbuildinfo
+
+# ---- python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pyodide/
+pyodide/
+
+# ---- harness output (regenerable, keeps repo clean) ----
+harness/results/
+*.log
+npm-debug.log*
+
+# ---- os / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
