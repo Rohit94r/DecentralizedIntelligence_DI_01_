@@ -1,0 +1,31 @@
+{
+  "name": "debug-dojo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Debug Dojo — a coding coach that helps you find the bug without handing you the answer (DI-01, Kurukshetra 2026).",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "dev": "node scripts/start.mjs --dev",
+    "api": "tsx apps/api/src/server.ts",
+    "web": "npm run dev -w @dojo/web",
+    "build": "npm run build -w @dojo/web",
+    "seed": "tsx apps/api/src/seed.ts",
+    "harness": "tsx harness/all.ts",
+    "test:unit": "tsx packages/core/test/unit.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck -w @dojo/web",
+    "url": "ngrok http 3000"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}
