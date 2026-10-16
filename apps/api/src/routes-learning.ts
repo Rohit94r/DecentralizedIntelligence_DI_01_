@@ -10,6 +10,7 @@ import {
   acceptReply,
   addReply,
   analyze,
+  analyzeSite,
   chat,
   createPost,
   ensureProfile,
@@ -93,6 +94,20 @@ export function registerLearningRoutes(app: FastifyInstance, ctx: LearnCtx, ai: 
     "/api/repo/analyze",
     { schema: { body: { type: "object", properties: { url: { type: "string", maxLength: 300 }, local: { type: "boolean" }, learner_id: { type: "string", maxLength: 40 } } } } },
     async (req) => analyze(ctx, req.body),
+  );
+  // Website Analyse makes our server fetch a page someone typed — a few per minute per visitor is plenty
+  const siteHits = new Map<string, number[]>();
+  app.post<{ Body: { url: string; learner_id?: string } }>(
+    "/api/site/analyze",
+    { schema: { body: { type: "object", required: ["url"], properties: { url: { type: "string", maxLength: 500 }, learner_id: { type: "string", maxLength: 40 } } } } },
+    async (req, reply) => {
+      const now = Date.now();
+      const recent = (siteHits.get(req.ip) ?? []).filter((t) => now - t < 60_000);
+      if (recent.length >= 6) return reply.status(429).send({ error: "That's a lot of websites in a minute — wait a moment and try again." });
+      siteHits.set(req.ip, [...recent, now]);
+      if (siteHits.size > 5000) siteHits.clear();
+      return analyzeSite(ctx, req.body);
+    },
   );
   app.get<{ Querystring: { learner_id?: string } }>("/api/repo/reports", async (req) => ({ reports: ctx.store.repoReports(req.query.learner_id) }));
   app.get<{ Params: { id: string } }>("/api/repo/reports/:id", async (req, reply) => {

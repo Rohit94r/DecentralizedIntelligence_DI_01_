@@ -11,6 +11,7 @@ import {
   MENTOR,
   TAG_LABELS,
   analyzeRepo,
+  auditSite,
   buildMentorScript,
   findLeak,
   chatSystemPrompt,
@@ -23,6 +24,7 @@ import {
   publicChallenge,
   repoAnswer,
   rollup,
+  siteAnswer,
   spoilerCheck,
   tagLabel,
   validatePost,
@@ -30,11 +32,13 @@ import {
   type MistakeTag,
   type Outcome,
   type RepoReport,
+  type SiteReport,
   type TraceResult,
 } from "@layerflow/core";
 import type { LayerflowStore } from "@layerflow/db";
 import { parseJsonReply, type Ai, type AiMessage } from "./lib/ai.ts";
 import { RepoError, fetchGithub, localSnapshot } from "./lib/repo-fetch.ts";
+import { fetchSite } from "./lib/site-fetch.ts";
 import type { Ctx } from "./service.ts";
 
 export interface LearnCtx extends Ctx {
@@ -253,6 +257,7 @@ export async function chat(ctx: LearnCtx, body: ChatBody) {
   if (body.context?.repo_report_id) {
     const row = ctx.store.repoReport(body.context.repo_report_id);
     if (!row) throw err("That report no longer exists — run the analysis again.", 404);
+    if ((row.report as { kind?: string }).kind === "site") return siteChat(ctx, row.id, row.report as SiteReport, message, history, learnerId);
     const report = row.report as RepoReport;
     const local = repoAnswer(message, report);
     let reply = local;
@@ -400,6 +405,89 @@ export async function analyze(ctx: LearnCtx, body: { url?: string; local?: boole
     rejected: false,
   });
   return { id, ...report, review_model: reviewModel };
+}
+
+/* ───────────────────────── Website Analyse ───────────────────────── */
+
+/** For a company without a public repo: check the live site instead (see lib/site-fetch.ts for how it's fetched safely). */
+export async function analyzeSite(ctx: LearnCtx, body: { url?: string; learner_id?: string }) {
+  const fetched = await fetchSite(body.url ?? "");
+  const report = auditSite(fetched);
+  let reviewModel: string | null = null;
+  if (ctx.ai) {
+    const out = await ctx.ai.complete(
+      [
+        {
+          role: "system",
+          content:
+            "You are Priya, a warm senior engineer teaching a student how to review a website. In 4-5 short sentences (under 100 words): what the site is built with, one thing it does well, the most important problem and why it matters to real visitors, and what to fix first. Simple words. No lists, no code. Only use facts from the analysis.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            site: report.site.host,
+            title: report.site.title,
+            score: report.score,
+            built_with: report.tech.map((t) => (t.version ? `${t.name} ${t.version}` : t.name)),
+            categories: report.categories.map((c) => `${c.label}: ${c.score}/100`),
+            problems: report.issues.slice(0, 8).map((i) => `[${i.severity}, ${i.category}] ${i.title} — ${i.detail}`),
+            good: report.passed.slice(0, 6).map((p) => p.title),
+          }),
+        },
+      ],
+      { maxTokens: 260 },
+    );
+    if (out && out.text.length < 1200 && !/```/.test(out.text)) {
+      report.review = out.text.replace(/\s+/g, " ").trim();
+      reviewModel = out.model;
+    }
+  }
+  const learnerId = body.learner_id && /^[A-Za-z0-9_.-]{2,40}$/.test(body.learner_id) ? body.learner_id : null;
+  const id = ctx.store.saveRepoReport({ learner_id: learnerId, repo: report.site.host, source: "site", score: report.score, grade: report.grade, report: { ...report, review_model: reviewModel } });
+  ctx.store.logEvent({
+    kind: "repo",
+    learner_id: learnerId,
+    prompt: `site analyse · ${report.site.url}`,
+    response: `score ${report.score} (${report.grade}) · ${report.issues.length} issues · tech: ${report.tech.map((t) => t.name).join(", ")}`,
+    model: reviewModel,
+    rejected: false,
+  });
+  return { id, ...report, review_model: reviewModel };
+}
+
+async function siteChat(ctx: LearnCtx, reportId: string, report: SiteReport, message: string, history: { role: "user" | "assistant"; content: string }[], learnerId: string | null) {
+  let reply = siteAnswer(message, report);
+  let model: string | null = null;
+  if (ctx.ai) {
+    const asked = report.issues.find((i) => message.includes(i.title));
+    const summary = {
+      site: report.site.url,
+      title: report.site.title,
+      score: report.score,
+      built_with: report.tech.map((t) => `${t.name}${t.version ? ` ${t.version}` : ""} (${t.kind})`),
+      categories: report.categories.map((c) => `${c.label}: ${c.score}/100`),
+      problems: report.issues.map((i) => `[${i.severity}, ${i.category}] ${i.title} — ${i.detail} — fix: ${i.fix}`),
+      good: report.passed.map((p) => p.title),
+      ...(asked ? { asked_about: { title: asked.title, what_we_saw: asked.detail, evidence: asked.evidence, why: asked.why, fix: asked.fix } } : {}),
+    };
+    const msgs: AiMessage[] = [
+      {
+        role: "system",
+        content:
+          "You are Priya, a friendly senior engineer explaining a website review to a first-year student on Layerflow. Short sentences, everyday words, concrete next steps. Under 150 words. You may include a tiny config or HTML example (max 8 lines). Base everything on this analysis; don't invent findings, and never suggest attacking the site.\n" +
+          JSON.stringify(summary),
+      },
+      ...history.map((m) => ({ role: m.role, content: m.content.slice(0, 1500) })),
+      { role: "user", content: message },
+    ];
+    const out = await ctx.ai.complete(msgs, { maxTokens: 450 });
+    if (out && out.text.length < 2500) {
+      reply = out.text;
+      model = out.model;
+    }
+  }
+  ctx.store.logEvent({ kind: "chat", learner_id: learnerId, prompt: `page=repo · site report=${reportId} · ${message}`, response: reply, model, rejected: false });
+  return { reply, suggestions: ["What should I fix first?", "Is this site secure?", "What is it built with?"], source: model ? "ai" : "built-in", model, intent: "repo" };
 }
 
 /* ───────────────────────── Community ───────────────────────── */
