@@ -1,0 +1,11 @@
+{
+  "name": "@dojo/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure, I/O-free Debug Dojo logic: challenge bank, classifier, detectors, hint ladder + validator, explanations, mastery, recurrence.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./reference": "./src/reference.ts"
+  }
+}
