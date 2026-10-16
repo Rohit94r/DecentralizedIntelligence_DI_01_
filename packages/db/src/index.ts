@@ -59,6 +59,100 @@ export interface LedgerRow {
 
 type Row = Record<string, unknown>;
 
+export interface Profile {
+  id: string;
+  display_name: string;
+  role: "student" | "teacher" | "mentor_ai";
+  avatar: string | null;
+  bio: string | null;
+  created_at: string;
+}
+
+interface Author {
+  author_id: string;
+  author_name: string;
+  author_role: Profile["role"];
+  author_avatar: string | null;
+}
+
+export interface PostRow extends Author {
+  id: number;
+  kind: "question" | "discussion" | "tip" | "showcase";
+  title: string;
+  body: string;
+  challenge_id: string | null;
+  spoiler: boolean;
+  accepted_reply_id: number | null;
+  created_at: string;
+  reply_count: number;
+  teacher_replies: number;
+  score: number;
+  my_vote: number;
+}
+
+export interface ReplyRow extends Author {
+  id: number;
+  post_id: number;
+  body: string;
+  spoiler: boolean;
+  ai: boolean;
+  created_at: string;
+  score: number;
+  my_vote: number;
+}
+
+function toProfile(r: Row): Profile {
+  return {
+    id: String(r.id),
+    display_name: String(r.display_name),
+    role: r.role as Profile["role"],
+    avatar: (r.avatar as string) ?? null,
+    bio: (r.bio as string) ?? null,
+    created_at: String(r.created_at),
+  };
+}
+
+function author(r: Row): Author {
+  return {
+    author_id: String(r.author_id),
+    author_name: (r.display_name as string) ?? String(r.author_id),
+    author_role: ((r.role as string) ?? "student") as Profile["role"],
+    author_avatar: (r.avatar as string) ?? null,
+  };
+}
+
+function toPost(r: Row): PostRow {
+  return {
+    ...author(r),
+    id: Number(r.id),
+    kind: r.kind as PostRow["kind"],
+    title: String(r.title),
+    body: String(r.body),
+    challenge_id: (r.challenge_id as string) ?? null,
+    spoiler: !!r.spoiler,
+    accepted_reply_id: r.accepted_reply_id == null ? null : Number(r.accepted_reply_id),
+    created_at: String(r.created_at),
+    reply_count: Number(r.reply_count ?? 0),
+    teacher_replies: Number(r.teacher_replies ?? 0),
+    score: Number(r.score ?? 0),
+    my_vote: Number(r.my_vote ?? 0),
+  };
+}
+
+function toReply(r: Row): ReplyRow {
+  return {
+    ...author(r),
+    id: Number(r.id),
+    post_id: Number(r.post_id),
+    body: String(r.body),
+    spoiler: !!r.spoiler,
+    ai: !!r.ai,
+    created_at: String(r.created_at),
+    score: Number(r.score ?? 0),
+    my_vote: Number(r.my_vote ?? 0),
+  };
+}
+
 export class LayerflowStore implements Store {
   readonly db: DatabaseSync;
 
@@ -352,11 +446,167 @@ export class LayerflowStore implements Store {
     }));
   }
 
+  /* ── mentor + chat ── */
+
+  hintTimes(learnerId: string): { challenge_id: string; created_at: string }[] {
+    return (this.db.prepare("SELECT challenge_id, created_at FROM hints WHERE learner_id = ? ORDER BY created_at").all(learnerId) as Row[]).map((r) => ({
+      challenge_id: String(r.challenge_id),
+      created_at: String(r.created_at),
+    }));
+  }
+
+  latestSubmission(learnerId: string, challengeId: string): ReturnType<LayerflowStore["getSubmission"]> {
+    const r = this.db
+      .prepare("SELECT id FROM submissions WHERE learner_id = ? AND challenge_id = ? ORDER BY created_at DESC, seq DESC LIMIT 1")
+      .get(learnerId, challengeId) as { id: string } | undefined;
+    return r ? this.getSubmission(r.id) : null;
+  }
+
+  /** A ledger row that isn't tied to a submission (chat, mentor session, repo review). */
+  logEvent(e: { kind: "chat" | "mentor" | "repo"; learner_id: string | null; prompt: string; response: string; model: string | null; rejected: boolean }): void {
+    this.db
+      .prepare("INSERT INTO ledger (ts, kind, learner_id, submission_id, prompt, response, model, rejected_for_code) VALUES (?, ?, ?, NULL, ?, ?, ?, ?)")
+      .run(new Date().toISOString(), e.kind, e.learner_id, e.prompt.slice(0, 4000), e.response.slice(0, 4000), e.model, e.rejected ? 1 : 0);
+  }
+
+  /* ── community ── */
+
+  upsertProfile(p: { id: string; display_name: string; role?: "student" | "teacher" | "mentor_ai"; avatar?: string | null; bio?: string | null; at?: string }): void {
+    this.db
+      .prepare(
+        `INSERT INTO profiles (id, display_name, role, avatar, bio, created_at) VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET display_name = excluded.display_name, role = excluded.role,
+           avatar = COALESCE(excluded.avatar, profiles.avatar), bio = COALESCE(excluded.bio, profiles.bio)`,
+      )
+      .run(p.id, p.display_name, p.role ?? "student", p.avatar ?? null, p.bio ?? null, p.at ?? new Date().toISOString());
+  }
+
+  profile(id: string): Profile | null {
+    const r = this.db.prepare("SELECT * FROM profiles WHERE id = ?").get(id) as Row | undefined;
+    return r ? toProfile(r) : null;
+  }
+
+  profiles(role?: string): Profile[] {
+    const rows = (role ? this.db.prepare("SELECT * FROM profiles WHERE role = ? ORDER BY created_at").all(role) : this.db.prepare("SELECT * FROM profiles ORDER BY created_at").all()) as Row[];
+    return rows.map(toProfile);
+  }
+
+  createPost(p: { author_id: string; kind: string; title: string; body: string; challenge_id?: string | null; spoiler: boolean; at?: string }): number {
+    const r = this.db
+      .prepare("INSERT INTO posts (author_id, kind, title, body, challenge_id, spoiler, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(p.author_id, p.kind, p.title, p.body, p.challenge_id ?? null, p.spoiler ? 1 : 0, p.at ?? new Date().toISOString());
+    return Number(r.lastInsertRowid);
+  }
+
+  addReply(r: { post_id: number; author_id: string; body: string; spoiler: boolean; ai?: boolean; at?: string }): number {
+    const res = this.db
+      .prepare("INSERT INTO replies (post_id, author_id, body, spoiler, ai, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(r.post_id, r.author_id, r.body, r.spoiler ? 1 : 0, r.ai ? 1 : 0, r.at ?? new Date().toISOString());
+    return Number(res.lastInsertRowid);
+  }
+
+  acceptReply(postId: number, replyId: number | null): void {
+    this.db.prepare("UPDATE posts SET accepted_reply_id = ? WHERE id = ?").run(replyId, postId);
+  }
+
+  vote(voter: string, target: "post" | "reply", id: number, value: 1 | -1 | 0): number {
+    if (value === 0) this.db.prepare("DELETE FROM votes WHERE voter_id = ? AND target = ? AND target_id = ?").run(voter, target, id);
+    else
+      this.db
+        .prepare("INSERT INTO votes (voter_id, target, target_id, value) VALUES (?, ?, ?, ?) ON CONFLICT (voter_id, target, target_id) DO UPDATE SET value = excluded.value")
+        .run(voter, target, id, value);
+    const r = this.db.prepare("SELECT COALESCE(SUM(value), 0) AS s FROM votes WHERE target = ? AND target_id = ?").get(target, id) as { s: number };
+    return Number(r.s);
+  }
+
+  posts(f: { kind?: string; challenge_id?: string; author_id?: string; q?: string; viewer?: string; limit?: number } = {}): PostRow[] {
+    const where: string[] = [];
+    const args: (string | number)[] = [f.viewer ?? ""];
+    if (f.kind) (where.push("p.kind = ?"), args.push(f.kind));
+    if (f.challenge_id) (where.push("p.challenge_id = ?"), args.push(f.challenge_id));
+    if (f.author_id) (where.push("p.author_id = ?"), args.push(f.author_id));
+    if (f.q) (where.push("(p.title LIKE ? OR p.body LIKE ?)"), args.push(`%${f.q}%`, `%${f.q}%`));
+    args.push(Math.min(f.limit ?? 50, 200));
+    const rows = this.db
+      .prepare(
+        `SELECT p.*, pr.display_name, pr.role, pr.avatar,
+                (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id) AS reply_count,
+                (SELECT COUNT(*) FROM replies r JOIN profiles t ON t.id = r.author_id WHERE r.post_id = p.id AND t.role = 'teacher') AS teacher_replies,
+                (SELECT COALESCE(SUM(value), 0) FROM votes v WHERE v.target = 'post' AND v.target_id = p.id) AS score,
+                (SELECT value FROM votes v WHERE v.target = 'post' AND v.target_id = p.id AND v.voter_id = ?) AS my_vote
+           FROM posts p LEFT JOIN profiles pr ON pr.id = p.author_id
+          ${where.length ? "WHERE " + where.join(" AND ") : ""}
+          ORDER BY p.created_at DESC LIMIT ?`,
+      )
+      .all(...args) as Row[];
+    return rows.map(toPost);
+  }
+
+  post(id: number, viewer = ""): (PostRow & { replies: ReplyRow[] }) | null {
+    const r = this.db
+      .prepare(
+        `SELECT p.*, pr.display_name, pr.role, pr.avatar,
+                (SELECT COUNT(*) FROM replies r WHERE r.post_id = p.id) AS reply_count,
+                (SELECT COUNT(*) FROM replies r JOIN profiles t ON t.id = r.author_id WHERE r.post_id = p.id AND t.role = 'teacher') AS teacher_replies,
+                (SELECT COALESCE(SUM(value), 0) FROM votes v WHERE v.target = 'post' AND v.target_id = p.id) AS score,
+                (SELECT value FROM votes v WHERE v.target = 'post' AND v.target_id = p.id AND v.voter_id = ?) AS my_vote
+           FROM posts p LEFT JOIN profiles pr ON pr.id = p.author_id WHERE p.id = ?`,
+      )
+      .get(viewer, id) as Row | undefined;
+    if (!r) return null;
+    const replies = (
+      this.db
+        .prepare(
+          `SELECT r.*, pr.display_name, pr.role, pr.avatar,
+                  (SELECT COALESCE(SUM(value), 0) FROM votes v WHERE v.target = 'reply' AND v.target_id = r.id) AS score,
+                  (SELECT value FROM votes v WHERE v.target = 'reply' AND v.target_id = r.id AND v.voter_id = ?) AS my_vote
+             FROM replies r LEFT JOIN profiles pr ON pr.id = r.author_id WHERE r.post_id = ? ORDER BY r.created_at, r.id`,
+        )
+        .all(viewer, id) as Row[]
+    ).map(toReply);
+    return { ...toPost(r), replies };
+  }
+
+  communityStats(): { posts: number; replies: number; teachers: number; students: number; answered: number } {
+    const g = (sql: string) => Number((this.db.prepare(sql).get() as { n: number }).n);
+    return {
+      posts: g("SELECT COUNT(*) AS n FROM posts"),
+      replies: g("SELECT COUNT(*) AS n FROM replies"),
+      teachers: g("SELECT COUNT(*) AS n FROM profiles WHERE role = 'teacher'"),
+      students: g("SELECT COUNT(*) AS n FROM profiles WHERE role = 'student'"),
+      answered: g("SELECT COUNT(*) AS n FROM posts WHERE accepted_reply_id IS NOT NULL OR id IN (SELECT post_id FROM replies r JOIN profiles t ON t.id = r.author_id WHERE t.role = 'teacher')"),
+    };
+  }
+
+  /* ── Repo Analyse ── */
+
+  saveRepoReport(r: { learner_id: string | null; repo: string; source: "github" | "local"; score: number; grade: string; report: unknown }): string {
+    const n = (this.db.prepare("SELECT COUNT(*) AS n FROM repo_reports").get() as { n: number }).n;
+    let id = `r_${String(Number(n) + 1).padStart(4, "0")}`;
+    while (this.db.prepare("SELECT 1 FROM repo_reports WHERE id = ?").get(id)) id = `r_${Math.random().toString(36).slice(2, 8)}`;
+    this.db
+      .prepare("INSERT INTO repo_reports (id, learner_id, repo, source, score, grade, report, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, r.learner_id, r.repo, r.source, r.score, r.grade, JSON.stringify(r.report), new Date().toISOString());
+    return id;
+  }
+
+  repoReports(learnerId?: string, limit = 20): { id: string; repo: string; source: string; score: number; grade: string; created_at: string; learner_id: string | null }[] {
+    const rows = (learnerId
+      ? this.db.prepare("SELECT id, repo, source, score, grade, created_at, learner_id FROM repo_reports WHERE learner_id = ? ORDER BY created_at DESC LIMIT ?").all(learnerId, limit)
+      : this.db.prepare("SELECT id, repo, source, score, grade, created_at, learner_id FROM repo_reports ORDER BY created_at DESC LIMIT ?").all(limit)) as Row[];
+    return rows.map((r) => ({ id: String(r.id), repo: String(r.repo), source: String(r.source), score: Number(r.score), grade: String(r.grade), created_at: String(r.created_at), learner_id: (r.learner_id as string) ?? null }));
+  }
+
+  repoReport(id: string): { id: string; created_at: string; report: unknown } | null {
+    const r = this.db.prepare("SELECT id, created_at, report FROM repo_reports WHERE id = ?").get(id) as Row | undefined;
+    return r ? { id: String(r.id), created_at: String(r.created_at), report: JSON.parse(String(r.report)) } : null;
+  }
+
   /* ── reset (judges' page / npm run seed) ── */
 
   wipe(): void {
     this.tx(() => {
-      for (const t of ["test_results", "hints", "ledger", "submissions", "mastery", "bug_finds", "learners"]) this.db.exec(`DELETE FROM ${t}`);
+      for (const t of ["test_results", "hints", "ledger", "submissions", "mastery", "bug_finds", "learners", "votes", "replies", "posts", "profiles"]) this.db.exec(`DELETE FROM ${t}`);
     });
   }
 

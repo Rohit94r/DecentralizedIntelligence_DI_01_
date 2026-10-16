@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS hints (
 CREATE TABLE IF NOT EXISTS ledger (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   ts                TEXT NOT NULL,
-  kind              TEXT NOT NULL,               -- 'explanation' | 'hint'
+  kind              TEXT NOT NULL,               -- 'explanation' | 'hint' | 'chat' | 'mentor' | 'repo'
   learner_id        TEXT,
   submission_id     TEXT,
   prompt            TEXT NOT NULL,
@@ -95,3 +95,59 @@ CREATE INDEX IF NOT EXISTS idx_sub_learner   ON submissions(learner_id, created_
 CREATE INDEX IF NOT EXISTS idx_sub_challenge ON submissions(learner_id, challenge_id);
 CREATE INDEX IF NOT EXISTS idx_ledger        ON ledger(learner_id);
 CREATE INDEX IF NOT EXISTS idx_hints_lc      ON hints(learner_id, challenge_id, ladder_key);
+
+-- ── Community (students help each other, teachers mentor) ──
+CREATE TABLE IF NOT EXISTS profiles (
+  id           TEXT PRIMARY KEY,                 -- a learner id, or a teacher id (teacher_james)
+  display_name TEXT NOT NULL,
+  role         TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'teacher', 'mentor_ai')),
+  avatar       TEXT,                             -- /people/*.jpg or NULL (initials)
+  bio          TEXT,
+  created_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS posts (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  author_id         TEXT NOT NULL,
+  kind              TEXT NOT NULL CHECK (kind IN ('question', 'discussion', 'tip', 'showcase')),
+  title             TEXT NOT NULL,
+  body              TEXT NOT NULL,
+  challenge_id      TEXT,                        -- the practice problem it is about (optional)
+  spoiler           INTEGER NOT NULL DEFAULT 0,  -- contains a solution → blurred until solved
+  accepted_reply_id INTEGER,
+  created_at        TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS replies (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  author_id  TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  spoiler    INTEGER NOT NULL DEFAULT 0,
+  ai         INTEGER NOT NULL DEFAULT 0,         -- written by the AI mentor (prose-only, guarded)
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS votes (
+  voter_id  TEXT NOT NULL,
+  target    TEXT NOT NULL CHECK (target IN ('post', 'reply')),
+  target_id INTEGER NOT NULL,
+  value     INTEGER NOT NULL CHECK (value IN (-1, 1)),
+  PRIMARY KEY (voter_id, target, target_id)
+);
+
+-- ── Repo Analyse reports ──
+CREATE TABLE IF NOT EXISTS repo_reports (
+  id         TEXT PRIMARY KEY,                   -- r_0001
+  learner_id TEXT,
+  repo       TEXT NOT NULL,                      -- owner/name or "local"
+  source     TEXT NOT NULL CHECK (source IN ('github', 'local')),
+  score      INTEGER NOT NULL,
+  grade      TEXT NOT NULL,
+  report     TEXT NOT NULL,                      -- RepoReport JSON (never contains a secret's value)
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at);
+CREATE INDEX IF NOT EXISTS idx_replies_post  ON replies(post_id);
+CREATE INDEX IF NOT EXISTS idx_repo_learner  ON repo_reports(learner_id, created_at);
