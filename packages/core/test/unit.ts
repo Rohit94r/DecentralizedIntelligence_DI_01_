@@ -10,6 +10,14 @@ import assert from "node:assert/strict";
 import {
   CHALLENGES,
   allLadderTexts,
+  analyzeRepo,
+  buildMentorScript,
+  guardReply,
+  ladderFor,
+  localReply,
+  parseRepoUrl,
+  speakify,
+  spoilerCheck,
   classify,
   detect,
   findLeak,
@@ -223,6 +231,112 @@ test("bank: probes (public replay inputs) are never a hidden input, except trivi
       assert.ok(trivial || inDescription || isPublic || !hidden.has(JSON.stringify(args)), `${c.id} probe ${kind} equals a hidden input`);
     }
   }
+});
+
+/* ── mentor · chat · repo · community ── */
+
+test("chat: asking for the answer on a problem moves one rung — never code", () => {
+  for (const c of listedChallenges()) {
+    for (const m of ["just give me the answer", "write the code for me", "show me the full code", "solve it"]) {
+      const r = localReply(m, { challenge: c, latest: null, turn: 0 });
+      assert.equal(r.intent, "answer_request", `${c.id}: ${m}`);
+      assert.ok(r.reply.includes(ladderFor(c, "generic")[0]), `${c.id}: first rung only`);
+      assert.ok(guardReply(r.reply, { challenge: c }).ok, `${c.id}: built-in reply passes the guard`);
+    }
+  }
+});
+
+test("chat guard: rejects code, a function, or a hidden value on a problem page", () => {
+  const c = getChallenge("last-k-total")!;
+  assert.equal(guardReply("Here you go:\n```python\ndef last_k_total(marks, k):\n    return sum(marks[-k:])\n```", { challenge: c }).ok, false);
+  assert.equal(guardReply("Change it to return sum(marks[-k:]) and you're done.", { challenge: c }).ok, false);
+  assert.equal(guardReply("Try total = 0 before the loop.", { challenge: c }).ok, false);
+  const hidden = c.hidden.find((t) => JSON.stringify(t.args).length > 8)!;
+  assert.equal(guardReply(`One hidden test is last_k_total(${JSON.stringify(hidden.args[0])}, ${hidden.args[1]}).`, { challenge: c }).ok, false);
+  assert.equal(guardReply("Think about what should happen when k is larger than the number of marks. Look at **line 3**.", { challenge: c }).ok, true);
+});
+
+test("chat: general mode explains a concept with a tiny example, problem mode stays prose", () => {
+  const g = localReply("what is a list?");
+  assert.equal(g.intent, "concept");
+  assert.ok(g.reply.includes("```"));
+  const p = localReply("what is a list?", { challenge: getChallenge("count-passes")! });
+  assert.ok(!p.reply.includes("```"));
+});
+
+test("mentor script: never leaks a hidden value, always ends with the no-code promise", () => {
+  for (const c of listedChallenges()) {
+    const segs = buildMentorScript({
+      learnerName: "Asha",
+      mentorName: "Priya",
+      challenge: c,
+      attempts: 2,
+      everPassed: false,
+      latest: { passed: false, tags: [c.targets[0]], explanation: "All 3 visible tests pass, but 2 of the 6 hidden tests fail.", visible: [], hidden: [], analysis: { culprit_line: 3, confidence: "likely", reason: "Look at the loop." }, code: c.starter, ladderKey: c.targets[0] },
+      hintsUsed: 1,
+      trace: null,
+      recurringWhere: { [c.targets[0]]: [c.id, "other"] },
+      next: null,
+    });
+    assert.ok(segs.length >= 4, `${c.id}: ${segs.length} segments`);
+    for (const s of segs) assert.equal(findLeak(s.say, c, [], c.starter), null, `${c.id}/${s.id}`);
+    assert.ok(segs[segs.length - 1].say.includes("never hand you the code"));
+  }
+});
+
+test("speakify reads code-ish text aloud naturally", () => {
+  assert.equal(speakify("len(marks) - k"), "the length of marks minus k");
+  assert.equal(speakify("marks[-1]"), "marks at position minus 1");
+});
+
+test("community: a full solution for a problem is a spoiler; describing the idea is not", () => {
+  assert.equal(spoilerCheck("```python\ndef count_passes(marks):\n    return len([m for m in marks if m >= 40])\n```", "count-passes").spoiler, true);
+  assert.equal(spoilerCheck("def count_passes(marks):\n    ...", null).spoiler, true);
+  assert.equal(spoilerCheck("Read the task again: 40 itself counts as a pass. Check your comparison.", "count-passes").spoiler, false);
+});
+
+test("repo analysis: finds committed secrets WITHOUT copying the value, SQL injection, no tests", () => {
+  const key = "sk-" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4";
+  const r = analyzeRepo({
+    source: "github",
+    owner: "student",
+    name: "todo-app",
+    files: [
+      { path: "README.md", size: 40 },
+      { path: ".env", size: 60 },
+      { path: "package.json", size: 200 },
+      { path: "server.js", size: 900 },
+      { path: "routes/todos.js", size: 700 },
+    ],
+    contents: {
+      "README.md": "# todo",
+      ".env": `OPENAI_KEY=${key}`,
+      "package.json": JSON.stringify({ name: "todo", dependencies: { express: "4.0.0", pg: "8.0.0" } }),
+      "server.js": `const app = require("express")();\nconst KEY = "${key}";\napp.listen(3000);`,
+      "routes/todos.js": "router.get('/todos/:id', (req, res) => db.query(`SELECT * FROM todos WHERE id = ${req.params.id}`));",
+    },
+  });
+  const ids = r.findings.map((f) => f.id);
+  for (const id of ["env-committed", "secret-in-code", "sql-injection", "no-tests", "no-lockfile", "hardcoded-port", "routes-touch-db"]) assert.ok(ids.includes(id), `missing ${id} in ${ids.join(",")}`);
+  assert.ok(!JSON.stringify(r).includes(key), "the secret's value must never be copied into the report");
+  assert.ok(r.score < 60 && r.layers.length === 8 && r.roadmap.length > 0);
+});
+
+test("repo analysis: parameterised SQL with composed clauses is not flagged as injection", () => {
+  const r = analyzeRepo({
+    source: "local",
+    name: "x",
+    files: [{ path: "src/db.ts", size: 300 }],
+    contents: { "src/db.ts": "db.prepare(`SELECT * FROM posts ${where.length ? 'WHERE ' + where.join(' AND ') : ''} LIMIT ?`).all(...args);" },
+  });
+  assert.ok(!r.findings.some((f) => f.id === "sql-injection"));
+});
+
+test("repo URL parsing accepts links, .git and owner/name", () => {
+  assert.deepEqual(parseRepoUrl("https://github.com/rohit94r/Apply-saas.git"), { owner: "rohit94r", name: "Apply-saas" });
+  assert.deepEqual(parseRepoUrl("github.com/icancodefyi/VH26-IMPIC/tree/main/src"), { owner: "icancodefyi", name: "VH26-IMPIC" });
+  assert.deepEqual(parseRepoUrl("owner/repo"), { owner: "owner", name: "repo" });
+  assert.equal(parseRepoUrl("not a repo"), null);
 });
 
 let failed = 0;
