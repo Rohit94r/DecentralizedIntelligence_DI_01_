@@ -63,7 +63,7 @@ const COMMON_RULES = [
 const SHOPKART: BuiltInProgram = {
   id: "shopkart",
   company: "ShopKart (demo)",
-  logo: "🛒",
+  logo: "/brands/shopkart.svg",
   title: "ShopKart — online shop API",
   tagline: "Find what lets a shopper steal, snoop or overpay.",
   difficulty: "beginner",
@@ -349,7 +349,7 @@ def get_order(order_id):
 const CAMPUS: BuiltInProgram = {
   id: "campusconnect",
   company: "CampusConnect (demo)",
-  logo: "🎓",
+  logo: "/brands/campusconnect.svg",
   title: "CampusConnect — student portal",
   tagline: "Become an admin, hijack a profile, beat the OTP.",
   difficulty: "intermediate",
@@ -569,7 +569,7 @@ export function ProfileCard({ user }: { user: User & { bio: string; avatarUrl: s
 const PAYLITE: BuiltInProgram = {
   id: "paylite",
   company: "PayLite (demo)",
-  logo: "💸",
+  logo: "/brands/paylite.svg",
   title: "PayLite — UPI-style wallet",
   tagline: "Money bugs: make it, move it, or leak it.",
   difficulty: "advanced",
