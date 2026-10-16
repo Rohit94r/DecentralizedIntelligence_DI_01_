@@ -3,13 +3,13 @@
 /**
  * The current pseudonymous learner. No accounts, no real names — just an id
  * kept in localStorage (or ?learner= in the URL, which wins so judges can
- * open /dashboard?learner=rohan directly).
+ * open /dashboard?learner=riya directly).
  */
 import { useCallback, useEffect, useState } from "react";
 
 const KEY = "layerflow-learner";
 const EVENT = "layerflow-learner-change";
-export const DEMO_LEARNERS = ["rohan", "meera", "kabir"];
+export const DEMO_LEARNERS = ["rohan", "riya", "khushi"];
 
 function freshGuest(): string {
   return `guest-${Math.random().toString(36).slice(2, 6)}`;

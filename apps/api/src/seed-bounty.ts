@@ -62,19 +62,26 @@ export function seedBounty(store: LayerflowStore, now = Date.now()): void {
     store.triageReport(id, { status: "valid", final_severity: bug.severity, points, note: `Confirmed: ${bug.title}.${nudged ? " Half reward — you took a nudge for this one." : ""}`, bug_id: bug.id, at: at(hoursAgo) });
   };
 
-  builtIn("rohan", "shopkart", "shopkart-paging", 50, {
-    title: "First page of products skips ten items",
-    severity: "low",
-    description: "page defaults to 1 but the offset is page * PAGE_SIZE, so the first request starts at row 11. The first ten products can never be seen by anyone.",
-  });
-  builtIn("rohan", "shopkart", "shopkart-sqli", 30, {
-    title: "SQL injection in /search",
-    severity: "critical",
-    description: "The q parameter is pasted into the SQL with an f-string. q=' UNION SELECT email, password_hash, 1 FROM users -- returns every user's email and password hash.",
+  // khushi — finished everything: most of ShopKart and CampusConnect, plus a company find
+  const k = (bugId: string, programId: string, h: number, title: string, description: string, severity: BountySeverity) => builtIn("khushi", programId, bugId, h, { title, description, severity });
+  k("shopkart-paging", "shopkart", 150, "Page 1 of products skips the first ten", "page starts at 1 but the offset is page * PAGE_SIZE, so the first request starts at row 11 and the first ten products are never shown.", "low");
+  k("shopkart-sqli", "shopkart", 140, "SQL injection in product search", "The q parameter is pasted into the SQL with an f-string, so a search like ' UNION SELECT email, password_hash, 1 FROM users -- returns every user's email and password hash.", "critical");
+  k("shopkart-idor", "shopkart", 130, "Any logged-in user can read any order", "GET /orders/<id> only checks that you are logged in, not that the order is yours. Counting up the id returns other customers' totals, addresses and phone numbers.", "high");
+  k("shopkart-negative-qty", "shopkart", 120, "Negative quantity lowers the cart total", "qty is never checked, so adding an item with qty -1 subtracts its price. With a big enough negative quantity checkout creates an order with a negative total.", "high");
+  k("shopkart-md5", "shopkart", 110, "Passwords hashed with unsalted MD5", "check_password hashes with plain MD5 and no salt. A leaked users table can be cracked very quickly and identical passwords have identical hashes.", "medium");
+  k("campus-jwt-decode", "campusconnect", 90, "JWT is decoded but never verified", "requireUser uses jwt.decode, which does not check the signature. Anyone can make a token with role admin and the server accepts it.", "critical");
+  k("campus-mass-assignment", "campusconnect", 80, "Students can set their own role to admin", "PUT /api/profile copies the whole request body onto the user with Object.assign, including role. Sending role: admin promotes the account.", "high");
+  k("campus-xss", "campusconnect", 70, "Stored XSS through the profile bio", "ProfileCard renders user.bio with dangerouslySetInnerHTML. A bio with an img tag and an onerror handler runs script for every visitor.", "high");
+
+  // riya — in the middle: one confirmed bug and one miss
+  builtIn("riya", "shopkart", "shopkart-paging", 50, {
+    title: "First page of products starts at product 11",
+    severity: "medium",
+    description: "With page=1 the offset is 10, so products 1 to 10 are skipped. I worked out the first page by hand after reading the products route.",
   });
   const miss = store.createReport({
     program_id: "shopkart",
-    learner_id: "rohan",
+    learner_id: "riya",
     title: "Delivery fee is wrong for big carts",
     category: "logic",
     severity: "low",
@@ -84,25 +91,14 @@ export function seedBounty(store: LayerflowStore, now = Date.now()): void {
     steps: null,
     impact: null,
     fix: null,
-    at: at(31),
+    at: at(49),
   });
-  store.triageReport(miss, { status: "invalid", note: "The triage team couldn't confirm a security or logic bug at that spot. Re-read the scope, follow the user's input through the code, and try again.", at: at(31) });
+  store.triageReport(miss, { status: "invalid", note: "The triage team couldn't confirm a security or logic bug at that spot. Re-read the scope, follow the user's input through the code, and try again.", at: at(49) });
 
-  builtIn("meera", "campusconnect", "campus-xss", 26, {
-    title: "Stored XSS through the profile bio",
-    severity: "high",
-    description: "ProfileCard renders user.bio with dangerouslySetInnerHTML. A bio containing an img tag with an onerror handler runs script in every visitor's browser.",
-  });
-  builtIn("kabir", "shopkart", "shopkart-paging", 9, {
-    title: "Products page 1 starts at product 11",
-    severity: "medium",
-    description: "With page=1 the offset is 10, so products 1 to 10 are skipped. I worked it out by hand after the nudge about where the first page starts counting.",
-  }, true);
-
-  // company program: one confirmed by the owner, one waiting in their queue
+  // company program: khushi's find confirmed by the owner, riya's waiting in their queue
   const r1 = store.createReport({
     program_id: qb,
-    learner_id: "rohan",
+    learner_id: "khushi",
     title: "Order history shows other customers' orders (IDOR)",
     category: "broken_access",
     severity: "high",
@@ -112,12 +108,12 @@ export function seedBounty(store: LayerflowStore, now = Date.now()): void {
     steps: "1. Log in as test account A.\n2. Open /api/orders?user=<id of test account B>.\n3. B's orders and address are returned.",
     impact: "Any customer can read every other customer's order history and home address.",
     fix: "Ignore the user parameter and use the id from the session.",
-    at: at(22),
+    at: at(60),
   });
-  store.triageReport(r1, { status: "valid", final_severity: "high", points: 1500, note: "Confirmed and fixed in v2.3 — thank you! +1500 points.", pool_program: qb, at: at(20) });
+  store.triageReport(r1, { status: "valid", final_severity: "high", points: 1500, note: "Confirmed and fixed in v2.3 — thank you! +1500 points.", pool_program: qb, at: at(58) });
   store.createReport({
     program_id: qb,
-    learner_id: "meera",
+    learner_id: "riya",
     title: "Coupon WELCOME50 can be applied twice",
     category: "business_logic",
     severity: "medium",
@@ -130,17 +126,19 @@ export function seedBounty(store: LayerflowStore, now = Date.now()): void {
     at: at(5),
   });
 
-  for (const l of ["rohan", "meera", "kabir"]) syncStreakPoints(store, l);
+  for (const l of ["rohan", "riya", "khushi"]) syncStreakPoints(store, l);
 
-  // a goodie that's already on its way, so the Rewards history isn't empty
-  const r = store.createRedemption({
-    learner_id: "rohan",
+  // khushi has already redeemed: a goodie on its way, and a (demo) cash-out paid
+  const g = store.createRedemption({
+    learner_id: "khushi",
     kind: "goodie",
     item_id: "sticker-pack",
     points: 1500,
     amount_paise: 15_000,
-    shipping: { name: "Rohan", phone: "9800000000", address: "Robotics Lab, Main Building", city: "Pune", pincode: "411001" },
+    shipping: { name: "Khushi", phone: "9800000000", address: "Girls Hostel, Block B", city: "Pune", pincode: "411001" },
     note: "Goodie · Bug Hunter sticker pack",
   });
-  store.setRedemptionStatus(r.id, "shipped", { note: "Packed with love — arriving in 3–5 days.", payout_ref: "DTDC D41870264" });
+  store.setRedemptionStatus(g.id, "shipped", { note: "Packed — arriving in 3–5 days.", payout_ref: "DTDC D41870264" });
+  const c = store.createRedemption({ learner_id: "khushi", kind: "cash", points: 2000, amount_paise: 20_000, upi_id: "khushi.s@okaxis", note: "Cash-out ₹200 to UPI" });
+  store.setRedemptionStatus(c.id, "paid", { note: "Demo payout — no real money was sent.", payout_ref: "DEMO240917A1F3" });
 }

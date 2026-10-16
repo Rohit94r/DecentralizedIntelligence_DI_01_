@@ -170,7 +170,7 @@ function Curl({ cmd }: { cmd: string }) {
 
 export default function JudgesPage() {
   const [health, setHealth] = useState<{ ok: boolean; llm: string | null } | null>(null);
-  const [rohan, setRohan] = useState<LearnerView | null>(null);
+  const [story, setStory] = useState<LearnerView | null>(null);
   const [origin, setOrigin] = useState("http://localhost:3000");
   const [resetting, setResetting] = useState(false);
   useEffect(() => {
@@ -178,7 +178,7 @@ export default function JudgesPage() {
     const poll = () => api.health().then((h) => setHealth({ ok: h.ok, llm: h.llm })).catch(() => setHealth({ ok: false, llm: null }));
     poll();
     const id = setInterval(poll, 5000);
-    api.learner("rohan").then(setRohan).catch(() => {});
+    api.learner("riya").then(setStory).catch(() => {});
     return () => clearInterval(id);
   }, []);
 
@@ -193,11 +193,11 @@ export default function JudgesPage() {
         <span className="ml-auto font-mono text-[12px] text-neutral-500">{origin}</span>
         <button
           onClick={async () => {
-            if (!confirm("Reset the demo data (rohan, meera, kabir) to its seeded state?")) return;
+            if (!confirm("Reset the demo data (rohan, riya, khushi) to its seeded state?")) return;
             setResetting(true);
             await api.reset().catch(() => {});
             setResetting(false);
-            api.learner("rohan").then(setRohan).catch(() => {});
+            api.learner("riya").then(setStory).catch(() => {});
           }}
           className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-4 text-[12.5px] font-semibold text-neutral-700 hover:border-neutral-950"
         >
@@ -219,25 +219,25 @@ export default function JudgesPage() {
         </div>
         <div className="space-y-5">
           <div>
-            <SectionLabel className="mb-3">3 · The recurrence story — learner “rohan”</SectionLabel>
+            <SectionLabel className="mb-3">3 · The recurrence story — learner “riya”</SectionLabel>
             <Card tint="green">
-              {rohan ? (
+              {story ? (
                 <>
                   <div className="flex flex-wrap gap-1.5">
-                    {rohan.recurring_mistakes.map((t) => (
+                    {story.recurring_mistakes.map((t) => (
                       <TagBadge key={t} tag={t} />
                     ))}
-                    {rohan.one_off_mistakes.map((t) => (
+                    {story.one_off_mistakes.map((t) => (
                       <TagBadge key={t} tag={t} className="opacity-60" />
                     ))}
                   </div>
                   <p className="mt-2 text-[12px] text-[#4b6b55]">Recurring = the same tag in ≥ 2 different challenges. Faded = one-off, never flagged.</p>
                   <motion.div initial={{ rotateX: -70, opacity: 0 }} animate={{ rotateX: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 120, damping: 15, delay: 0.3 }} style={{ transformPerspective: 800 }} className="mt-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#359462]">Why this next → {rohan.next_challenge.challenge_id}</p>
-                    <p className="mt-1.5 text-[13.5px] leading-5 text-neutral-800">{rohan.next_challenge.reason}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#359462]">Why this next → {story.next_challenge.challenge_id}</p>
+                    <p className="mt-1.5 text-[13.5px] leading-5 text-neutral-800">{story.next_challenge.reason}</p>
                   </motion.div>
-                  <Link href="/dashboard?learner=rohan" className="mt-3 inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#2f7c53] hover:underline">
-                    Open rohan&apos;s dashboard <ArrowRight className="size-3" />
+                  <Link href="/dashboard?learner=riya" className="mt-3 inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#2f7c53] hover:underline">
+                    Open riya&apos;s dashboard <ArrowRight className="size-3" />
                   </Link>
                 </>
               ) : (
@@ -287,7 +287,7 @@ export default function JudgesPage() {
         <Card>
           <p className="font-mono text-[12.5px] font-semibold text-neutral-900">GET /api/learner/{"{id}"}</p>
           <p className="mb-2 mt-1 text-[12px] text-neutral-500">recurring mistakes · mastery · next challenge + reason</p>
-          <Curl cmd={`curl -s ${origin}/api/learner/rohan`} />
+          <Curl cmd={`curl -s ${origin}/api/learner/riya`} />
         </Card>
       </div>
 
@@ -296,7 +296,7 @@ export default function JudgesPage() {
         {[
           { href: "/ledger", t: "Hint Ledger", d: "Every prompt and response, with the guardrail's rejection count." },
           { href: "/taxonomy", t: "Mistake taxonomy", d: "Hand-in #3: each category, its detection rule, an example and its unit test." },
-          { href: "/dashboard?learner=rohan", t: "A learner's arc", d: "Mastery moving with the evidence, recurring vs one-off, the next challenge and why." },
+          { href: "/dashboard?learner=riya", t: "A learner's arc", d: "Mastery moving with the evidence, recurring vs one-off, the next challenge and why." },
         ].map((x) => (
           <Link key={x.href} href={x.href} className="group rounded-3xl border border-neutral-200/80 bg-white p-5 transition-all hover:border-neutral-950">
             <p className="flex items-center justify-between text-[15px] font-semibold text-neutral-950">

@@ -153,11 +153,11 @@ function ContributionGraph({ weeks }: { weeks: Array<Array<{ level: number; n: n
 type FeedItem = Awaited<ReturnType<typeof api.feed>>["items"][number];
 
 const SAMPLE_ROWS: FeedItem[] = [
-  { submission_id: "s_0142", learner_id: "rohan", challenge_id: "last-k-total", title: "Last K Total", passed: false, tags: ["unhandled_short_input"], hints: 2, duration_ms: 310, at: new Date(Date.now() - 120_000).toISOString() },
-  { submission_id: "s_0141", learner_id: "meera", challenge_id: "count-passes", title: "Count Passes", passed: true, tags: [], hints: 0, duration_ms: 190, at: new Date(Date.now() - 400_000).toISOString() },
-  { submission_id: "s_0140", learner_id: "kabir", challenge_id: "first-n-squares", title: "First N Squares", passed: false, tags: ["off_by_one"], hints: 1, duration_ms: 240, at: new Date(Date.now() - 900_000).toISOString() },
-  { submission_id: "s_0139", learner_id: "rohan", challenge_id: "middle-three", title: "Middle Three", passed: false, tags: ["print_not_return"], hints: 0, duration_ms: 220, at: new Date(Date.now() - 1_800_000).toISOString() },
-  { submission_id: "s_0138", learner_id: "meera", challenge_id: "grade-letter", title: "Grade Letter", passed: false, tags: ["boundary_comparison"], hints: 0, duration_ms: 205, at: new Date(Date.now() - 3_600_000).toISOString() },
+  { submission_id: "s_0142", learner_id: "riya", challenge_id: "last-k-total", title: "Last K Total", passed: false, tags: ["unhandled_short_input"], hints: 2, duration_ms: 310, at: new Date(Date.now() - 120_000).toISOString() },
+  { submission_id: "s_0141", learner_id: "khushi", challenge_id: "count-passes", title: "Count Passes", passed: true, tags: [], hints: 0, duration_ms: 190, at: new Date(Date.now() - 400_000).toISOString() },
+  { submission_id: "s_0140", learner_id: "khushi", challenge_id: "first-n-squares", title: "First N Squares", passed: false, tags: ["off_by_one"], hints: 1, duration_ms: 240, at: new Date(Date.now() - 900_000).toISOString() },
+  { submission_id: "s_0139", learner_id: "riya", challenge_id: "middle-three", title: "Middle Three", passed: false, tags: ["print_not_return"], hints: 0, duration_ms: 220, at: new Date(Date.now() - 1_800_000).toISOString() },
+  { submission_id: "s_0138", learner_id: "riya", challenge_id: "grade-letter", title: "Grade Letter", passed: false, tags: ["boundary_comparison"], hints: 0, duration_ms: 205, at: new Date(Date.now() - 3_600_000).toISOString() },
 ];
 const AVATAR = ["bg-purple-500", "bg-blue-500", "bg-orange-500", "bg-emerald-500", "bg-rose-500", "bg-amber-500"];
 

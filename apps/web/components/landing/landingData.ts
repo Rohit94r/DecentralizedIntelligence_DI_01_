@@ -1,8 +1,8 @@
 /** Sample data for the landing page showcase (the live product uses the API). */
 export const masteryBoard = [
-  { name: "meera", mastery: 78, cleared: 9, streak: 6, rank: 1, color: "#5e2ac4", initial: "M" },
-  { name: "rohan", mastery: 64, cleared: 7, streak: 3, rank: 2, color: "#359462", initial: "R" },
-  { name: "kabir", mastery: 58, cleared: 5, streak: 1, rank: 3, color: "#c64e27", initial: "K" },
+  { name: "khushi", mastery: 92, cleared: 12, streak: 13, rank: 1, color: "#5e2ac4", initial: "K" },
+  { name: "riya", mastery: 64, cleared: 3, streak: 3, rank: 2, color: "#359462", initial: "R" },
+  { name: "rohan", mastery: 50, cleared: 0, streak: 0, rank: 3, color: "#c64e27", initial: "R" },
   { name: "ananya", mastery: 55, cleared: 5, streak: 4, rank: 4, color: "#0ea5e9", initial: "A" },
   { name: "dev", mastery: 49, cleared: 3, streak: 2, rank: 5, color: "#94cd59", initial: "D" },
 ];

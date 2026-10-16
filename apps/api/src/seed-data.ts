@@ -3,10 +3,11 @@
  * the REAL engine and sandbox (no hand-written rows), so what the judges see
  * on the dashboard is exactly what the product computes.
  *
- * rohan — the statement's story: two recurring mistakes, one one-off slip,
- *         a non-empty "why this next" reason · meera — boundary mistakes and
- *         an "answer please" that still only climbed one rung · kabir — new,
- *         nothing recurring yet.
+ * rohan  — first visit: no history yet (the first-time experience).
+ * riya   — in the middle: the statement's story — two recurring mistakes,
+ *          one one-off slip, a non-empty "why this next" reason.
+ * khushi — finished every problem on a 12-day streak; with her bug-bounty
+ *          finds she has enough points to cash out.
  */
 import { SEED_LEARNERS } from "./fixtures.ts";
 import { seedBounty } from "./seed-bounty.ts";
@@ -18,11 +19,14 @@ export async function seedAll(ctx: Ctx, log: (s: string) => void = () => {}): Pr
   const now = Date.now();
   for (const l of SEED_LEARNERS) {
     const t0 = Date.now();
-    await runScript(ctx, l.id, l.steps, { days: l.days, now: now - 60_000 });
-    log(`  seeded ${l.id.padEnd(6)} ${l.steps.filter((s) => s.code).length} submissions  (${Date.now() - t0} ms)`);
+    if (l.steps.length) await runScript(ctx, l.id, l.steps, { days: l.days, now: now - 60_000 });
+    // steps that happen "today", at the real current time (keeps a streak alive)
+    if (l.today?.length) await runScript(ctx, l.id, l.today);
+    const n = [...l.steps, ...(l.today ?? [])].filter((s) => s.code).length;
+    log(`  seeded ${l.id.padEnd(6)} ${n ? `${n} submissions` : "first visit — no history"}  (${Date.now() - t0} ms)`);
   }
   seedCommunity(ctx.store, now);
-  log("  seeded community: 3 teachers, the AI mentor, 6 threads");
+  log("  seeded community: 3 teachers, the AI mentor, 12 threads");
   seedBounty(ctx.store, now);
-  log("  seeded bug bounty: 2 hosted programs, 7 reports, streak points");
+  log("  seeded bug bounty: 2 hosted programs, reports, rewards");
 }

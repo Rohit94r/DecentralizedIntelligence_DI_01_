@@ -23,7 +23,7 @@ const en = {
     ctaPrimary: "Start practising",
     ctaSecondary: "See how it works",
     sidebar: { results: "Results", hints: "Hint ladder", linemap: "Line Map", mastery: "Mastery" },
-    learner: "rohan · learner",
+    learner: "riya · learner",
     livePreview: "LIVE PREVIEW · REAL LAYERFLOW OUTPUT",
     submit: "Submit",
     running: "Running in the sandbox…",

@@ -42,7 +42,7 @@ function PreviewResults() {
     <div className="flex h-[330px] flex-col gap-3 overflow-hidden p-3 sm:h-auto sm:min-h-[640px] sm:gap-5 sm:p-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-mono text-[11px] text-neutral-500 sm:text-sm">rohan · last-k-total · s_0142</p>
+          <p className="font-mono text-[11px] text-neutral-500 sm:text-sm">riya · last-k-total · s_0142</p>
           <p className="mt-1 font-poppins text-sm font-semibold text-white sm:text-xl">{phase === "done" ? "You're close — this is one edge case away." : t("hero.running")}</p>
         </div>
         <button
@@ -236,7 +236,7 @@ function PreviewMastery() {
       <div className="rounded-lg border border-white/10 bg-neutral-900 shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
         <div className="flex items-center gap-2 border-b border-white/10 bg-neutral-800/50 px-4 py-3 sm:px-5 sm:py-4">
           <span className="size-2 rounded-full bg-green-500" />
-          <p className="font-poppins text-[10px] uppercase tracking-[0.18em] text-neutral-500 sm:text-xs">mastery per concept · rohan</p>
+          <p className="font-poppins text-[10px] uppercase tracking-[0.18em] text-neutral-500 sm:text-xs">mastery per concept · riya</p>
         </div>
         <div className="flex h-28 items-end justify-between gap-1.5 p-4 sm:h-[200px] sm:p-5">
           {bars.map((b) => (
