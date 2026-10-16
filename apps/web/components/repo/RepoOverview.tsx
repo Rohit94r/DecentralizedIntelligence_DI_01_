@@ -13,6 +13,8 @@ import { BookOpen, Compass, ExternalLink, FileCode, FolderOpen, FolderTree, Foot
 import { Card } from "@/components/app/bits";
 import type { RepoReport } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { TechLogo } from "@/components/app/Logo";
+import { logoFor } from "@/lib/logos";
 import { CopyButton, InlineCode, Label, PART_META, PartBadge, SectionTitle, TechChips, githubUrl } from "./bits";
 
 type Overview = NonNullable<RepoReport["overview"]>;
@@ -49,7 +51,7 @@ function Parts({ o, glossary, langColor }: { o: Overview; glossary: Map<string, 
               <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
                 {p.languages.map((l) => (
                   <span key={l} className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-neutral-700">
-                    <span className="size-2 rounded-full" style={{ backgroundColor: langColor(l) }} />
+                    {logoFor(l) ? <TechLogo name={l} size={13} /> : <span className="size-2 rounded-full" style={{ backgroundColor: langColor(l) }} />}
                     {l}
                   </span>
                 ))}
@@ -144,7 +146,7 @@ function LanguagesCard({ o }: { o: Overview }) {
         {o.languages.map((l) => (
           <li key={l.name} onMouseEnter={() => setHover(l.name)} onMouseLeave={() => setHover(null)} className={cn("py-2.5 transition-opacity", hover && hover !== l.name && "opacity-60")}>
             <div className="flex items-center gap-2">
-              <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: l.color }} />
+              {logoFor(l.name) ? <TechLogo name={l.name} size={16} /> : <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: l.color }} />}
               <span className="text-[13.5px] font-semibold text-neutral-950">{l.name}</span>
               <span className="hidden rounded-full bg-neutral-100 px-1.5 py-px text-[10.5px] font-medium text-neutral-500 sm:inline">{KIND[l.kind] ?? l.kind}</span>
               <span className="ml-auto shrink-0 text-right text-[11.5px] tabular-nums text-neutral-500">

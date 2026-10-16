@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { BrainCircuit, Check, Copy, Database, FlaskConical, Monitor, Rocket, Server, ShieldAlert, Smartphone, TriangleAlert, User, Wrench, type LucideIcon } from "lucide-react";
 import type { RepoPartId, RepoReport, Severity } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { TechLogo } from "@/components/app/Logo";
 
 export const SEV: Record<Severity, { label: string; bug: string; dot: string; chip: string; Icon: LucideIcon }> = {
   high: { label: "Fix first", bug: "High risk", dot: "#c64e27", chip: "border-[#f3c8b8] bg-[#fdeee8] text-[#a8401f]", Icon: ShieldAlert },
@@ -84,9 +85,10 @@ export function TechChips({ names, glossary, color = "#525252" }: { names: strin
             onFocus={() => setActive(n)}
             onClick={() => setActive((a) => (a === n ? null : n))}
             aria-pressed={active === n}
-            className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-shadow", active === n && "ring-2 ring-offset-1 ring-offset-transparent")}
+            className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-shadow", active === n && "ring-2 ring-offset-1 ring-offset-transparent")}
             style={{ color, borderColor: color + "45", backgroundColor: color + "14", ...(active === n ? ({ "--tw-ring-color": color + "55" } as React.CSSProperties) : {}) }}
           >
+            <TechLogo name={n} size={12} />
             {n}
           </button>
         ))}
