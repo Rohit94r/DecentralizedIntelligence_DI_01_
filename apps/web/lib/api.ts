@@ -652,6 +652,16 @@ export interface PaymentsStatus {
   message: string;
   mode: string | null;
   webhook: boolean;
+  /** dodo = Dodo's hosted checkout; demo = the in-app demo checkout (nothing is charged) */
+  checkout?: "dodo" | "demo";
+}
+
+export interface DemoCheckout {
+  payment: string;
+  program_id: string;
+  plan: string;
+  plan_name: string;
+  amount_inr: number;
 }
 
 export interface AdminRedemption extends Redemption {
@@ -768,8 +778,9 @@ export const api = {
     rewards: Record<BountySeverity, number>;
     plan: BountyPlan["id"];
     return_base: string;
-  }) => req<{ id: string; status: "open" | "awaiting_payment"; checkout_url: string | null }>("POST", "/api/bounty/programs", b),
-  programCheckout: (id: string, owner_id: string, pin: string, return_base: string) => req<{ payment: string; checkout_url: string }>("POST", `/api/bounty/programs/${encodeURIComponent(id)}/checkout`, { owner_id, pin, return_base }),
+  }) => req<{ id: string; status: "open" | "awaiting_payment"; checkout_url: string | null; demo_checkout?: DemoCheckout | null }>("POST", "/api/bounty/programs", b),
+  programCheckout: (id: string, owner_id: string, pin: string, return_base: string) => req<{ payment: string; checkout_url: string | null; demo_checkout?: DemoCheckout | null }>("POST", `/api/bounty/programs/${encodeURIComponent(id)}/checkout`, { owner_id, pin, return_base }),
+  completeDemoPayment: (payment: string, owner_id: string) => req<{ status: "succeeded" | "failed"; payment_id: string | null }>("POST", "/api/payments/demo/complete", { payment, owner_id }),
   triageReport: (id: string, b: { actor_id: string; pin: string; status: "valid" | "duplicate" | "needs_info" | "invalid"; final_severity?: BountySeverity; note?: string }) =>
     req<{ report: BountyReport }>("POST", `/api/bounty/reports/${encodeURIComponent(id)}/triage`, b),
   explainer: (lang = "en") => req<{ lang: string; scenes: ExplainerScene[] }>("GET", `/api/bounty/explainer?lang=${encodeURIComponent(lang)}`),
