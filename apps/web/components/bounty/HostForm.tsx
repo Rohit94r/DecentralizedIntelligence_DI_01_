@@ -11,7 +11,8 @@ import { motion } from "motion/react";
 import { Building2, CreditCard, Globe, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/app/bits";
 import { usePin } from "@/components/rewards/PinDialog";
-import { api, type BountyPlan, type BountySeverity, type PaymentsStatus } from "@/lib/api";
+import { DodoBadge, DodoCheckoutSheet } from "@/components/payments/DodoCheckout";
+import { api, type BountyPlan, type BountySeverity, type DemoCheckout, type PaymentsStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { SEVERITY_STYLE } from "./bits";
 
@@ -30,6 +31,7 @@ export function HostForm({ plans, learner, onCreated }: { plans: BountyPlan[]; l
   const [error, setError] = useState<string | null>(null);
   const [pay, setPay] = useState<PaymentsStatus | null>(null);
   const [hasPin, setHasPin] = useState(false);
+  const [demo, setDemo] = useState<DemoCheckout | null>(null);
   const pin = usePin();
 
   useEffect(() => {
@@ -75,6 +77,7 @@ export function HostForm({ plans, learner, onCreated }: { plans: BountyPlan[]; l
         return_base: window.location.origin,
       });
       if (r.checkout_url) window.location.href = r.checkout_url;
+      else if (r.demo_checkout) setDemo(r.demo_checkout);
       else onCreated(r.id);
     } catch (e) {
       setError((e as Error).message);
@@ -171,13 +174,19 @@ export function HostForm({ plans, learner, onCreated }: { plans: BountyPlan[]; l
           </motion.button>
         ))}
         {paid && (
-          <div className={cn("flex items-start gap-2 rounded-2xl px-4 py-3 text-[12.5px] leading-[1.5]", pay?.ready ? "bg-[#359462]/10 text-[#2f7c53]" : "bg-[#f59e0b]/12 text-[#96681c]")}>
-            <CreditCard className="mt-0.5 size-4 shrink-0" />
-            <span>{pay ? (pay.ready ? `Paid securely with Dodo Payments (UPI, cards). ${pay.message}` : pay.message) : "Checking payments…"}</span>
+          <div className="rounded-2xl border border-neutral-200/80 bg-white px-4 py-3">
+            <DodoBadge label="Checkout by" />
+            <p className="mt-2 text-[12.5px] leading-[1.5] text-neutral-600">
+              {!pay
+                ? "Checking payments…"
+                : pay.checkout === "demo"
+                  ? "Pay with UPI or a card in Dodo's checkout. This server runs it in demo mode, so nothing is charged."
+                  : `Pay with UPI or a card on Dodo's secure checkout page. ${pay.message}`}
+            </p>
           </div>
         )}
         {error && <p className="rounded-2xl bg-[#c64e27]/10 px-4 py-3 text-[12.5px] font-medium text-[#a8401f]">{error}</p>}
-        <button onClick={submit} disabled={busy || !learner || (paid && pay !== null && !pay.ready)} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-neutral-950 text-[14px] font-semibold text-white disabled:opacity-40">
+        <button onClick={submit} disabled={busy || !learner || (paid && pay !== null && pay.checkout !== "demo" && !pay.ready)} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-neutral-950 text-[14px] font-semibold text-white disabled:opacity-40">
           {busy ? <LoaderCircle className="size-4 animate-spin" /> : paid ? <CreditCard className="size-4" /> : <ShieldCheck className="size-4" />}
           {paid ? `Continue to payment · ₹${chosen.price_inr.toLocaleString("en-IN")}` : "Post the program"}
         </button>
@@ -186,6 +195,17 @@ export function HostForm({ plans, learner, onCreated }: { plans: BountyPlan[]; l
         </p>
       </div>
       {pin.dialog}
+      {demo && learner && (
+        <DodoCheckoutSheet
+          checkout={demo}
+          ownerId={learner}
+          onClose={() => {
+            setDemo(null);
+            onCreated(demo.program_id);
+          }}
+          onPaid={() => onCreated(demo.program_id)}
+        />
+      )}
     </div>
   );
 }
