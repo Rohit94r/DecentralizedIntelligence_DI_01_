@@ -14,6 +14,8 @@ import { createRuntime, type Runtime } from "../apps/api/src/context.ts";
 export interface Api {
   get(url: string): Promise<{ status: number; body: any; raw: string }>;
   post(url: string, body: unknown): Promise<{ status: number; body: any; raw: string }>;
+  /** POST an exact byte string with extra headers (signed webhooks). */
+  postRaw(url: string, raw: string, headers: Record<string, string>): Promise<{ status: number; body: any; raw: string }>;
   rt: Runtime | null;
   close(): Promise<void>;
   mode: string;
@@ -35,8 +37,12 @@ export async function connect(): Promise<Api> {
   const live = urlArg();
   if (live) {
     const base = live.replace(/\/$/, "");
-    const call = async (method: string, url: string, body?: unknown) => {
-      const res = await fetch(base + url, { method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+    const call = async (method: string, url: string, body?: unknown, headers: Record<string, string> = {}) => {
+      const res = await fetch(base + url, {
+        method,
+        headers: body !== undefined ? { "content-type": "application/json", ...headers } : headers,
+        body: typeof body === "string" ? body : body ? JSON.stringify(body) : undefined,
+      });
       const raw = await res.text();
       let parsed: unknown = null;
       try {
@@ -46,14 +52,14 @@ export async function connect(): Promise<Api> {
       }
       return { status: res.status, body: parsed, raw };
     };
-    shared = { get: (u) => call("GET", u), post: (u, b) => call("POST", u, b), rt: null, close: async () => {}, mode: `live ${base}` };
+    shared = { get: (u) => call("GET", u), post: (u, b) => call("POST", u, b), postRaw: (u, raw, h) => call("POST", u, raw, h), rt: null, close: async () => {}, mode: `live ${base}` };
     return shared;
   }
   const dir = mkdtempSync(path.join(os.tmpdir(), "layerflow-harness-"));
   const rt = createRuntime({ dbFile: path.join(dir, "harness.db"), llm: false, warm: 4 });
   const app = await buildApp({ ...rt, pool: rt.pool, logSubmissions: false });
-  const call = async (method: "GET" | "POST", url: string, body?: unknown) => {
-    const res = await app.inject({ method, url, payload: body as never });
+  const call = async (method: "GET" | "POST", url: string, body?: unknown, headers?: Record<string, string>) => {
+    const res = await app.inject({ method, url, payload: body as never, headers: headers ? { "content-type": "application/json", ...headers } : undefined });
     let parsed: unknown = null;
     try {
       parsed = JSON.parse(res.body);
@@ -65,6 +71,7 @@ export async function connect(): Promise<Api> {
   shared = {
     get: (u) => call("GET", u),
     post: (u, b) => call("POST", u, b),
+    postRaw: (u, raw, h) => call("POST", u, raw, h),
     rt,
     mode: "in-process (real Fastify + real Pyodide runners)",
     close: async () => {

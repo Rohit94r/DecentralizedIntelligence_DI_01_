@@ -16,6 +16,7 @@ import * as redteam from "./redteam.test.ts";
 import * as learner from "./learner.test.ts";
 import * as explain from "./explain.test.ts";
 import * as learning from "./learning.test.ts";
+import * as rewards from "./rewards.test.ts";
 
 const started = Date.now();
 console.log("\nLAYERFLOW — self-test harness");
@@ -25,7 +26,7 @@ console.log(`   mode: ${api.mode}`);
 const { unitResult } = await import("../packages/core/test/unit.ts");
 
 const suites: SuiteResult[] = [];
-for (const s of [redteam, labels, secrecy, leakage, learner, explain, learning]) {
+for (const s of [redteam, labels, secrecy, leakage, learner, explain, learning, rewards]) {
   try {
     const r = await s.run();
     suites.push(r);
@@ -51,6 +52,7 @@ row("T4 hint leakage (10)", suites[3]);
 row("T5 recurring + skills (10)", suites[4]);
 row("T6 explanations (15, rated)", suites[5]);
 row("T7 mentor·chat·community·repo", suites[6]);
+row("T8 streak·points·bounty·pay", suites[7]);
 console.log(`║ ${unitResult.failed ? "❌" : "✅"} ${"core unit tests".padEnd(30)} ${`${unitResult.total - unitResult.failed}/${unitResult.total} passed`.padEnd(38)} ║`);
 console.log(`║ ${health.status === 200 ? "✅" : "❌"} ${"server alive at the end".padEnd(30)} ${`GET /api/health → ${health.status}`.padEnd(38)} ║`);
 console.log("╚════════════════════════════════════════════════════════════════════════╝");

@@ -95,6 +95,18 @@ export async function run(): Promise<SuiteResult> {
   // repo analyse, offline on this checkout
   const rep = await api.post("/api/repo/analyze", { local: true, learner_id: learner });
   check(checks, "Repo Analyse works offline on this checkout", rep.status === 200 && typeof rep.body?.score === "number" && rep.body?.layers?.length === 8, `HTTP ${rep.status} ${rep.body?.error ?? ""}`);
+  const parts: { id: string; languages: string[] }[] = rep.body?.overview?.parts ?? [];
+  const tsIn = (id: string) => parts.find((p) => p.id === id)?.languages.includes("TypeScript") ?? false;
+  check(
+    checks,
+    "…its beginner overview finds the frontend and the backend (both TypeScript) and lists the languages",
+    tsIn("frontend") && tsIn("backend") && (rep.body?.overview?.languages?.length ?? 0) > 0,
+    JSON.stringify(parts.map((p) => `${p.id}:${p.languages.join("/")}`)),
+  );
+  const SECRET = /AKIA[0-9A-Z]{16}|\bghp_[A-Za-z0-9]{30,}|\bgithub_pat_\w{30,}|\bsk-(proj-|ant-)?[A-Za-z0-9_-]{20,}|\bgsk_[A-Za-z0-9]{24,}|\bAIza[0-9A-Za-z_-]{35}|\bxox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(postgres(ql)?|mysql|mongodb(\+srv)?):\/\/[^:\s/'"]+:[^@\s'"]{3,}@/;
+  const bugs: { snippet?: { lines?: string[] } }[] = Array.isArray(rep.body?.bugs) ? rep.body.bugs : [];
+  const badLines = bugs.flatMap((b) => b.snippet?.lines ?? []).filter((l) => typeof l !== "string" || l.length > 200 || SECRET.test(l));
+  check(checks, `…and its ${bugs.length} bug snippet${bugs.length === 1 ? "" : "s"} are short and never contain a secret`, Array.isArray(rep.body?.bugs) && badLines.length === 0, badLines.slice(0, 2).join(" ‖ "));
   const bad = await api.post("/api/repo/analyze", { url: "definitely not a repo" });
   check(checks, "…and explains a bad link in plain words", bad.status === 400 && /github/i.test(bad.body?.error ?? ""), bad.body?.error);
   if (rep.body?.id) {
