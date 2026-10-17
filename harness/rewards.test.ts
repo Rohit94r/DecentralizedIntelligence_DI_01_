@@ -9,6 +9,9 @@
  *   • a company program can't mint points: owners can't report or approve
  *     themselves, and the reward pool can't be overdrawn
  *   • the Dodo webhook rejects bad signatures and applies a payment once
+ *   • plans: Free stops at its daily limits and the beginner program; Pro (a
+ *     ₹349 / $4 demo checkout) lifts them; stopping renewal keeps the paid
+ *     month; an expiry webhook ends it; Custom requests are saved
  */
 import { createHmac } from "node:crypto";
 import { BUILT_IN_PROGRAMS, getChallenge, plantedBugs } from "../packages/core/src/index.ts";
@@ -186,6 +189,66 @@ export async function run(): Promise<SuiteResult> {
     check(checks, "…and a replayed webhook is ignored", replay.body?.duplicate === true, replay.raw.slice(0, 120));
     delete process.env.DODO_PAYMENTS_WEBHOOK_SECRET;
   }
+
+  /* ── plans: Free limits, Pro through the (demo) checkout, Custom requests ── */
+  const limitsWas = process.env.LAYERFLOW_LIMITS;
+  const checkoutWas = process.env.LAYERFLOW_CHECKOUT;
+  process.env.LAYERFLOW_LIMITS = "on";
+  process.env.LAYERFLOW_CHECKOUT = "demo"; // the suite never opens a real checkout
+  const campus = BUILT_IN_PROGRAMS.find((p) => p.difficulty !== "beginner")!;
+  const shopP = BUILT_IN_PROGRAMS.find((p) => p.difficulty === "beginner")!;
+  const planReport = (learner: string, p: typeof campus) => api.post("/api/bounty/reports", { program_id: p.id, learner_id: learner, title: "Harness plan-gate report", category: "logic", severity: "low", file: p.files[0].path, line: 1, description: "A long enough description so the validator accepts this report for the plan test." });
+
+  const free = L("free");
+  const analyses = [];
+  for (let i = 0; i < 4; i++) analyses.push(await api.post("/api/repo/analyze", { local: true, learner_id: free }));
+  check(checks, "Free: 3 Repo / Website analyses a day, then 402 with the Pro offer", analyses.slice(0, 3).every((r) => r.status === 200) && analyses[3].status === 402 && /go Pro/.test(analyses[3].body?.error ?? ""), analyses.map((r) => r.status).join(","));
+  const chats = [];
+  for (let i = 0; i < 21; i++) chats.push((await api.post("/api/chat", { learner_id: free, message: "What should I practise next?" })).status);
+  check(checks, "Free: 20 chat messages with Priya a day, then 402", chats.slice(0, 20).every((s) => s === 200) && chats[20] === 402, chats.join(","));
+  const freeCampus = await planReport(free, campus);
+  const freeShop = await planReport(free, shopP);
+  check(checks, `Free: ${shopP.company} takes reports, ${campus.company} asks for Pro`, freeShop.status === 200 && freeCampus.status === 402, `${freeShop.status} / ${freeCampus.status} ${freeCampus.body?.error ?? ""}`);
+
+  const pro = L("pro");
+  const co = await api.post("/api/plans/checkout", { learner_id: pro, currency: "INR", return_base: "http://localhost:3000" });
+  const strangerPay = await api.post("/api/payments/demo/complete", { payment: co.body?.payment, owner_id: L("stranger2") });
+  const paid = await api.post("/api/payments/demo/complete", { payment: co.body?.payment, owner_id: pro });
+  const v1 = await api.get(`/api/plans?learner_id=${pro}`);
+  const twice = await api.post("/api/payments/demo/complete", { payment: co.body?.payment, owner_id: pro });
+  const v2 = await api.get(`/api/plans?learner_id=${pro}`);
+  const badge = await api.get(`/api/rewards/${pro}/summary`);
+  check(checks, "Pro: a ₹349 checkout switches Pro on — only for the learner who started it", co.body?.mode === "demo" && co.body?.demo_checkout?.amount === 34_900 && co.body?.demo_checkout?.currency === "INR" && strangerPay.status === 403 && paid.body?.status === "succeeded" && v1.body?.me?.plan === "pro" && badge.body?.plan === "pro", `${co.status} ${strangerPay.status} ${paid.raw.slice(0, 80)} ${v1.body?.me?.plan}`);
+  check(checks, "…and completing the same checkout twice doesn't add a second month", twice.body?.status === "succeeded" && v2.body?.me?.subscription?.current_period_end === v1.body?.me?.subscription?.current_period_end, `${v1.body?.me?.subscription?.current_period_end} → ${v2.body?.me?.subscription?.current_period_end}`);
+  const usd = await api.post("/api/plans/checkout", { learner_id: L("usd"), currency: "USD", return_base: "http://localhost:3000" });
+  check(checks, "…the dollar price is $4", usd.body?.demo_checkout?.amount === 400 && usd.body?.demo_checkout?.currency === "USD", usd.raw.slice(0, 120));
+  const proRuns = [];
+  for (let i = 0; i < 4; i++) proRuns.push((await api.post("/api/repo/analyze", { local: true, learner_id: pro })).status);
+  const proCampus = await planReport(pro, campus);
+  check(checks, `Pro: no daily limit, and ${campus.company} takes the report`, proRuns.every((s) => s === 200) && proCampus.status === 200, `${proRuns.join(",")} / ${proCampus.status}`);
+  const stop = await api.post("/api/plans/renewal", { learner_id: pro, pin: "1357", renew: false });
+  const v3 = await api.get(`/api/plans?learner_id=${pro}`);
+  check(checks, "stopping renewal keeps Pro until the paid month ends", stop.status === 200 && v3.body?.me?.plan === "pro" && v3.body?.me?.subscription?.cancel_at_period_end === true, stop.raw.slice(0, 120));
+
+  if (api.rt) {
+    const secret = "whsec_" + Buffer.from(`harness-${tag}-plans-key`).toString("base64");
+    process.env.DODO_PAYMENTS_WEBHOOK_SECRET = secret;
+    const raw = JSON.stringify({ business_id: "bus_x", type: "subscription.expired", timestamp: new Date().toISOString(), data: { payload_type: "Subscription", subscription_id: "sub_harness", status: "expired", metadata: { learner_id: pro } } });
+    const ts = String(Math.floor(Date.now() / 1000));
+    const sig = "v1," + createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`wh_expire.${ts}.${raw}`).digest("base64");
+    const hook = await api.postRaw("/api/payments/dodo/webhook", raw, { "webhook-id": "wh_expire", "webhook-timestamp": ts, "webhook-signature": sig });
+    const v4 = await api.get(`/api/plans?learner_id=${pro}`);
+    check(checks, "a signed subscription.expired webhook puts the learner back on Free", hook.status === 200 && v4.body?.me?.plan === "free", `${hook.status} ${v4.body?.me?.plan}`);
+    delete process.env.DODO_PAYMENTS_WEBHOOK_SECRET;
+  }
+
+  const lead = await api.post("/api/plans/contact", { name: "Harness Teacher", email: "teacher@college.example", organisation: "Harness College", kind: "college", seats: 60, message: "Pro for one class." });
+  const badLead = await api.post("/api/plans/contact", { name: "Harness Teacher", email: "not-an-email", organisation: "Harness College", kind: "college" });
+  check(checks, "Custom: “Talk to us” saves the request and checks the email", lead.status === 200 && /^lead_/.test(lead.body?.id ?? "") && badLead.status === 400, `${lead.status} ${badLead.status}`);
+  if (limitsWas === undefined) delete process.env.LAYERFLOW_LIMITS;
+  else process.env.LAYERFLOW_LIMITS = limitsWas;
+  if (checkoutWas === undefined) delete process.env.LAYERFLOW_CHECKOUT;
+  else process.env.LAYERFLOW_CHECKOUT = checkoutWas;
 
   return {
     suite: "rewards.test.ts — T8 streak · points · bug bounty · payments",

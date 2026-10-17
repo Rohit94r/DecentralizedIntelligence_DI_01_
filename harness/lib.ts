@@ -33,6 +33,7 @@ let shared: Api | null = null;
 export async function connect(): Promise<Api> {
   if (shared) return shared;
   process.env.LAYERFLOW_CANARY_SECRET = CANARY; // the API process has a secret; the sandbox must never see it
+  process.env.LAYERFLOW_LIMITS ??= "off"; // suites measure behaviour, not the Free plan; T8 turns limits on to test them
   process.removeAllListeners("warning");
   const live = urlArg();
   if (live) {
