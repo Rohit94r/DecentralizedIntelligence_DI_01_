@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Debug Dojo — systemd unit
+#
+#   sudo cp deploy/debug-dojo.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now debug-dojo
+#   sudo journalctl -u debug-dojo -f        # follow logs
+#
+# Why a service and not just `npm start`: an SSH disconnect would kill the
+# process, and the judges need the API reachable for the whole judging window.
+# `Restart=always` also means a crash comes straight back.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[Unit]
+Description=Debug Dojo (DI-01 · Kurukshetra 2026)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/opt/debug-dojo
+
+# ⚠️ PORT is what Next binds to. The Fastify API stays on an internal port
+#    (LAYERFLOW_API_PORT) and Next proxies /api/* to it, so ONE public port is
+#    all the judges need.
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=LAYERFLOW_API_PORT=4000
+Environment=NEXT_TELEMETRY_DISABLED=1
+
+# Deterministic answers even if an API key dies mid-demo, and no daily caps so
+# the judges' red-team sweep can't get throttled.
+Environment=LAYERFLOW_RESEED=1
+Environment=LAYERFLOW_LIMITS=off
+Environment=LAYERFLOW_CHECKOUT=demo
+
+# Secrets live in this file only — never in git.
+#   chmod 600 /opt/debug-dojo/.env
+EnvironmentFile=-/opt/debug-dojo/.env
+
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+# ── hardening ────────────────────────────────────────────────────────────────
+# The sandbox spawns child processes, so we cannot set NoNewPrivileges-free
+# sandboxes blindly; these limits keep a runaway runner from eating the box.
+MemoryMax=3G
+TasksMax=2048
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
