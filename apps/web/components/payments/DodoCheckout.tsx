@@ -11,7 +11,7 @@ import React, { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, CreditCard, FlaskConical, LoaderCircle, Lock, Smartphone, X } from "lucide-react";
 import { Portal } from "@/components/app/Portal";
-import { api, type DemoCheckout } from "@/lib/api";
+import { api, money, type DemoCheckout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const LIME = "#C6FE1E";
@@ -26,13 +26,14 @@ export function DodoBadge({ className, label = "Payments by" }: { className?: st
   );
 }
 
-export function DodoCheckoutSheet({ checkout, ownerId, onClose, onPaid }: { checkout: DemoCheckout; ownerId: string; onClose: () => void; onPaid: (paymentId: string | null) => void }) {
+export function DodoCheckoutSheet({ checkout, ownerId, onClose, onPaid, doneText = "Your program is now open for hunters.", continueLabel = "Continue to your program" }: { checkout: DemoCheckout; ownerId: string; onClose: () => void; onPaid: (paymentId: string | null) => void; doneText?: string; continueLabel?: string }) {
   const [method, setMethod] = useState<"upi" | "card">("upi");
   const [vpa, setVpa] = useState("success@upi");
   const [stage, setStage] = useState<"form" | "paying" | "done">("form");
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const amount = `₹${checkout.amount_inr.toLocaleString("en-IN")}`;
+  const amount = checkout.amount != null && checkout.currency ? money(checkout.amount, checkout.currency) : `₹${(checkout.amount_inr ?? 0).toLocaleString("en-IN")}`;
+  const what = checkout.title ?? `Bug bounty — ${checkout.plan_name} plan`;
 
   const pay = async () => {
     setError(null);
@@ -71,7 +72,7 @@ export function DodoCheckoutSheet({ checkout, ownerId, onClose, onPaid }: { chec
               <img src="/brands/layerflow.svg" alt="" className="size-9 rounded-lg" />
               <div className="min-w-0">
                 <p className="text-[13.5px] font-semibold">Layerflow</p>
-                <p className="truncate text-[12px] text-neutral-500">Bug bounty — {checkout.plan_name} plan</p>
+                <p className="truncate text-[12px] text-neutral-500">{what}</p>
               </div>
               <p className="ml-auto text-[20px] font-semibold tabular-nums tracking-[-0.02em]">{amount}</p>
             </div>
@@ -84,7 +85,7 @@ export function DodoCheckoutSheet({ checkout, ownerId, onClose, onPaid }: { chec
                   <Check className="size-6" strokeWidth={3} />
                 </span>
                 <p className="mt-3 text-[16px] font-semibold">Payment successful</p>
-                <p className="mt-1 text-[12.5px] text-neutral-500">{amount} paid to Layerflow. Your program is now open for hunters.</p>
+                <p className="mt-1 text-[12.5px] text-neutral-500">{amount} paid to Layerflow. {doneText}</p>
                 <div className="mt-4 rounded-xl bg-neutral-50 px-4 py-3 text-left text-[12px]">
                   <div className="flex justify-between">
                     <span className="text-neutral-500">Payment ID</span>
@@ -96,7 +97,7 @@ export function DodoCheckoutSheet({ checkout, ownerId, onClose, onPaid }: { chec
                   </div>
                 </div>
                 <button onClick={() => onPaid(paymentId)} className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl text-[14px] font-semibold" style={{ backgroundColor: INK, color: "#fff" }}>
-                  Continue to your program
+                  {continueLabel}
                 </button>
               </motion.div>
             ) : (

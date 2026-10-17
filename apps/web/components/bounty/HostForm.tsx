@@ -201,9 +201,9 @@ export function HostForm({ plans, learner, onCreated }: { plans: BountyPlan[]; l
           ownerId={learner}
           onClose={() => {
             setDemo(null);
-            onCreated(demo.program_id);
+            onCreated(demo.program_id ?? "");
           }}
-          onPaid={() => onCreated(demo.program_id)}
+          onPaid={() => onCreated(demo.program_id ?? "")}
         />
       )}
     </div>

@@ -42,7 +42,10 @@ function PlatformCard({ p, i }: { p: PlatformProgram; i: number }) {
             <p className="truncate text-[15px] font-semibold leading-tight text-neutral-950">{name}</p>
             <p className="mt-0.5 text-[12px] text-neutral-500">{p.title.replace(/^[^—]+—\s*/, "")}</p>
           </div>
-          <span className={cn("shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize", DIFF[p.difficulty])}>{p.difficulty}</span>
+          <span className="flex shrink-0 flex-col items-end gap-1">
+            <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize", DIFF[p.difficulty])}>{p.difficulty}</span>
+            {p.pro_only && <span className="rounded-md bg-neutral-950 px-2 py-0.5 text-[10.5px] font-bold text-[#bbf451]">Pro</span>}
+          </span>
         </div>
         <p className="mt-3 flex-1 text-[13px] leading-[1.5] text-neutral-600">{p.tagline}</p>
         <div className="mt-3 flex flex-wrap gap-1.5">

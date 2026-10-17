@@ -9,7 +9,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Crosshair, LoaderCircle, MousePointerClick, Send, Wand2 } from "lucide-react";
-import { api, refreshPoints, type BountyCategory, type BountySeverity, type BountySeverityInfo, type FileReportResult } from "@/lib/api";
+import { api, isPlanLimit, refreshPoints, type BountyCategory, type BountySeverity, type BountySeverityInfo, type FileReportResult } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
@@ -222,7 +222,16 @@ export function ReportForm({
           </motion.div>
         )}
       </AnimatePresence>
-      {error && <p className="rounded-xl bg-[#c64e27]/10 px-3 py-2 text-[12.5px] font-medium text-[#a8401f]">{error}</p>}
+      {error && (
+        <p className="rounded-xl bg-[#c64e27]/10 px-3 py-2 text-[12.5px] font-medium text-[#a8401f]">
+          {error}
+          {isPlanLimit(error) && (
+            <a href="/pricing" className="ml-1.5 font-semibold underline underline-offset-2">
+              See Pro
+            </a>
+          )}
+        </p>
+      )}
       <button disabled={!ready || busy || !learner || left <= 0} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-neutral-950 text-[14px] font-semibold text-white transition-opacity disabled:opacity-35">
         {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />} Submit report
       </button>

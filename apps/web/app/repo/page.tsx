@@ -46,7 +46,7 @@ import { RepoBugs } from "@/components/repo/RepoBugs";
 import { RepoOverview } from "@/components/repo/RepoOverview";
 import { SiteReportView } from "@/components/repo/SiteReport";
 import { SEV } from "@/components/repo/bits";
-import { api, isSiteReport, timeAgo, type RepoFinding, type RepoReport, type Severity, type SiteReport } from "@/lib/api";
+import { api, isPlanLimit, isSiteReport, timeAgo, type RepoFinding, type RepoReport, type Severity, type SiteReport } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { useI18n } from "@/lib/i18n/context";
 import { useSpeaker } from "@/lib/voice";
@@ -219,7 +219,7 @@ function AskRepo({ report, pending, onConsumed }: { report: RepoReport | SiteRep
     setMsgs((m) => [...m, { role: "user", content: q }]);
     setDraft("");
     setBusy(true);
-    const r = await api.chat({ learner_id: learner, message: q, history, context: { page: "repo", repo_report_id: report.id } }).catch(() => ({ reply: "I couldn't reach the server — try again." }));
+    const r = await api.chat({ learner_id: learner, message: q, history, context: { page: "repo", repo_report_id: report.id } }).catch((e: Error) => ({ reply: isPlanLimit(e.message) ? `${e.message}\n\n[See the Pro plan →](/pricing)` : "I couldn't reach the server — try again." }));
     setMsgs((m) => [...m, { role: "assistant", content: r.reply }]);
     setBusy(false);
   };
@@ -638,7 +638,16 @@ export default function RepoPage() {
             </motion.div>
           )}
         </AnimatePresence>
-        {error && <p className="mt-3 rounded-2xl bg-[#fdeee8] px-4 py-3 text-[13px] text-[#a8401f]">{error}</p>}
+        {error && (
+          <p className="mt-3 rounded-2xl bg-[#fdeee8] px-4 py-3 text-[13px] text-[#a8401f]">
+            {error}
+            {isPlanLimit(error) && (
+            <a href="/pricing" className="ml-1.5 font-semibold underline underline-offset-2">
+              See Pro
+            </a>
+          )}
+          </p>
+        )}
         {history.length > 0 && (
           <div className="mt-4 border-t border-neutral-100 pt-3">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Your recent reports</p>

@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, Bug, BookOpenText, Flame, FolderTree, Gavel, Gift, LayoutDashboard, ListChecks, Menu, MessagesSquare, ShieldCheck, Video, X, Check, Plus, Zap } from "lucide-react";
+import { ArrowUpRight, Bug, BookOpenText, Crown, Flame, FolderTree, Gavel, Gift, LayoutDashboard, ListChecks, Menu, MessagesSquare, ShieldCheck, Video, X, Check, Plus, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -41,6 +41,7 @@ const NAV: { section?: string; items: { href: string; key: string; Icon: typeof 
     section: "app.tools",
     items: [
       { href: "/rewards", key: "app.rewards", Icon: Gift },
+      { href: "/pricing", key: "app.pricing", Icon: Crown },
       { href: "/taxonomy", key: "app.taxonomy", Icon: BookOpenText },
       { href: "/judges", key: "app.judges", Icon: Gavel },
       { href: "/admin", key: "app.admin", Icon: ShieldCheck },
@@ -72,6 +73,12 @@ function StreakChip({ learner }: { learner: string }) {
   }, [learner, path]);
   if (!s) return null;
   return (
+    <span className="flex items-center gap-1.5">
+    {s.plan === "pro" && (
+      <Link href="/pricing" title="You're on Pro" className="inline-flex items-center gap-1 rounded-full bg-neutral-950 px-2.5 py-1 text-[11.5px] font-bold text-[#bbf451]">
+        <Crown className="size-3.5" /> Pro
+      </Link>
+    )}
     <Link
       href="/rewards"
       title={s.today_done ? `${s.streak}-day streak — today is done` : s.at_risk ? `Solve one problem today to keep your ${s.streak}-day streak` : "Solve a problem to start a streak"}
@@ -87,6 +94,7 @@ function StreakChip({ learner }: { learner: string }) {
         {s.points.toLocaleString("en-IN")}
       </span>
     </Link>
+    </span>
   );
 }
 

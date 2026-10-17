@@ -177,6 +177,14 @@ function MyReports({ reports }: { reports: BountyReport[] }) {
 /* ───────────────────────── Layerflow program ───────────────────────── */
 
 function PlatformView({ p, learner, reload }: { p: PlatformProgramDetail; learner: string | null; reload: () => void }) {
+  const [plan, setPlan] = useState<"free" | "pro" | null>(null);
+  useEffect(() => {
+    if (learner && p.pro_only)
+      api
+        .rewardsSummary(learner)
+        .then((s) => setPlan(s.plan ?? "free"))
+        .catch(() => {});
+  }, [learner, p.pro_only]);
   const [file, setFile] = useState(p.files.find((f) => f.language !== "markdown")?.path ?? p.files[0].path);
   const [line, setLine] = useState<number | null>(null);
   const [outcome, setOutcome] = useState<FileReportResult | null>(null);
@@ -240,6 +248,15 @@ function PlatformView({ p, learner, reload }: { p: PlatformProgramDetail; learne
         </div>
       </Card>
 
+      {p.pro_only && plan === "free" && (
+        <Card className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-neutral-950 px-2.5 py-1 text-[11.5px] font-bold text-[#bbf451]">Pro program</span>
+          <p className="min-w-0 flex-1 text-[13px] leading-[1.5] text-neutral-600">Read all the code you like — filing reports here needs Pro ($4 or ₹349 a month). ShopKart stays free for everyone.</p>
+          <Link href="/pricing" className="inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-[#bbf451] px-4 text-[13px] font-semibold text-[#1a2e05]">
+            See Pro
+          </Link>
+        </Card>
+      )}
       <ScopeCard scope={p.scope} out={p.out_of_scope} rules={p.rules} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[13rem_minmax(0,1fr)_23rem]">

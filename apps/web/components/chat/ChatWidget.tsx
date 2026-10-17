@@ -13,7 +13,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { BookOpen, LoaderCircle, Mic, SendHorizontal, Video, Volume2, VolumeX, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api, type ChatTurn } from "@/lib/api";
+import { api, isPlanLimit, type ChatTurn } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { useI18n } from "@/lib/i18n/context";
 import { OPEN_CHAT_EVENT, useChatContext } from "@/lib/chat-context";
@@ -111,8 +111,9 @@ export function ChatWidget({ variant = "app" }: { variant?: "app" | "landing" })
         });
         setMsgs((m) => [...m, { role: "assistant", content: r.reply, source: r.model ?? "built-in", suggestions: r.suggestions }]);
         if (voiceOn) speaker.speak(r.reply, { lang });
-      } catch {
-        setMsgs((m) => [...m, { role: "assistant", content: "I couldn't reach the server just now — is the API running? Try again in a moment.", source: "offline" }]);
+      } catch (e) {
+        const msg = (e as Error).message;
+        setMsgs((m) => [...m, isPlanLimit(msg) ? { role: "assistant", content: `${msg}\n\n[See the Pro plan →](/pricing)`, source: "plan" } : { role: "assistant", content: "I couldn't reach the server just now — is the API running? Try again in a moment.", source: "offline" }]);
       } finally {
         setBusy(false);
       }

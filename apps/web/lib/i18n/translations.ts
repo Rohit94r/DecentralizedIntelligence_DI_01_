@@ -15,7 +15,7 @@ export const UI_LANGUAGE_OPTIONS: { value: UiLanguage; label: string; nativeLabe
 
 const en = {
   common: { brand: "Layerflow", start: "Start practising", dashboard: "Dashboard", judges: "Judges" },
-  nav: { home: "Home", stats: "Proof", features: "Features", earn: "Earn", preview: "Live", openMenu: "Open menu", closeMenu: "Close menu" },
+  nav: { home: "Home", stats: "Proof", features: "Features", earn: "Earn", pricing: "Pricing", preview: "Live", openMenu: "Open menu", closeMenu: "Close menu" },
   hero: {
     headline: "Find the bug. Keep the skill.",
     subhead:
@@ -110,6 +110,7 @@ const en = {
     tools: "Tools & proof",
     bounty: "Bug Bounty",
     rewards: "Rewards",
+    pricing: "Pricing",
     admin: "Admin desk",
     bugFactory: "Bug Factory",
     dashboard: "Dashboard",
@@ -131,7 +132,7 @@ type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? (T[K] extends unk
 
 const hi: DeepPartial<Dictionary> = {
   common: { brand: "Layerflow", start: "अभ्यास शुरू करें", dashboard: "डैशबोर्ड", judges: "जज" },
-  nav: { home: "होम", stats: "प्रमाण", features: "फ़ीचर", earn: "कमाई", preview: "लाइव", openMenu: "मेनू खोलें", closeMenu: "मेनू बंद करें" },
+  nav: { home: "होम", stats: "प्रमाण", features: "फ़ीचर", earn: "कमाई", pricing: "प्लान", preview: "लाइव", openMenu: "मेनू खोलें", closeMenu: "मेनू बंद करें" },
   hero: {
     headline: "बग ढूँढो। हुनर अपना बनाओ।",
     subhead:
@@ -217,6 +218,7 @@ const hi: DeepPartial<Dictionary> = {
     tools: "टूल्स और सबूत",
     bounty: "बग बाउंटी",
     rewards: "इनाम",
+    pricing: "प्लान",
     admin: "एडमिन डेस्क",
     bugFactory: "बग फ़ैक्टरी",
     dashboard: "डैशबोर्ड",
@@ -235,7 +237,7 @@ const hi: DeepPartial<Dictionary> = {
 
 const mr: DeepPartial<Dictionary> = {
   common: { brand: "Layerflow", start: "सराव सुरू करा", dashboard: "डॅशबोर्ड", judges: "परीक्षक" },
-  nav: { home: "होम", stats: "पुरावा", features: "वैशिष्ट्ये", earn: "कमाई", preview: "लाइव्ह", openMenu: "मेनू उघडा", closeMenu: "मेनू बंद करा" },
+  nav: { home: "होम", stats: "पुरावा", features: "वैशिष्ट्ये", earn: "कमाई", pricing: "प्लॅन", preview: "लाइव्ह", openMenu: "मेनू उघडा", closeMenu: "मेनू बंद करा" },
   hero: {
     headline: "बग शोधा. कौशल्य आपलं करा.",
     subhead:
@@ -321,6 +323,7 @@ const mr: DeepPartial<Dictionary> = {
     tools: "साधनं आणि पुरावा",
     bounty: "बग बाउंटी",
     rewards: "बक्षिसं",
+    pricing: "प्लॅन",
     admin: "अ‍ॅडमिन डेस्क",
     bugFactory: "बग फॅक्टरी",
     dashboard: "डॅशबोर्ड",

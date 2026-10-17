@@ -37,7 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api, type ChatTurn, type MentorSession } from "@/lib/api";
+import { api, isPlanLimit, type ChatTurn, type MentorSession } from "@/lib/api";
 import { useSpeaker, useListener } from "@/lib/voice";
 import { Markdown } from "@/components/app/Markdown";
 import { Portal } from "@/components/app/Portal";
@@ -475,7 +475,16 @@ function MeetRoomInner({
                 Not now
               </button>
             </div>
-            {error && <p className="mt-3 text-[13px] text-[#d93025]">{error}</p>}
+            {error && (
+              <p className="mt-3 text-[13px] text-[#d93025]">
+                {error}
+                {isPlanLimit(error) && (
+                  <a href="/pricing" className="ml-1.5 font-semibold underline underline-offset-2">
+                    See Pro
+                  </a>
+                )}
+              </p>
+            )}
             <p className="mt-5 text-[12px] leading-[1.5] text-[#5f6368]">Priya sees your last attempt, the Line Map and a replay on a safe example — never the hidden tests. She'll point you to the right place, but never hand you the code.</p>
           </div>
           <AnimatePresence>{toast && <Toast text={toast} light />}</AnimatePresence>

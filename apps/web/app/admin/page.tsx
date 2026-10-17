@@ -13,7 +13,7 @@ import { Check, CreditCard, IndianRupee, KeyRound, LoaderCircle, PackageCheck, S
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { Card, PageHeading } from "@/components/app/bits";
 import { SEVERITY_STYLE, SeverityChip, StatusPill } from "@/components/bounty/bits";
-import { api, timeAgo, type AdminRedemption, type BountyReport, type BountySeverity, type PaymentsStatus, type RedemptionStatus } from "@/lib/api";
+import { api, timeAgo, type AdminRedemption, type BountyReport, type BountySeverity, type PaymentsStatus, type PlanLead, type RedemptionStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const FILTERS: [string, string][] = [
@@ -158,12 +158,51 @@ function ReportRow({ r, onDone }: { r: BountyReport; onDone: () => void }) {
   );
 }
 
+const LEAD_STATUS = ["new", "contacted", "won", "lost"] as const;
+
+function LeadRow({ l, onDone }: { l: PlanLead; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const set = async (status: PlanLead["status"]) => {
+    setBusy(true);
+    await api.adminLeadStatus(l.id, status).catch(() => {});
+    setBusy(false);
+    onDone();
+  };
+  return (
+    <div className="rounded-2xl border border-neutral-200/80 bg-white p-4">
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-semibold text-neutral-950">
+            {l.organisation} <span className="font-normal capitalize text-neutral-500">· {l.kind}{l.seats ? ` · ${l.seats.toLocaleString("en-IN")} people` : ""}</span>
+          </p>
+          <p className="text-[12.5px] text-neutral-600">
+            {l.name} ·{" "}
+            <a href={`mailto:${l.email}`} className="font-medium text-neutral-900 underline underline-offset-2">
+              {l.email}
+            </a>{" "}
+            · {timeAgo(l.created_at)}
+          </p>
+          {l.message && <p className="mt-2 whitespace-pre-wrap text-[13px] leading-[1.5] text-neutral-700">{l.message}</p>}
+        </div>
+        <div className="inline-flex rounded-full border border-neutral-200 bg-white p-0.5">
+          {LEAD_STATUS.map((k) => (
+            <button key={k} disabled={busy} onClick={() => set(k)} className={cn("rounded-full px-2.5 py-1 text-[11.5px] font-semibold capitalize", l.status === k ? "bg-neutral-950 text-white" : "text-neutral-500 hover:text-neutral-900")}>
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [status, setStatus] = useState<{ ok: boolean; open: boolean; payouts: "demo" | "manual"; payments: PaymentsStatus } | null>(null);
   const [token, setToken] = useState("");
   const [filter, setFilter] = useState("requested");
   const [rows, setRows] = useState<AdminRedemption[] | null>(null);
   const [reports, setReports] = useState<BountyReport[]>([]);
+  const [leads, setLeads] = useState<PlanLead[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -179,6 +218,10 @@ export default function AdminPage() {
         api
           .adminReports()
           .then((r) => setReports(r.reports))
+          .catch(() => {});
+        api
+          .adminLeads()
+          .then((r) => setLeads(r.leads))
           .catch(() => {});
       })
       .catch((e) => setErr((e as Error).message));
@@ -276,6 +319,16 @@ export default function AdminPage() {
                 <ReportRow key={r.id} r={r} onDone={load} />
               ))}
               {!reports.length && <Card className="text-[13px] text-neutral-500">No reports waiting.</Card>}
+            </div>
+          </section>
+
+          <section>
+            <SectionLabel className="mb-2">Custom plan requests · colleges and companies</SectionLabel>
+            <div className="space-y-3">
+              {leads.map((l) => (
+                <LeadRow key={l.id} l={l} onDone={load} />
+              ))}
+              {!leads.length && <Card className="text-[13px] text-neutral-500">No requests yet — they arrive from “Talk to us” on the Pricing page.</Card>}
             </div>
           </section>
         </div>

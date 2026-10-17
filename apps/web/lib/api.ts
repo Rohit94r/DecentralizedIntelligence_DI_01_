@@ -484,6 +484,7 @@ export interface RewardsSummary {
   points: number;
   inr: string;
   has_pin: boolean;
+  plan?: "free" | "pro";
 }
 
 export interface Shipping {
@@ -531,6 +532,8 @@ export interface PlatformProgram {
   max_points: number;
   file_count?: number;
   stats: { reports: number; valid: number; hunters: number; found_by_you: number };
+  /** reports need the Pro plan (CampusConnect, PayLite) */
+  pro_only?: boolean;
 }
 
 export interface HostedProgram {
@@ -694,13 +697,77 @@ export interface PaymentsStatus {
   checkout?: "dodo" | "demo";
 }
 
+/** The in-app demo checkout: a bug-bounty plan (program_id, amount_inr) or Pro (amount + currency). */
 export interface DemoCheckout {
   payment: string;
-  program_id: string;
   plan: string;
   plan_name: string;
-  amount_inr: number;
+  program_id?: string;
+  amount_inr?: number;
+  title?: string;
+  amount?: number;
+  currency?: "USD" | "INR";
+  owner_id?: string;
 }
+
+/* ── plans: Free · Pro · Custom ── */
+
+export type PlanId = "free" | "pro" | "custom";
+export type Currency = "USD" | "INR";
+
+export interface PlanCard {
+  id: PlanId;
+  name: string;
+  tagline: string;
+  price: Record<Currency, number> | null;
+  per: string | null;
+  cta: string;
+  features: string[];
+  note: string;
+}
+
+export interface PlanLimits {
+  chat_per_day: number | null;
+  mentor_per_day: number | null;
+  analyses_per_day: number | null;
+  all_bounty_programs: boolean;
+}
+
+export interface PlansView {
+  plans: PlanCard[];
+  limits: Record<"free" | "pro", PlanLimits>;
+  checkout: { USD: "dodo" | "demo"; INR: "dodo" | "demo"; live: boolean };
+  me: {
+    learner_id: string;
+    plan: "free" | "pro";
+    subscription: { status: "active" | "cancelled" | "expired"; provider: "dodo" | "demo"; currency: string; price: string; current_period_end: string; cancel_at_period_end: boolean; can_manage: boolean } | null;
+    usage: Record<string, number>;
+    limits_on: boolean;
+    has_pin: boolean;
+  } | null;
+}
+
+export interface PlanLead {
+  id: string;
+  name: string;
+  email: string;
+  organisation: string;
+  kind: "college" | "company" | "other";
+  seats: number | null;
+  message: string | null;
+  learner_id: string | null;
+  status: "new" | "contacted" | "won" | "lost";
+  created_at: string;
+}
+
+/** "$4" / "₹349" from the smallest unit. */
+export function money(amount: number, currency: Currency): string {
+  const v = amount / 100;
+  return currency === "INR" ? `₹${v.toLocaleString("en-IN")}` : "$" + (Number.isInteger(v) ? String(v) : v.toFixed(2));
+}
+
+/** A Free-plan limit message from the API ("… or go Pro …"). */
+export const isPlanLimit = (message: string | null | undefined) => !!message && /go Pro/i.test(message);
 
 export interface AdminRedemption extends Redemption {
   learner_id: string;
@@ -827,6 +894,15 @@ export const api = {
   // ── payments (Dodo) ──
   paymentsStatus: () => req<PaymentsStatus>("GET", "/api/payments/status"),
   syncPayment: (payment: string, payment_id: string) => req<{ status: string }>("POST", "/api/payments/sync", { payment, payment_id }),
+  syncCheckout: (payment: string) => req<{ status: string }>("POST", "/api/payments/sync-checkout", { payment }),
+
+  // ── plans ──
+  plans: (learner_id?: string | null) => req<PlansView>("GET", `/api/plans${learner_id ? `?learner_id=${encodeURIComponent(learner_id)}` : ""}`),
+  proCheckout: (learner_id: string, currency: Currency, return_base: string) => req<{ mode: "dodo" | "demo"; payment: string; checkout_url: string | null; demo_checkout: DemoCheckout | null }>("POST", "/api/plans/checkout", { learner_id, currency, return_base }),
+  setRenewal: (learner_id: string, pin: string, renew: boolean) => req<{ ok: boolean }>("POST", "/api/plans/renewal", { learner_id, pin, renew }),
+  contactSales: (b: { name: string; email: string; organisation: string; kind: "college" | "company" | "other"; seats: number | null; message: string | null; learner_id: string | null }) => req<{ ok: boolean; id: string; message: string }>("POST", "/api/plans/contact", b),
+  adminLeads: () => req<{ leads: PlanLead[] }>("GET", "/api/admin/leads"),
+  adminLeadStatus: (id: string, status: PlanLead["status"]) => req<{ ok: boolean }>("POST", `/api/admin/leads/${encodeURIComponent(id)}`, { status }),
 
   // ── admin desk ──
   adminStatus: () => req<{ ok: boolean; open: boolean; payouts: "demo" | "manual"; payments: PaymentsStatus }>("GET", "/api/admin/status"),
