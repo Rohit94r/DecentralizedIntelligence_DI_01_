@@ -143,4 +143,18 @@ export function seedBounty(store: LayerflowStore, now = Date.now()): void {
   store.setRedemptionStatus(g.id, "shipped", { note: "Packed — arriving in 3–5 days.", payout_ref: "DTDC D41870264" });
   const c = store.createRedemption({ learner_id: "khushi", kind: "cash", points: 2000, amount_paise: 20_000, upi_id: "khushi.s@okaxis", note: "Cash-out ₹200 to UPI" });
   store.setRedemptionStatus(c.id, "paid", { note: "Demo payout — no real money was sent.", payout_ref: "DEMO240917A1F3" });
+
+  // khushi is on Pro (a demo subscription, paid in rupees); riya and yash are on Free
+  store.saveSubscription({
+    learner_id: "khushi",
+    plan: "pro",
+    status: "active",
+    provider: "demo",
+    currency: "INR",
+    amount: 34_900,
+    subscription_id: null,
+    payment_id: "pay_demo_seed",
+    current_period_end: new Date(now + 21 * 24 * H).toISOString(),
+    cancel_at_period_end: false,
+  });
 }

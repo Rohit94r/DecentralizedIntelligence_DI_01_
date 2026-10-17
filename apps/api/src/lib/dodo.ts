@@ -67,10 +67,12 @@ export async function checkKey(): Promise<{ ok: boolean; message: string }> {
  * otherwise a demo checkout that runs in the app and charges nothing.
  * LAYERFLOW_CHECKOUT=dodo|demo forces one.
  */
-export async function checkoutMode(): Promise<"dodo" | "demo"> {
+export async function checkoutMode(hasProduct = true): Promise<"dodo" | "demo"> {
   const want = process.env.LAYERFLOW_CHECKOUT;
   if (want === "demo" || want === "dodo") return want;
-  return (await checkKey()).ok ? "dodo" : "demo";
+  if (!(await checkKey()).ok) return "demo";
+  // live mode never creates products by itself: without a product id in .env the demo checkout stands in
+  return hasProduct || dodoConfig().mode === "test_mode" ? "dodo" : "demo";
 }
 
 /** Product id for a paid plan: from .env, or (test mode only) created on first use. */
@@ -89,7 +91,7 @@ export class DodoError extends Error {
   }
 }
 
-async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+async function call<T>(method: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<T> {
   const c = dodoConfig();
   if (!c.key) throw new DodoError("Payments aren't set up on this server yet — add DODO_PAYMENTS_API_KEY to .env.", 503);
   const r = await fetch(c.base + path, {
@@ -127,11 +129,52 @@ export async function createProduct(p: { name: string; description: string; pric
   return r.product_id;
 }
 
+/**
+ * A monthly subscription product (Pro). `price` is in the smallest unit:
+ * 400 = $4.00, 34900 = ₹349. Only test mode creates products by itself;
+ * live products are made once (scripts or the dashboard) and set in .env.
+ */
+export async function createSubscriptionProduct(p: { name: string; description: string; price: number; currency: "USD" | "INR"; sku: string }): Promise<string> {
+  const r = await call<{ product_id: string }>("POST", "/products", {
+    name: p.name,
+    description: p.description,
+    tax_category: "saas",
+    price: {
+      type: "recurring_price",
+      currency: p.currency,
+      price: p.price,
+      discount: 0,
+      purchasing_power_parity: false,
+      tax_inclusive: true, // the price on the site is the price people pay
+      payment_frequency_count: 1,
+      payment_frequency_interval: "Month",
+      subscription_period_count: 10,
+      subscription_period_interval: "Year",
+      trial_period_days: 0,
+    },
+    metadata: { sku: p.sku },
+  });
+  if (!r?.product_id) throw new DodoError("Dodo Payments didn't return a product id.");
+  return r.product_id;
+}
+
+/** The live (or test) product id set in .env for the monthly Pro plan in this currency. */
+export function configuredProProduct(currency: "USD" | "INR"): string | undefined {
+  return process.env[`DODO_PRODUCT_PRO_${currency}`] || undefined;
+}
+
+/** Stop renewing at the end of the paid month (or undo that). */
+export function setCancelAtPeriodEnd(subscriptionId: string, cancel: boolean): Promise<unknown> {
+  if (!/^[A-Za-z0-9_-]{4,80}$/.test(subscriptionId)) throw new DodoError("That isn't a subscription id.", 400);
+  return call("PATCH", `/subscriptions/${encodeURIComponent(subscriptionId)}`, { cancel_at_next_billing_date: cancel });
+}
+
 /** A hosted checkout session. The customer comes back to return_url?payment_id=…&status=… */
-export async function createCheckout(c: { product_id: string; return_url: string; cancel_url: string; metadata: Record<string, string> }): Promise<{ session_id: string; checkout_url: string }> {
+export async function createCheckout(c: { product_id: string; return_url: string; cancel_url: string; metadata: Record<string, string>; country?: string | null }): Promise<{ session_id: string; checkout_url: string }> {
+  const country = c.country === undefined ? "IN" : c.country;
   const r = await call<{ session_id: string; checkout_url: string | null }>("POST", "/checkouts", {
     product_cart: [{ product_id: c.product_id, quantity: 1 }],
-    billing_address: { country: "IN" },
+    ...(country ? { billing_address: { country } } : {}),
     return_url: c.return_url,
     cancel_url: c.cancel_url,
     metadata: c.metadata,
@@ -147,6 +190,8 @@ export interface DodoPayment {
   currency: string;
   metadata: Record<string, string | number | boolean> | null;
   checkout_session_id?: string | null;
+  /** set on payments that start or renew a subscription */
+  subscription_id?: string | null;
 }
 
 export function getPayment(paymentId: string): Promise<DodoPayment> {

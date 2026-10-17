@@ -17,13 +17,15 @@ import {
   myReports,
   nudge,
   retryCheckout,
+  syncCheckout,
   syncPayment,
   triage,
   type BountyCtx,
   type CreateProgramBody,
 } from "./bounty.ts";
 import { displayName } from "./learning.ts";
-import { checkKey, checkoutMode, dodoConfig, paymentsEnabled, verifyWebhook } from "./lib/dodo.ts";
+import { checkKey, checkoutMode, configuredProduct, dodoConfig, paymentsEnabled, verifyWebhook } from "./lib/dodo.ts";
+import { contactSales, planOf, plansView, setRenewal, startProCheckout } from "./plans.ts";
 import { adminRedemptions, adminUpdateRedemption, cancelRedemption, payoutMode, redeem, rewardsPage, rewardsSummary, setPin, type RedeemBody } from "./rewards.ts";
 
 const ID = { type: "string", pattern: "^[A-Za-z0-9_.-]{2,40}$" } as const;
@@ -51,7 +53,7 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
 
   /* ── rewards ── */
   app.get<{ Params: { id: string } }>("/api/rewards/:id", { schema: { params: { type: "object", properties: { id: ID } } } }, async (req) => rewardsPage(store, req.params.id));
-  app.get<{ Params: { id: string } }>("/api/rewards/:id/summary", { schema: { params: { type: "object", properties: { id: ID } } } }, async (req) => rewardsSummary(store, req.params.id));
+  app.get<{ Params: { id: string } }>("/api/rewards/:id/summary", { schema: { params: { type: "object", properties: { id: ID } } } }, async (req) => ({ ...rewardsSummary(store, req.params.id), plan: planOf(store, req.params.id).plan }));
 
   app.post<{ Body: { learner_id: string; pin: string } }>(
     "/api/rewards/pin",
@@ -191,7 +193,7 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
   /* ── payments (Dodo) ── */
   app.get("/api/payments/status", async () => {
     const k = await checkKey();
-    return { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret, checkout: await checkoutMode() };
+    return { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret, checkout: await checkoutMode(!!configuredProduct("starter") && !!configuredProduct("growth")) };
   });
 
   app.post<{ Body: { payment: string; owner_id: string } }>(
@@ -204,6 +206,12 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
     "/api/payments/sync",
     { schema: { body: { type: "object", required: ["payment", "payment_id"], properties: { payment: { type: "string", maxLength: 40 }, payment_id: { type: "string", maxLength: 80 } } } } },
     async (req) => syncPayment(ctx, req.body.payment, req.body.payment_id),
+  );
+
+  app.post<{ Body: { payment: string } }>(
+    "/api/payments/sync-checkout",
+    { schema: { body: { type: "object", required: ["payment"], properties: { payment: { type: "string", maxLength: 40 } } } } },
+    async (req) => syncCheckout(ctx, req.body.payment),
   );
 
   // Standard Webhooks signs the exact bytes — so this one route keeps the raw body.
@@ -227,11 +235,71 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
     });
   });
 
+  /* ── plans: Free · Pro ($4 / ₹349 a month) · Custom ── */
+  app.get<{ Querystring: { learner_id?: string } }>("/api/plans", async (req) => plansView(store, req.query.learner_id));
+
+  app.post<{ Body: { learner_id: string; currency: "USD" | "INR"; return_base: string } }>(
+    "/api/plans/checkout",
+    { schema: { body: { type: "object", required: ["learner_id", "currency", "return_base"], properties: { learner_id: ID, currency: { type: "string", enum: ["USD", "INR"] }, return_base: { type: "string", maxLength: 200 } } } } },
+    async (req) => startProCheckout(ctx, req.body),
+  );
+
+  app.post<{ Body: { learner_id: string; pin: string; renew: boolean } }>(
+    "/api/plans/renewal",
+    { schema: { body: { type: "object", required: ["learner_id", "pin", "renew"], properties: { learner_id: ID, pin: PIN, renew: { type: "boolean" } } } } },
+    async (req) => setRenewal(ctx, req.body),
+  );
+
+  // "Talk to us" for the Custom plan — a few per hour per visitor is plenty
+  const contactHits = new Map<string, number[]>();
+  app.post<{ Body: { name: string; email: string; organisation: string; kind: string; seats?: number | null; message?: string | null; learner_id?: string | null } }>(
+    "/api/plans/contact",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["name", "email", "organisation", "kind"],
+          properties: {
+            name: { type: "string", maxLength: 80 },
+            email: { type: "string", maxLength: 254 },
+            organisation: { type: "string", maxLength: 120 },
+            kind: { type: "string", enum: ["college", "company", "other"] },
+            seats: { type: ["integer", "null"], minimum: 1, maximum: 100000 },
+            message: { type: ["string", "null"], maxLength: 2000 },
+            learner_id: { type: ["string", "null"], maxLength: 40 },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const now = Date.now();
+      const recent = (contactHits.get(req.ip) ?? []).filter((t) => now - t < 3_600_000);
+      if (recent.length >= 5) return reply.status(429).send({ error: "We've got your requests — we'll be in touch soon." });
+      contactHits.set(req.ip, [...recent, now]);
+      return contactSales(store, req.body);
+    },
+  );
+
   /* ── admin desk ── */
+  app.get("/api/admin/leads", async (req) => {
+    requireAdmin(req);
+    return { leads: store.leads(200) };
+  });
+
+  app.post<{ Params: { id: string }; Body: { status: "new" | "contacted" | "won" | "lost" } }>(
+    "/api/admin/leads/:id",
+    { schema: { body: { type: "object", required: ["status"], properties: { status: { type: "string", enum: ["new", "contacted", "won", "lost"] } } } } },
+    async (req, reply) => {
+      requireAdmin(req);
+      if (!store.setLeadStatus(req.params.id, req.body.status)) return reply.status(404).send({ error: "No such request." });
+      return { ok: true };
+    },
+  );
+
   app.get("/api/admin/status", async (req) => {
     const a = admin(req);
     const k = await checkKey();
-    return { ok: a.ok, open: a.open, payouts: payoutMode(), payments: { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret, checkout: await checkoutMode() } };
+    return { ok: a.ok, open: a.open, payouts: payoutMode(), payments: { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret, checkout: await checkoutMode(!!configuredProduct("starter") && !!configuredProduct("growth")) } };
   });
 
   app.get<{ Querystring: { status?: string } }>("/api/admin/redemptions", async (req) => {

@@ -39,6 +39,7 @@ import type { LayerflowStore } from "@layerflow/db";
 import { parseJsonReply, type Ai, type AiMessage } from "./lib/ai.ts";
 import { RepoError, fetchGithub, localSnapshot } from "./lib/repo-fetch.ts";
 import { fetchSite } from "./lib/site-fetch.ts";
+import { assertQuota, countUse, useQuota } from "./plans.ts";
 import type { Ctx } from "./service.ts";
 
 export interface LearnCtx extends Ctx {
@@ -189,6 +190,7 @@ async function translateSegments<T extends { say: string; speech: string }>(ctx:
 export async function mentorSession(ctx: LearnCtx, learnerId: string, challengeId: string, lang = "en") {
   const c = getChallenge(challengeId);
   if (!c) throw err(`No challenge called ${challengeId}`, 404);
+  useQuota(ctx.store, learnerId, "mentor");
   const sub = ctx.store.latestSubmission(learnerId, c.id);
   const all = ctx.store.history(learnerId);
   const mine = all.filter((h) => h.challenge_id === c.id);
@@ -252,6 +254,7 @@ export async function chat(ctx: LearnCtx, body: ChatBody) {
   const message = body.message.trim().slice(0, 1200);
   const learnerId = body.learner_id && /^[A-Za-z0-9_.-]{2,40}$/.test(body.learner_id) ? body.learner_id : null;
   const history = (body.history ?? []).filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string").slice(-10);
+  useQuota(ctx.store, learnerId, "chat");
 
   // ── about a Repo Analyse report ──
   if (body.context?.repo_report_id) {
@@ -354,6 +357,7 @@ export async function chat(ctx: LearnCtx, body: ChatBody) {
 /* ───────────────────────── Repo Analyse ───────────────────────── */
 
 export async function analyze(ctx: LearnCtx, body: { url?: string; local?: boolean; learner_id?: string }) {
+  assertQuota(ctx.store, body.learner_id, "analyse");
   let snap;
   if (body.local) snap = localSnapshot();
   else {
@@ -362,6 +366,7 @@ export async function analyze(ctx: LearnCtx, body: { url?: string; local?: boole
     snap = await fetchGithub(parsed.owner, parsed.name);
   }
   const report = analyzeRepo(snap);
+  countUse(ctx.store, body.learner_id, "analyse");
   let reviewModel: string | null = null;
   if (ctx.ai) {
     const out = await ctx.ai.complete(
@@ -411,8 +416,10 @@ export async function analyze(ctx: LearnCtx, body: { url?: string; local?: boole
 
 /** For a company without a public repo: check the live site instead (see lib/site-fetch.ts for how it's fetched safely). */
 export async function analyzeSite(ctx: LearnCtx, body: { url?: string; learner_id?: string }) {
+  assertQuota(ctx.store, body.learner_id, "analyse");
   const fetched = await fetchSite(body.url ?? "");
   const report = auditSite(fetched);
+  countUse(ctx.store, body.learner_id, "analyse");
   let reviewModel: string | null = null;
   if (ctx.ai) {
     const out = await ctx.ai.complete(
