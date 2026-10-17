@@ -4,8 +4,8 @@
  *
  *   Free    everything you need to learn, with daily limits on the costly parts
  *           (the AI mentor, Repo / Website Analyse) and the beginner bounty program
- *   Pro     $4 / month (₹349 in India) — no daily limits, every practice
- *           bounty program, a Pro badge; paid monthly through Dodo Payments
+ *   Pro     ₹349 / month ($4 outside India) — no daily limits, every practice
+ *           bounty program, a Pro badge; prepaid through Razorpay, a month at a time
  *   Custom  for colleges and companies — priced per class or team, by talking to us
  *
  * Earning is never behind a paywall: streak points, bug-bounty points, goodies
@@ -82,9 +82,9 @@ export const PLANS: PlanCard[] = [
       "Unlimited Repo & Website Analyse",
       "Every practice bounty program — CampusConnect and PayLite too",
       "A Pro badge next to your name",
-      "Cancel any time — Pro stays on until the month you paid for ends",
+      "No auto-debit — each payment adds 30 days of Pro",
     ],
-    note: "Billed monthly through Dodo Payments. Pay in rupees (UPI, cards) in India, or in dollars anywhere else.",
+    note: "Paid through Razorpay — UPI, cards, netbanking or wallets in rupees, or a card in dollars from anywhere.",
   },
   {
     id: "custom",

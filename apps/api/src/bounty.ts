@@ -7,8 +7,8 @@
  *   • Company / open-source programs are triaged by their owner (with their
  *     wallet PIN) or by an admin, and only pay points from the pool their plan
  *     unlocked. Owners can't report on — or approve reports for — themselves.
- *   • Paid plans go through Dodo Payments' hosted checkout; the program opens
- *     when Dodo confirms the payment (webhook, or a status check on return).
+ *   • Paid plans are paid through Razorpay Checkout; the program opens when
+ *     the payment is verified (signature + Razorpay's own record) or the webhook says so.
  */
 import {
   BOUNTY_EXPLAINER,
@@ -35,9 +35,9 @@ import {
 } from "@layerflow/core";
 import type { LayerflowStore, ProgramRow, ReportRow, ReportStatus } from "@layerflow/db";
 import { parseJsonReply, type Ai } from "./lib/ai.ts";
-import { DodoError, checkoutMode, configuredProProduct, configuredProduct, createCheckout, createProduct, dodoConfig, getCheckout, getPayment, paymentsEnabled, type DodoPayment } from "./lib/dodo.ts";
+import { RazorpayError, capturePayment, checkoutMode, checkoutOptions, createOrder, getPayment, paymentsEnabled, razorpayConfig, verifyCheckoutSignature, type RazorpayPayment } from "./lib/razorpay.ts";
 import { displayName } from "./learning.ts";
-import { activatePro, handleSubscriptionEvent, requireProProgram } from "./plans.ts";
+import { activatePro, requireProProgram } from "./plans.ts";
 import { checkPin, setPin, syncStreakPoints, todayStartIso as TODAY_START } from "./rewards.ts";
 
 export interface BountyCtx {
@@ -136,7 +136,7 @@ export function listPrograms(store: LayerflowStore, viewer = "") {
     categories: CATEGORIES,
     severities: SEVERITIES,
     payments_enabled: paymentsEnabled(),
-    payments_mode: paymentsEnabled() ? dodoConfig().mode : null,
+    payments_mode: paymentsEnabled() ? razorpayConfig().mode : null,
   };
 }
 
@@ -291,16 +291,6 @@ export interface CreateProgramBody extends ProgramInput {
   return_base?: string;
 }
 
-function safeBase(u: string | undefined): string | null {
-  if (!u) return null;
-  try {
-    const x = new URL(u);
-    return /^https?:$/.test(x.protocol) ? x.origin : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function createProgram(ctx: BountyCtx, b: CreateProgramBody) {
   const { store } = ctx;
   const input: ProgramInput = {
@@ -319,114 +309,77 @@ export async function createProgram(ctx: BountyCtx, b: CreateProgramBody) {
   const problem = validateProgram(input);
   if (problem) throw err(problem, 400);
   const plan = getPlan(input.plan)!;
-  const mode = plan.price_inr > 0 ? await checkoutMode(!!configuredProduct(plan.id)) : null;
-  if (mode === "dodo" && !paymentsEnabled()) throw err("Paid plans need payments to be set up on this server (DODO_PAYMENTS_API_KEY). Choose the Community plan for now.", 503);
   // the owner's PIN protects triage — it's where points get paid out
   if (!store.walletPin(input.owner_id)) setPin(store, input.owner_id, b.pin);
   else checkPin(store, input.owner_id, b.pin);
 
   const id = store.createProgram({ ...input, repo_url: input.repo_url ?? null, website: input.website ?? null, points_pool: 0, status: plan.price_inr > 0 ? "awaiting_payment" : "open" });
-  if (plan.price_inr === 0) return { id, status: "open" as const, checkout_url: null, demo_checkout: null };
-  const base = safeBase(b.return_base);
-  if (!base) throw err("Missing return address for the checkout.", 400);
-  const checkout = await startPlanCheckout(ctx, id, plan.id, base);
-  return { id, status: "awaiting_payment" as const, checkout_url: checkout.checkout_url, demo_checkout: checkout.demo_checkout };
+  if (plan.price_inr === 0) return { id, status: "open" as const, payment: null, razorpay: null, demo_checkout: null };
+  const checkout = await startPlanCheckout(ctx, id, plan.id);
+  return { id, status: "awaiting_payment" as const, payment: checkout.payment, razorpay: checkout.razorpay, demo_checkout: checkout.demo_checkout };
 }
 
-async function planProduct(store: LayerflowStore, planId: string): Promise<string> {
-  const plan = getPlan(planId)!;
-  const fromEnv = configuredProduct(plan.id);
-  if (fromEnv) return fromEnv;
-  const sku = `bounty-plan-${plan.id}`;
-  const mode = dodoConfig().mode;
-  const cached = store.dodoProduct(sku, mode);
-  if (cached) return cached;
-  if (mode === "live_mode")
-    throw new DodoError(
-      `For live payments, create a one-time INR product for the ${plan.name} plan (₹${plan.price_inr.toLocaleString("en-IN")}) in your Dodo dashboard and put its id in .env as DODO_PRODUCT_BOUNTY_${plan.id.toUpperCase()}=pdt_… — Layerflow only creates products by itself in test mode.`,
-      503,
-    );
-  const productId = await createProduct({
-    name: `Layerflow Bug Bounty — ${plan.name} plan`,
-    description: `Host a bug-bounty program on Layerflow: ${plan.perks.join(" · ")}`,
-    price_paise: plan.price_inr * 100,
-    sku,
-  });
-  store.saveDodoProduct(sku, mode, productId);
-  return productId;
-}
-
-export async function startPlanCheckout(ctx: BountyCtx, programId: string, planId: string, base: string) {
+/** A Razorpay order for the plan (or the demo checkout when this server can't take payments). */
+export async function startPlanCheckout(ctx: BountyCtx, programId: string, planId: string) {
   const { store } = ctx;
   const plan = getPlan(planId)!;
-  if ((await checkoutMode(!!configuredProduct(plan.id))) === "demo") {
-    const payId = store.createPayment({ purpose: "bounty_plan", ref: programId, sku: `bounty-plan-${plan.id}`, amount_paise: plan.price_inr * 100 });
+  const amount = plan.price_inr * 100;
+  const mode = await checkoutMode();
+  const payId = store.createPayment({ purpose: "bounty_plan", ref: programId, sku: `bounty-plan-${plan.id}`, amount_paise: amount, currency: "INR", provider: mode === "demo" ? "demo" : "razorpay" });
+  if (mode === "demo") {
     store.updatePayment(payId, { session_id: `demo_${payId}` });
     ctx.log?.(`[payments] demo checkout ${payId} for ${programId} (${plan.name}, ₹${plan.price_inr}) — nothing is charged`);
-    return { payment: payId, checkout_url: null, demo_checkout: { payment: payId, program_id: programId, plan: plan.id, plan_name: plan.name, amount_inr: plan.price_inr } };
+    return { payment: payId, razorpay: null, demo_checkout: { payment: payId, program_id: programId, plan: plan.id, plan_name: plan.name, amount_inr: plan.price_inr } };
   }
-  const productId = await planProduct(store, plan.id);
-  const payId = store.createPayment({ purpose: "bounty_plan", ref: programId, sku: `bounty-plan-${plan.id}`, amount_paise: plan.price_inr * 100 });
+  const notes = { layerflow_payment: payId, purpose: "bounty_plan", program_id: programId, plan: plan.id };
   try {
-    const c = await createCheckout({
-      product_id: productId,
-      return_url: `${base}/bounty/${programId}?payment=${payId}`,
-      cancel_url: `${base}/bounty/${programId}?payment=${payId}&cancelled=1`,
-      metadata: { layerflow_payment: payId, purpose: "bounty_plan", program_id: programId, plan: plan.id },
-    });
-    store.updatePayment(payId, { session_id: c.session_id, checkout_url: c.checkout_url });
-    ctx.log?.(`[payments] checkout ${c.session_id} for ${programId} (${plan.name}, ₹${plan.price_inr})`);
-    return { payment: payId, checkout_url: c.checkout_url as string | null, demo_checkout: null };
+    const order = await createOrder({ amount, currency: "INR", receipt: payId, notes });
+    store.updatePayment(payId, { session_id: order.id });
+    ctx.log?.(`[payments] razorpay order ${order.id} for ${programId} (${plan.name}, ₹${plan.price_inr})`);
+    return { payment: payId, razorpay: checkoutOptions(order, { description: `Bug bounty — ${plan.name} plan`, notes }), demo_checkout: null };
   } catch (e) {
     store.updatePayment(payId, { status: "failed" });
     throw e;
   }
 }
 
-export async function retryCheckout(ctx: BountyCtx, programId: string, ownerId: string, pin: string, base: string | undefined) {
+export async function retryCheckout(ctx: BountyCtx, programId: string, ownerId: string, pin: string) {
   const p = ctx.store.program(programId);
   if (!p || p.owner_id !== ownerId) throw err("No such program.", 404);
   if (p.status !== "awaiting_payment") throw err("This program is already paid for.", 409);
   checkPin(ctx.store, ownerId, pin);
-  const b = safeBase(base);
-  if (!b) throw err("Missing return address for the checkout.", 400);
-  return startPlanCheckout(ctx, p.id, p.plan, b);
+  return startPlanCheckout(ctx, p.id, p.plan);
 }
 
-/** Applies a confirmed Dodo payment. Idempotent — the webhook and the return page may both call it. */
-export function applyPayment(ctx: BountyCtx, ourId: string, dodo: Pick<DodoPayment, "payment_id" | "status" | "total_amount" | "currency"> & { subscription_id?: string | null }) {
+/** Applies a confirmed payment. Idempotent — the checkout handler and the webhook may both report it. */
+export function applyPayment(ctx: BountyCtx, ourId: string, paid: { payment_id: string; status: string | null; total_amount: number; currency: string }) {
   const { store } = ctx;
   const pay = store.payment(ourId);
   if (!pay) return { ok: false, reason: "unknown payment" };
-  // the webhook and the return page can both report the same payment — apply it once
   if (pay.status === "succeeded") return { ok: true, status: "succeeded" as const };
-  const status = dodo.status === "succeeded" ? "succeeded" : dodo.status === "failed" ? "failed" : dodo.status === "cancelled" ? "cancelled" : "pending";
-  // same currency: the full amount must have been paid. Dodo may show a subscription in the
-  // buyer's local currency — then the checkout we created (and its metadata) is the proof.
-  const sameCurrency = dodo.currency === pay.currency;
-  if (status === "succeeded" && ((sameCurrency && dodo.total_amount < pay.amount_paise) || (!sameCurrency && pay.purpose !== "subscription"))) {
-    ctx.log?.(`[payments] ${ourId}: amount mismatch (${dodo.total_amount} ${dodo.currency}) — not applied`);
+  const status = paid.status === "succeeded" ? "succeeded" : paid.status === "failed" ? "failed" : paid.status === "cancelled" ? "cancelled" : "pending";
+  if (status === "succeeded" && (paid.currency !== pay.currency || paid.total_amount < pay.amount_paise)) {
+    ctx.log?.(`[payments] ${ourId}: amount mismatch (${paid.total_amount} ${paid.currency}) — not applied`);
     return { ok: false, reason: "amount mismatch" };
   }
-  store.updatePayment(ourId, { payment_id: dodo.payment_id, status });
+  store.updatePayment(ourId, { payment_id: paid.payment_id, status });
   if (status === "succeeded" && pay.purpose === "bounty_plan") {
     const plan = getPlan(pay.sku.replace("bounty-plan-", ""));
     if (plan) store.activateProgram(pay.ref, plan.points_pool);
     ctx.log?.(`[payments] ${ourId} succeeded → program ${pay.ref} is open`);
   }
-  if (status === "succeeded" && pay.purpose === "subscription") activatePro(store, pay, dodo.payment_id, dodo.subscription_id ?? null, ctx.log);
+  if (status === "succeeded" && pay.purpose === "subscription") activatePro(store, pay, paid.payment_id, ctx.log);
   return { ok: true, status };
 }
 
 /**
  * Finishes a demo checkout (only while checkout runs in demo mode): the plan is
- * applied exactly as a real Dodo payment would apply it, with a demo payment id.
+ * applied exactly as a real payment would apply it, with a demo payment id.
  */
 export async function completeDemoPayment(ctx: BountyCtx, ourId: string, ownerId: string) {
   const pay = ctx.store.payment(ourId);
   if (!pay || !pay.session_id?.startsWith("demo_")) throw err("No such demo payment.", 404);
-  const hasProduct = pay.purpose === "subscription" ? !!configuredProProduct(pay.currency === "USD" ? "USD" : "INR") : !!configuredProduct(pay.sku.replace("bounty-plan-", ""));
-  if ((await checkoutMode(hasProduct)) !== "demo") throw err("Real Dodo Payments checkout is on — demo payments are switched off.", 409);
+  if ((await checkoutMode()) !== "demo") throw err("Real Razorpay checkout is on — demo payments are switched off.", 409);
   const owner = pay.purpose === "subscription" ? pay.ref : ctx.store.program(pay.ref)?.owner_id;
   if (!owner || owner !== ownerId) throw err(pay.purpose === "subscription" ? "This checkout belongs to someone else." : "Only the program's owner can pay for it.", 403);
   if (pay.status === "succeeded") return { status: "succeeded" as const, payment_id: pay.payment_id };
@@ -436,40 +389,35 @@ export async function completeDemoPayment(ctx: BountyCtx, ourId: string, ownerId
 }
 
 /**
- * The return page doesn't always get a payment id (subscriptions come back with
- * a subscription id) — so look the payment up through the checkout session we
- * created and stored on our own payment row.
+ * Razorpay Checkout's success handler sends us the order id, payment id and
+ * signature. Nothing is unlocked until the signature checks out AND Razorpay
+ * itself says the payment is captured (an authorized payment is captured here).
  */
-export async function syncCheckout(ctx: BountyCtx, ourId: string) {
-  const pay = ctx.store.payment(ourId);
+export async function verifyCheckout(ctx: BountyCtx, b: { payment: string; razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) {
+  const pay = ctx.store.payment(b.payment);
   if (!pay) throw err("No such payment.", 404);
   if (pay.status === "succeeded") return { status: "succeeded" };
-  if (!pay.session_id || pay.session_id.startsWith("demo_")) return { status: pay.status };
-  const s = await getCheckout(pay.session_id);
-  if (!s.payment_id) return { status: s.payment_status ?? "pending" };
-  return syncPayment(ctx, ourId, s.payment_id);
-}
-
-/** The return page asks us to check with Dodo directly (in case the webhook hasn't arrived). */
-export async function syncPayment(ctx: BountyCtx, ourId: string, dodoPaymentId: string) {
-  const pay = ctx.store.payment(ourId);
-  if (!pay) throw err("No such payment.", 404);
-  if (pay.status === "succeeded") return { status: "succeeded" };
-  const dodo = await getPayment(dodoPaymentId);
-  if (String(dodo.metadata?.layerflow_payment ?? "") !== ourId) throw err("That payment belongs to a different checkout.", 400);
-  const r = applyPayment(ctx, ourId, dodo);
+  if (!pay.session_id || pay.session_id !== b.razorpay_order_id) throw err("That payment belongs to a different checkout.", 400);
+  if (!verifyCheckoutSignature(b.razorpay_order_id, b.razorpay_payment_id, b.razorpay_signature)) throw err("The payment signature didn't match — nothing was unlocked.", 400);
+  let p = await getPayment(b.razorpay_payment_id);
+  if (p.order_id !== b.razorpay_order_id) throw err("That payment belongs to a different checkout.", 400);
+  if (p.status === "authorized") p = await capturePayment(p.id, p.amount, p.currency);
+  const status = p.status === "captured" ? "succeeded" : p.status === "failed" ? "failed" : "pending";
+  const r = applyPayment(ctx, b.payment, { payment_id: p.id, status, total_amount: p.amount, currency: p.currency });
   return { status: r.ok ? r.status : "failed" };
 }
 
-export function handleWebhook(ctx: BountyCtx, event: { type?: string; data?: Partial<DodoPayment> & { payload_type?: string } }) {
-  const d = event.data;
-  if (!d) return { ok: true, ignored: true };
-  // renewals, cancellations and expiries of a Pro subscription
-  if (d.payload_type === "Subscription") return handleSubscriptionEvent(ctx, String(event.type ?? ""), d as Record<string, unknown>);
-  if (d.payload_type !== "Payment" || !d.payment_id) return { ok: true, ignored: true };
-  const ourId = String(d.metadata?.layerflow_payment ?? "");
-  if (!ourId) return d.subscription_id && d.status === "succeeded" ? handleSubscriptionEvent(ctx, "payment.succeeded", d as Record<string, unknown>) : { ok: true, ignored: true };
-  return applyPayment(ctx, ourId, { payment_id: d.payment_id, status: d.status ?? null, total_amount: Number(d.total_amount ?? 0), currency: String(d.currency ?? ""), subscription_id: d.subscription_id ?? null });
+/** Razorpay webhooks: payment.captured / order.paid unlock, payment.failed marks it failed. */
+export function handleWebhook(ctx: BountyCtx, event: { event?: string; payload?: { payment?: { entity?: Partial<RazorpayPayment> }; order?: { entity?: { notes?: unknown } } } }) {
+  const p = event.payload?.payment?.entity;
+  if (!p?.id) return { ok: true, ignored: true };
+  const notes = (p.notes && !Array.isArray(p.notes) ? p.notes : (event.payload?.order?.entity?.notes as Record<string, string> | undefined)) ?? {};
+  const ourId = String((notes as Record<string, string>).layerflow_payment ?? "");
+  if (!ourId) return { ok: true, ignored: true };
+  const type = String(event.event ?? "");
+  const status = type === "payment.captured" || type === "order.paid" ? "succeeded" : type === "payment.failed" ? "failed" : null;
+  if (!status) return { ok: true, ignored: true };
+  return applyPayment(ctx, ourId, { payment_id: p.id, status, total_amount: Number(p.amount ?? 0), currency: String(p.currency ?? "") });
 }
 
 /* ───────────────────────── triage (company programs) ───────────────────────── */
@@ -529,4 +477,4 @@ export async function explainer(ctx: BountyCtx, lang = "en") {
   return { lang, scenes: scenes.map((s, i) => ({ ...s, say: says![i] })) };
 }
 
-export { DodoError };
+export { RazorpayError };

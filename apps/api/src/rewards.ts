@@ -5,7 +5,7 @@
  *     confirmed bug-bounty report). Each one is credited 100 points, once —
  *     syncStreakPoints() is idempotent, so it runs whenever points are shown.
  *   • Cash-outs go to a review queue: an admin pays them over UPI and marks
- *     them paid (Dodo Payments can't send money to users).
+ *     them paid (a payment gateway takes money in; paying out needs a payouts product).
  *   • Goodies are redeemed with points and shipped by an admin.
  *   • Every redemption needs the learner's wallet PIN — Layerflow has no
  *     passwords, so without it anyone could cash out someone else's points.
@@ -193,7 +193,7 @@ export function checkPin(store: LayerflowStore, learnerId: string, pin: string |
 /* ───────────────────────── redeem ───────────────────────── */
 
 /**
- * How cash-outs are paid. Dodo Payments can't send money to users, so:
+ * How cash-outs are paid. Razorpay Checkout only takes money in (payouts need RazorpayX), so:
  *   demo   (default) — the withdrawal completes in the app straight away with a
  *          DEMO reference, clearly labelled — no real money moves
  *   manual — requests wait on the admin desk, who pays over UPI and adds the UTR

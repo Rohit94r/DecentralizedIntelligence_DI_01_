@@ -7,7 +7,7 @@
  */
 import { buildApp } from "./app.ts";
 import { createRuntime } from "./context.ts";
-import { checkKey } from "./lib/dodo.ts";
+import { checkKey } from "./lib/razorpay.ts";
 import { loadEnv } from "./lib/env.ts";
 import { voiceStatus } from "./lib/voice.ts";
 import { seedAll } from "./seed-data.ts";

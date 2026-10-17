@@ -1,6 +1,6 @@
 /**
  * HTTP routes for Rewards (streak · points · redeem), Bug Bounty, payments
- * (Dodo Payments checkout + webhook) and the small admin desk.
+ * (Razorpay checkout, verification + webhook), plans and the small admin desk.
  * Thin on purpose: validate the request, call one service, reply.
  */
 import { timingSafeEqual } from "node:crypto";
@@ -17,15 +17,14 @@ import {
   myReports,
   nudge,
   retryCheckout,
-  syncCheckout,
-  syncPayment,
   triage,
+  verifyCheckout,
   type BountyCtx,
   type CreateProgramBody,
 } from "./bounty.ts";
 import { displayName } from "./learning.ts";
-import { checkKey, checkoutMode, configuredProduct, dodoConfig, paymentsEnabled, verifyWebhook } from "./lib/dodo.ts";
-import { contactSales, planOf, plansView, setRenewal, startProCheckout } from "./plans.ts";
+import { checkKey, checkoutMode, paymentsEnabled, razorpayConfig, verifyWebhook } from "./lib/razorpay.ts";
+import { contactSales, planOf, plansView, startProCheckout } from "./plans.ts";
 import { adminRedemptions, adminUpdateRedemption, cancelRedemption, payoutMode, redeem, rewardsPage, rewardsSummary, setPin, type RedeemBody } from "./rewards.ts";
 
 const ID = { type: "string", pattern: "^[A-Za-z0-9_.-]{2,40}$" } as const;
@@ -170,10 +169,10 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
     async (req) => createProgram(ctx, { ...req.body, out_of_scope: req.body.out_of_scope ?? [] }),
   );
 
-  app.post<{ Params: { id: string }; Body: { owner_id: string; pin: string; return_base: string } }>(
+  app.post<{ Params: { id: string }; Body: { owner_id: string; pin: string } }>(
     "/api/bounty/programs/:id/checkout",
-    { schema: { body: { type: "object", required: ["owner_id", "pin", "return_base"], properties: { owner_id: ID, pin: PIN, return_base: { type: "string", maxLength: 200 } } } } },
-    async (req) => retryCheckout(ctx, req.params.id, req.body.owner_id, req.body.pin, req.body.return_base),
+    { schema: { body: { type: "object", required: ["owner_id", "pin"], properties: { owner_id: ID, pin: PIN, return_base: { type: "string", maxLength: 200 } } } } },
+    async (req) => retryCheckout(ctx, req.params.id, req.body.owner_id, req.body.pin),
   );
 
   app.post<{ Params: { id: string }; Body: { actor_id: string; pin: string; status: "valid" | "duplicate" | "needs_info" | "invalid"; final_severity?: "critical" | "high" | "medium" | "low"; note?: string } }>(
@@ -190,11 +189,12 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
     async (req) => triage(ctx, req.params.id, req.body),
   );
 
-  /* ── payments (Dodo) ── */
-  app.get("/api/payments/status", async () => {
+  /* ── payments (Razorpay) ── */
+  const paymentsStatus = async () => {
     const k = await checkKey();
-    return { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret, checkout: await checkoutMode(!!configuredProduct("starter") && !!configuredProduct("growth")) };
-  });
+    return { provider: "razorpay" as const, enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? razorpayConfig().mode : null, webhook: !!razorpayConfig().webhookSecret, checkout: await checkoutMode() };
+  };
+  app.get("/api/payments/status", paymentsStatus);
 
   app.post<{ Body: { payment: string; owner_id: string } }>(
     "/api/payments/demo/complete",
@@ -202,25 +202,29 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
     async (req) => completeDemoPayment(ctx, req.body.payment, req.body.owner_id),
   );
 
-  app.post<{ Body: { payment: string; payment_id: string } }>(
-    "/api/payments/sync",
-    { schema: { body: { type: "object", required: ["payment", "payment_id"], properties: { payment: { type: "string", maxLength: 40 }, payment_id: { type: "string", maxLength: 80 } } } } },
-    async (req) => syncPayment(ctx, req.body.payment, req.body.payment_id),
+  // Razorpay Checkout's success handler → verified here before anything unlocks
+  app.post<{ Body: { payment: string; razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string } }>(
+    "/api/payments/razorpay/verify",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["payment", "razorpay_order_id", "razorpay_payment_id", "razorpay_signature"],
+          properties: { payment: { type: "string", maxLength: 40 }, razorpay_order_id: { type: "string", maxLength: 60 }, razorpay_payment_id: { type: "string", maxLength: 60 }, razorpay_signature: { type: "string", maxLength: 128 } },
+        },
+      },
+    },
+    async (req) => verifyCheckout(ctx, req.body),
   );
 
-  app.post<{ Body: { payment: string } }>(
-    "/api/payments/sync-checkout",
-    { schema: { body: { type: "object", required: ["payment"], properties: { payment: { type: "string", maxLength: 40 } } } } },
-    async (req) => syncCheckout(ctx, req.body.payment),
-  );
-
-  // Standard Webhooks signs the exact bytes — so this one route keeps the raw body.
+  // Razorpay signs the exact bytes — so this one route keeps the raw body.
   app.register(async (sub) => {
     sub.removeContentTypeParser("application/json");
     sub.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => done(null, body));
-    sub.post("/api/payments/dodo/webhook", async (req, reply) => {
+    sub.post("/api/payments/razorpay/webhook", async (req, reply) => {
       const raw = typeof req.body === "string" ? req.body : "";
-      if (!verifyWebhook(raw, req.headers)) {
+      const sig = req.headers["x-razorpay-signature"];
+      if (!verifyWebhook(raw, Array.isArray(sig) ? sig[0] : sig)) {
         ctx.log?.("[payments] webhook rejected: bad or missing signature");
         return reply.status(401).send({ error: "bad signature" });
       }
@@ -230,7 +234,9 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
       } catch {
         return reply.status(400).send({ error: "bad JSON" });
       }
-      if (!store.firstWebhook(String(req.headers["webhook-id"]), String(event.type ?? ""))) return { ok: true, duplicate: true };
+      // Razorpay retries: process each event id once
+      const eventId = String(req.headers["x-razorpay-event-id"] ?? "") || `${event.event}:${event.payload?.payment?.entity?.id ?? ""}`;
+      if (!store.firstWebhook(eventId, String(event.event ?? ""))) return { ok: true, duplicate: true };
       return handleWebhook(ctx, event);
     });
   });
@@ -238,16 +244,10 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
   /* ── plans: Free · Pro ($4 / ₹349 a month) · Custom ── */
   app.get<{ Querystring: { learner_id?: string } }>("/api/plans", async (req) => plansView(store, req.query.learner_id));
 
-  app.post<{ Body: { learner_id: string; currency: "USD" | "INR"; return_base: string } }>(
+  app.post<{ Body: { learner_id: string; currency: "USD" | "INR" } }>(
     "/api/plans/checkout",
-    { schema: { body: { type: "object", required: ["learner_id", "currency", "return_base"], properties: { learner_id: ID, currency: { type: "string", enum: ["USD", "INR"] }, return_base: { type: "string", maxLength: 200 } } } } },
+    { schema: { body: { type: "object", required: ["learner_id", "currency"], properties: { learner_id: ID, currency: { type: "string", enum: ["USD", "INR"] }, return_base: { type: "string", maxLength: 200 } } } } },
     async (req) => startProCheckout(ctx, req.body),
-  );
-
-  app.post<{ Body: { learner_id: string; pin: string; renew: boolean } }>(
-    "/api/plans/renewal",
-    { schema: { body: { type: "object", required: ["learner_id", "pin", "renew"], properties: { learner_id: ID, pin: PIN, renew: { type: "boolean" } } } } },
-    async (req) => setRenewal(ctx, req.body),
   );
 
   // "Talk to us" for the Custom plan — a few per hour per visitor is plenty
@@ -298,8 +298,7 @@ export function registerRewardRoutes(app: FastifyInstance, ctx: BountyCtx) {
 
   app.get("/api/admin/status", async (req) => {
     const a = admin(req);
-    const k = await checkKey();
-    return { ok: a.ok, open: a.open, payouts: payoutMode(), payments: { enabled: paymentsEnabled(), ready: k.ok, message: k.message, mode: paymentsEnabled() ? dodoConfig().mode : null, webhook: !!dodoConfig().webhookSecret, checkout: await checkoutMode(!!configuredProduct("starter") && !!configuredProduct("growth")) } };
+    return { ok: a.ok, open: a.open, payouts: payoutMode(), payments: await paymentsStatus() };
   });
 
   app.get<{ Querystring: { status?: string } }>("/api/admin/redemptions", async (req) => {
