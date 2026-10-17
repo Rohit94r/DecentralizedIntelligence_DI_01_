@@ -181,10 +181,12 @@ export type PaymentStatus = "pending" | "succeeded" | "failed" | "cancelled";
 export interface PaymentRow {
   id: string;
   provider: string;
-  purpose: "bounty_plan";
+  purpose: "bounty_plan" | "subscription";
   ref: string;
   sku: string;
+  /** smallest unit of `currency` — paise for INR, cents for USD */
   amount_paise: number;
+  currency: string;
   session_id: string | null;
   payment_id: string | null;
   checkout_url: string | null;
@@ -277,6 +279,7 @@ function toPayment(r: Row): PaymentRow {
     ref: String(r.ref),
     sku: String(r.sku),
     amount_paise: Number(r.amount_paise),
+    currency: String(r.currency ?? "INR"),
     session_id: (r.session_id as string) ?? null,
     payment_id: (r.payment_id as string) ?? null,
     checkout_url: (r.checkout_url as string) ?? null,
@@ -284,6 +287,51 @@ function toPayment(r: Row): PaymentRow {
     created_at: String(r.created_at),
     updated_at: String(r.updated_at),
   };
+}
+
+export interface SubscriptionRow {
+  learner_id: string;
+  plan: "pro";
+  status: "active" | "cancelled" | "expired";
+  provider: "dodo" | "demo";
+  currency: string;
+  amount: number;
+  subscription_id: string | null;
+  payment_id: string | null;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+function toSubscription(r: Row): SubscriptionRow {
+  return {
+    learner_id: String(r.learner_id),
+    plan: "pro",
+    status: r.status as SubscriptionRow["status"],
+    provider: r.provider as SubscriptionRow["provider"],
+    currency: String(r.currency),
+    amount: Number(r.amount),
+    subscription_id: (r.subscription_id as string) ?? null,
+    payment_id: (r.payment_id as string) ?? null,
+    current_period_end: String(r.current_period_end),
+    cancel_at_period_end: Number(r.cancel_at_period_end) === 1,
+    created_at: String(r.created_at),
+    updated_at: String(r.updated_at),
+  };
+}
+
+export interface LeadRow {
+  id: string;
+  name: string;
+  email: string;
+  organisation: string;
+  kind: "college" | "company" | "other";
+  seats: number | null;
+  message: string | null;
+  learner_id: string | null;
+  status: "new" | "contacted" | "won" | "lost";
+  created_at: string;
 }
 
 function toProfile(r: Row): Profile {
@@ -350,18 +398,26 @@ export class LayerflowStore implements Store {
     this.seedBugTemplates();
   }
 
-  /** Older databases: repo_reports only allowed github / local sources — rebuild it to allow 'site' too. */
+  /**
+   * Older databases had narrower CHECK constraints: repo_reports without the
+   * 'site' source, payments without 'subscription' (and no currency). SQLite
+   * can't change a CHECK, so the table is rebuilt once, keeping every row.
+   */
   private migrate(): void {
-    const row = this.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'repo_reports'").get() as { sql?: string } | undefined;
-    if (row?.sql && !row.sql.includes("'site'")) {
+    const schema = readFileSync(path.join(here, "schema.sql"), "utf8");
+    const rebuild = (table: string, marker: string, columns: string) => {
+      const row = this.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) as { sql?: string } | undefined;
+      if (!row?.sql || row.sql.includes(marker)) return;
       this.tx(() => {
-        this.db.exec("ALTER TABLE repo_reports RENAME TO repo_reports_old");
-        this.db.exec(readFileSync(path.join(here, "schema.sql"), "utf8"));
-        this.db.exec("INSERT INTO repo_reports SELECT id, learner_id, repo, source, score, grade, report, created_at FROM repo_reports_old");
-        this.db.exec("DROP TABLE repo_reports_old");
-        this.db.exec(readFileSync(path.join(here, "schema.sql"), "utf8")); // the index went with the old table
+        this.db.exec(`ALTER TABLE ${table} RENAME TO ${table}_old`);
+        this.db.exec(schema);
+        this.db.exec(`INSERT INTO ${table} (${columns}) SELECT ${columns} FROM ${table}_old`);
+        this.db.exec(`DROP TABLE ${table}_old`);
+        this.db.exec(schema); // indexes went with the old table
       });
-    }
+    };
+    rebuild("repo_reports", "'site'", "id, learner_id, repo, source, score, grade, report, created_at");
+    rebuild("payments", "'subscription'", "id, provider, purpose, ref, sku, amount_paise, session_id, payment_id, checkout_url, status, created_at, updated_at");
   }
 
   private tx<T>(fn: () => T): T {
@@ -1082,12 +1138,12 @@ export class LayerflowStore implements Store {
 
   /* ── payments (Dodo) ── */
 
-  createPayment(p: { purpose: PaymentRow["purpose"]; ref: string; sku: string; amount_paise: number }): string {
+  createPayment(p: { purpose: PaymentRow["purpose"]; ref: string; sku: string; amount_paise: number; currency?: string }): string {
     const id = this.nextId("payments", "pay");
     const at = new Date().toISOString();
     this.db
-      .prepare("INSERT INTO payments (id, purpose, ref, sku, amount_paise, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)")
-      .run(id, p.purpose, p.ref, p.sku, p.amount_paise, at, at);
+      .prepare("INSERT INTO payments (id, purpose, ref, sku, amount_paise, currency, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)")
+      .run(id, p.purpose, p.ref, p.sku, p.amount_paise, p.currency ?? "INR", at, at);
     return id;
   }
 
@@ -1129,6 +1185,72 @@ export class LayerflowStore implements Store {
     return Number(this.db.prepare("INSERT OR IGNORE INTO webhook_events (id, type, received_at) VALUES (?, ?, ?)").run(id, type, new Date().toISOString()).changes) > 0;
   }
 
+  /* ── plans: subscriptions, Free-plan usage, Custom-plan leads ── */
+
+  subscription(learnerId: string): SubscriptionRow | null {
+    const r = this.db.prepare("SELECT * FROM subscriptions WHERE learner_id = ?").get(learnerId) as Row | undefined;
+    return r ? toSubscription(r) : null;
+  }
+
+  subscriptionByProviderId(subscriptionId: string): SubscriptionRow | null {
+    const r = this.db.prepare("SELECT * FROM subscriptions WHERE subscription_id = ?").get(subscriptionId) as Row | undefined;
+    return r ? toSubscription(r) : null;
+  }
+
+  saveSubscription(s: Omit<SubscriptionRow, "created_at" | "updated_at">): void {
+    const at = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO subscriptions (learner_id, plan, status, provider, currency, amount, subscription_id, payment_id, current_period_end, cancel_at_period_end, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(learner_id) DO UPDATE SET plan = excluded.plan, status = excluded.status, provider = excluded.provider, currency = excluded.currency, amount = excluded.amount,
+           subscription_id = excluded.subscription_id, payment_id = excluded.payment_id, current_period_end = excluded.current_period_end,
+           cancel_at_period_end = excluded.cancel_at_period_end, updated_at = excluded.updated_at`,
+      )
+      .run(s.learner_id, s.plan, s.status, s.provider, s.currency, s.amount, s.subscription_id, s.payment_id, s.current_period_end, s.cancel_at_period_end ? 1 : 0, at, at);
+  }
+
+  /** Counts one use and returns the new count for the day. */
+  bumpUsage(learnerId: string, kind: string, day: string): number {
+    const r = this.db
+      .prepare("INSERT INTO usage_daily (learner_id, kind, day, n) VALUES (?, ?, ?, 1) ON CONFLICT(learner_id, kind, day) DO UPDATE SET n = n + 1 RETURNING n")
+      .get(learnerId, kind, day) as Row;
+    return Number(r.n);
+  }
+
+  usage(learnerId: string, day: string): Record<string, number> {
+    const rows = this.db.prepare("SELECT kind, n FROM usage_daily WHERE learner_id = ? AND day = ?").all(learnerId, day) as Row[];
+    return Object.fromEntries(rows.map((r) => [String(r.kind), Number(r.n)]));
+  }
+
+  createLead(l: { name: string; email: string; organisation: string; kind: LeadRow["kind"]; seats: number | null; message: string | null; learner_id: string | null }): string {
+    const n = (this.db.prepare("SELECT COUNT(*) AS n FROM plan_leads").get() as { n: number }).n;
+    const id = `lead_${String(n + 1).padStart(4, "0")}`;
+    this.db
+      .prepare("INSERT INTO plan_leads (id, name, email, organisation, kind, seats, message, learner_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)")
+      .run(id, l.name, l.email, l.organisation, l.kind, l.seats, l.message, l.learner_id, new Date().toISOString());
+    return id;
+  }
+
+  leads(limit = 100): LeadRow[] {
+    return (this.db.prepare("SELECT * FROM plan_leads ORDER BY created_at DESC LIMIT ?").all(limit) as Row[]).map((r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      email: String(r.email),
+      organisation: String(r.organisation),
+      kind: String(r.kind) as LeadRow["kind"],
+      seats: r.seats === null ? null : Number(r.seats),
+      message: (r.message as string) ?? null,
+      learner_id: (r.learner_id as string) ?? null,
+      status: String(r.status) as LeadRow["status"],
+      created_at: String(r.created_at),
+    }));
+  }
+
+  setLeadStatus(id: string, status: LeadRow["status"]): boolean {
+    return Number(this.db.prepare("UPDATE plan_leads SET status = ? WHERE id = ?").run(status, id).changes) > 0;
+  }
+
   /* ── reset (judges' page / npm run seed) ── */
 
   wipe(): void {
@@ -1152,6 +1274,8 @@ export class LayerflowStore implements Store {
         "bounty_nudges",
         "bounty_programs",
         "payments",
+        "subscriptions",
+        "usage_daily",
       ])
         this.db.exec(`DELETE FROM ${t}`);
     });

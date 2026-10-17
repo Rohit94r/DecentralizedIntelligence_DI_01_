@@ -240,10 +240,11 @@ CREATE TABLE IF NOT EXISTS bounty_nudges (
 CREATE TABLE IF NOT EXISTS payments (
   id           TEXT PRIMARY KEY,                 -- pay_0001 (ours)
   provider     TEXT NOT NULL DEFAULT 'dodo',
-  purpose      TEXT NOT NULL CHECK (purpose IN ('bounty_plan')),
-  ref          TEXT NOT NULL,                    -- the program id
+  purpose      TEXT NOT NULL CHECK (purpose IN ('bounty_plan', 'subscription')),
+  ref          TEXT NOT NULL,                    -- the program id (bounty_plan) or learner id (subscription)
   sku          TEXT NOT NULL,
-  amount_paise INTEGER NOT NULL,
+  amount_paise INTEGER NOT NULL,                 -- smallest unit of `currency` (paise or cents)
+  currency     TEXT NOT NULL DEFAULT 'INR',
   session_id   TEXT,
   payment_id   TEXT,                             -- Dodo's pay_… id
   checkout_url TEXT,
@@ -264,6 +265,43 @@ CREATE TABLE IF NOT EXISTS webhook_events (      -- Standard Webhooks retry: pro
   id          TEXT PRIMARY KEY,
   type        TEXT NOT NULL,
   received_at TEXT NOT NULL
+);
+
+-- ── Plans: Free / Pro ($4 · ₹349 a month) / Custom ──
+CREATE TABLE IF NOT EXISTS subscriptions (       -- one row per learner who has ever had Pro
+  learner_id           TEXT PRIMARY KEY,
+  plan                 TEXT NOT NULL CHECK (plan IN ('pro')),
+  status               TEXT NOT NULL CHECK (status IN ('active', 'cancelled', 'expired')),
+  provider             TEXT NOT NULL CHECK (provider IN ('dodo', 'demo')),
+  currency             TEXT NOT NULL,            -- USD | INR
+  amount               INTEGER NOT NULL,         -- per month, smallest unit
+  subscription_id      TEXT,                     -- Dodo's sub_… id
+  payment_id           TEXT,                     -- the payment that started (or last renewed) it
+  current_period_end   TEXT NOT NULL,            -- Pro until this moment, even after cancelling
+  cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+  created_at           TEXT NOT NULL,
+  updated_at           TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS usage_daily (         -- what the Free plan counts: chat, mentor, analyse
+  learner_id TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  day        TEXT NOT NULL,                      -- local day (IST by default)
+  n          INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (learner_id, kind, day)
+);
+
+CREATE TABLE IF NOT EXISTS plan_leads (          -- "Talk to us" requests for the Custom plan
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  email        TEXT NOT NULL,
+  organisation TEXT NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN ('college', 'company', 'other')),
+  seats        INTEGER,
+  message      TEXT,
+  learner_id   TEXT,
+  status       TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'won', 'lost')),
+  created_at   TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_points_learner  ON points_ledger(learner_id);
