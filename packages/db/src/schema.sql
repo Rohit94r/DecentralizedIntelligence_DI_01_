@@ -236,17 +236,17 @@ CREATE TABLE IF NOT EXISTS bounty_nudges (
   PRIMARY KEY (learner_id, program_id, bug_id)
 );
 
--- ── Payments (Dodo Payments checkout) ──
+-- ── Payments (Razorpay orders; the demo checkout when no keys are set) ──
 CREATE TABLE IF NOT EXISTS payments (
   id           TEXT PRIMARY KEY,                 -- pay_0001 (ours)
-  provider     TEXT NOT NULL DEFAULT 'dodo',
+  provider     TEXT NOT NULL DEFAULT 'razorpay', -- razorpay | demo (older rows: dodo)
   purpose      TEXT NOT NULL CHECK (purpose IN ('bounty_plan', 'subscription')),
   ref          TEXT NOT NULL,                    -- the program id (bounty_plan) or learner id (subscription)
   sku          TEXT NOT NULL,
   amount_paise INTEGER NOT NULL,                 -- smallest unit of `currency` (paise or cents)
   currency     TEXT NOT NULL DEFAULT 'INR',
-  session_id   TEXT,
-  payment_id   TEXT,                             -- Dodo's pay_… id
+  session_id   TEXT,                             -- Razorpay order_… id (demo_… for the demo checkout)
+  payment_id   TEXT,                             -- Razorpay's pay_… id
   checkout_url TEXT,
   status       TEXT NOT NULL CHECK (status IN ('pending', 'succeeded', 'failed', 'cancelled')),
   created_at   TEXT NOT NULL,
@@ -272,10 +272,10 @@ CREATE TABLE IF NOT EXISTS subscriptions (       -- one row per learner who has 
   learner_id           TEXT PRIMARY KEY,
   plan                 TEXT NOT NULL CHECK (plan IN ('pro')),
   status               TEXT NOT NULL CHECK (status IN ('active', 'cancelled', 'expired')),
-  provider             TEXT NOT NULL CHECK (provider IN ('dodo', 'demo')),
+  provider             TEXT NOT NULL CHECK (provider IN ('razorpay', 'demo', 'dodo')),
   currency             TEXT NOT NULL,            -- USD | INR
   amount               INTEGER NOT NULL,         -- per month, smallest unit
-  subscription_id      TEXT,                     -- Dodo's sub_… id
+  subscription_id      TEXT,                     -- a provider subscription id, if Pro is ever auto-renewed
   payment_id           TEXT,                     -- the payment that started (or last renewed) it
   current_period_end   TEXT NOT NULL,            -- Pro until this moment, even after cancelling
   cancel_at_period_end INTEGER NOT NULL DEFAULT 0,

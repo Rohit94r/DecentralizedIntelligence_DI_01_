@@ -293,7 +293,7 @@ export interface SubscriptionRow {
   learner_id: string;
   plan: "pro";
   status: "active" | "cancelled" | "expired";
-  provider: "dodo" | "demo";
+  provider: "razorpay" | "demo" | "dodo";
   currency: string;
   amount: number;
   subscription_id: string | null;
@@ -418,6 +418,7 @@ export class LayerflowStore implements Store {
     };
     rebuild("repo_reports", "'site'", "id, learner_id, repo, source, score, grade, report, created_at");
     rebuild("payments", "'subscription'", "id, provider, purpose, ref, sku, amount_paise, session_id, payment_id, checkout_url, status, created_at, updated_at");
+    rebuild("subscriptions", "'razorpay'", "learner_id, plan, status, provider, currency, amount, subscription_id, payment_id, current_period_end, cancel_at_period_end, created_at, updated_at");
   }
 
   private tx<T>(fn: () => T): T {
@@ -1138,12 +1139,12 @@ export class LayerflowStore implements Store {
 
   /* ── payments (Dodo) ── */
 
-  createPayment(p: { purpose: PaymentRow["purpose"]; ref: string; sku: string; amount_paise: number; currency?: string }): string {
+  createPayment(p: { purpose: PaymentRow["purpose"]; ref: string; sku: string; amount_paise: number; currency?: string; provider?: string }): string {
     const id = this.nextId("payments", "pay");
     const at = new Date().toISOString();
     this.db
-      .prepare("INSERT INTO payments (id, purpose, ref, sku, amount_paise, currency, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)")
-      .run(id, p.purpose, p.ref, p.sku, p.amount_paise, p.currency ?? "INR", at, at);
+      .prepare("INSERT INTO payments (id, provider, purpose, ref, sku, amount_paise, currency, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)")
+      .run(id, p.provider ?? "razorpay", p.purpose, p.ref, p.sku, p.amount_paise, p.currency ?? "INR", at, at);
     return id;
   }
 
