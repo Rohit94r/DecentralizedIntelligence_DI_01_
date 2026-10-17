@@ -8,10 +8,11 @@
  *   • money needs the wallet PIN, can't go below zero, and refunds exactly once
  *   • a company program can't mint points: owners can't report or approve
  *     themselves, and the reward pool can't be overdrawn
- *   • the Dodo webhook rejects bad signatures and applies a payment once
+ *   • Razorpay: the webhook rejects bad signatures and applies a payment once;
+ *     checkout verification refuses a wrong order or a forged signature
  *   • plans: Free stops at its daily limits and the beginner program; Pro (a
- *     ₹349 / $4 demo checkout) lifts them; stopping renewal keeps the paid
- *     month; an expiry webhook ends it; Custom requests are saved
+ *     ₹349 / $4 demo checkout) lifts them; paying again adds a month; Pro
+ *     ends when the paid time runs out; Custom requests are saved
  */
 import { createHmac } from "node:crypto";
 import { BUILT_IN_PROGRAMS, getChallenge, plantedBugs } from "../packages/core/src/index.ts";
@@ -170,24 +171,27 @@ export async function run(): Promise<SuiteResult> {
     const tb = await api.post(`/api/bounty/reports/${b.body?.report?.id}/triage`, { actor_id: owner, pin: "2468", status: "valid", final_severity: "high" });
     check(checks, "the reward pool can't be overdrawn (1,000-point bug capped to the 300 left, then 0)", ta.body?.report?.points === 300 && tb.body?.report?.points === 0 && store.program(pooled)!.points_paid === 300, `${ta.body?.report?.points} / ${tb.body?.report?.points}`);
 
-    /* ── Dodo webhook ── */
-    const secret = "whsec_" + Buffer.from(`harness-${tag}-secret-key`).toString("base64");
-    process.env.DODO_PAYMENTS_WEBHOOK_SECRET = secret;
-    const waiting = store.createProgram({ owner_id: owner, kind: "company", company: "Paid Co", title: "Paid plan test", summary: "Waits for a Dodo payment in the harness suite.", repo_url: null, website: "https://paid.example", scope: ["x"], out_of_scope: [], rewards: { critical: 2000, high: 1000, medium: 400, low: 100 }, plan: "starter", points_pool: 0, status: "awaiting_payment" });
-    const payId = store.createPayment({ purpose: "bounty_plan", ref: waiting, sku: "bounty-plan-starter", amount_paise: 199_900 });
-    const body = JSON.stringify({ business_id: "bus_x", type: "payment.succeeded", timestamp: new Date().toISOString(), data: { payload_type: "Payment", payment_id: "pay_harness", status: "succeeded", total_amount: 199_900, currency: "INR", metadata: { layerflow_payment: payId } } });
-    const ts = String(Math.floor(Date.now() / 1000));
-    const sign = (id: string, raw: string) => "v1," + createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`${id}.${ts}.${raw}`).digest("base64");
-    const hook = (id: string, sig: string, raw = body) => api.postRaw("/api/payments/dodo/webhook", raw, { "webhook-id": id, "webhook-timestamp": ts, "webhook-signature": sig });
-    const forged = await hook("wh_forged", "v1,AAAA");
-    const tampered = await hook("wh_tamper", sign("wh_tamper", body), body.replace("199900", "1"));
-    check(checks, "the webhook rejects a forged or tampered signature", forged.status === 401 && tampered.status === 401, `${forged.status} / ${tampered.status}`);
+    /* ── Razorpay webhook + checkout verification ── */
+    const secret = `harness-${tag}-webhook-secret`;
+    process.env.RAZORPAY_WEBHOOK_SECRET = secret;
+    const waiting = store.createProgram({ owner_id: owner, kind: "company", company: "Paid Co", title: "Paid plan test", summary: "Waits for a Razorpay payment in the harness suite.", repo_url: null, website: "https://paid.example", scope: ["x"], out_of_scope: [], rewards: { critical: 2000, high: 1000, medium: 400, low: 100 }, plan: "starter", points_pool: 0, status: "awaiting_payment" });
+    const payId = store.createPayment({ purpose: "bounty_plan", ref: waiting, sku: "bounty-plan-starter", amount_paise: 199_900, currency: "INR", provider: "razorpay" });
+    store.updatePayment(payId, { session_id: "order_harness01" });
+    const body = JSON.stringify({ entity: "event", event: "payment.captured", payload: { payment: { entity: { id: "pay_harness01", order_id: "order_harness01", status: "captured", amount: 199_900, currency: "INR", notes: { layerflow_payment: payId } } } } });
+    const sign = (raw: string) => createHmac("sha256", secret).update(raw).digest("hex");
+    const hook = (id: string, sig: string, raw = body) => api.postRaw("/api/payments/razorpay/webhook", raw, { "x-razorpay-signature": sig, "x-razorpay-event-id": id });
+    const forged = await hook("evt_forged", "0".repeat(64));
+    const tampered = await hook("evt_tamper", sign(body), body.replace("199900", "1"));
+    check(checks, "the Razorpay webhook rejects a forged or tampered signature", forged.status === 401 && tampered.status === 401, `${forged.status} / ${tampered.status}`);
+    const wrongOrder = await api.post("/api/payments/razorpay/verify", { payment: payId, razorpay_order_id: "order_someoneelse", razorpay_payment_id: "pay_harness01", razorpay_signature: "a".repeat(64) });
+    const forgedSig = await api.post("/api/payments/razorpay/verify", { payment: payId, razorpay_order_id: "order_harness01", razorpay_payment_id: "pay_harness01", razorpay_signature: "b".repeat(64) });
+    check(checks, "checkout verification refuses another order or a forged signature", wrongOrder.status === 400 && forgedSig.status === 400 && /signature/.test(forgedSig.body?.error ?? ""), `${wrongOrder.status} / ${forgedSig.status}`);
     check(checks, "…and the program stays closed until a real payment", store.program(waiting)!.status === "awaiting_payment");
-    const ok = await hook("wh_real", sign("wh_real", body));
-    const replay = await hook("wh_real", sign("wh_real", body));
-    check(checks, "a signed payment.succeeded opens the program and unlocks its pool", ok.status === 200 && store.program(waiting)!.status === "open" && store.program(waiting)!.points_pool === 10_000, JSON.stringify(store.program(waiting)));
+    const ok = await hook("evt_real", sign(body));
+    const replay = await hook("evt_real", sign(body));
+    check(checks, "a signed payment.captured opens the program and unlocks its pool", ok.status === 200 && store.program(waiting)!.status === "open" && store.program(waiting)!.points_pool === 10_000, JSON.stringify(store.program(waiting)));
     check(checks, "…and a replayed webhook is ignored", replay.body?.duplicate === true, replay.raw.slice(0, 120));
-    delete process.env.DODO_PAYMENTS_WEBHOOK_SECRET;
+    delete process.env.RAZORPAY_WEBHOOK_SECRET;
   }
 
   /* ── plans: Free limits, Pro through the (demo) checkout, Custom requests ── */
@@ -211,7 +215,7 @@ export async function run(): Promise<SuiteResult> {
   check(checks, `Free: ${shopP.company} takes reports, ${campus.company} asks for Pro`, freeShop.status === 200 && freeCampus.status === 402, `${freeShop.status} / ${freeCampus.status} ${freeCampus.body?.error ?? ""}`);
 
   const pro = L("pro");
-  const co = await api.post("/api/plans/checkout", { learner_id: pro, currency: "INR", return_base: "http://localhost:3000" });
+  const co = await api.post("/api/plans/checkout", { learner_id: pro, currency: "INR" });
   const strangerPay = await api.post("/api/payments/demo/complete", { payment: co.body?.payment, owner_id: L("stranger2") });
   const paid = await api.post("/api/payments/demo/complete", { payment: co.body?.payment, owner_id: pro });
   const v1 = await api.get(`/api/plans?learner_id=${pro}`);
@@ -220,26 +224,24 @@ export async function run(): Promise<SuiteResult> {
   const badge = await api.get(`/api/rewards/${pro}/summary`);
   check(checks, "Pro: a ₹349 checkout switches Pro on — only for the learner who started it", co.body?.mode === "demo" && co.body?.demo_checkout?.amount === 34_900 && co.body?.demo_checkout?.currency === "INR" && strangerPay.status === 403 && paid.body?.status === "succeeded" && v1.body?.me?.plan === "pro" && badge.body?.plan === "pro", `${co.status} ${strangerPay.status} ${paid.raw.slice(0, 80)} ${v1.body?.me?.plan}`);
   check(checks, "…and completing the same checkout twice doesn't add a second month", twice.body?.status === "succeeded" && v2.body?.me?.subscription?.current_period_end === v1.body?.me?.subscription?.current_period_end, `${v1.body?.me?.subscription?.current_period_end} → ${v2.body?.me?.subscription?.current_period_end}`);
-  const usd = await api.post("/api/plans/checkout", { learner_id: L("usd"), currency: "USD", return_base: "http://localhost:3000" });
+  const usd = await api.post("/api/plans/checkout", { learner_id: L("usd"), currency: "USD" });
   check(checks, "…the dollar price is $4", usd.body?.demo_checkout?.amount === 400 && usd.body?.demo_checkout?.currency === "USD", usd.raw.slice(0, 120));
   const proRuns = [];
   for (let i = 0; i < 4; i++) proRuns.push((await api.post("/api/repo/analyze", { local: true, learner_id: pro })).status);
   const proCampus = await planReport(pro, campus);
   check(checks, `Pro: no daily limit, and ${campus.company} takes the report`, proRuns.every((s) => s === 200) && proCampus.status === 200, `${proRuns.join(",")} / ${proCampus.status}`);
-  const stop = await api.post("/api/plans/renewal", { learner_id: pro, pin: "1357", renew: false });
+  const another = await api.post("/api/plans/checkout", { learner_id: pro, currency: "INR" });
+  await api.post("/api/payments/demo/complete", { payment: another.body?.payment, owner_id: pro });
   const v3 = await api.get(`/api/plans?learner_id=${pro}`);
-  check(checks, "stopping renewal keeps Pro until the paid month ends", stop.status === 200 && v3.body?.me?.plan === "pro" && v3.body?.me?.subscription?.cancel_at_period_end === true, stop.raw.slice(0, 120));
+  const added = Date.parse(v3.body?.me?.subscription?.current_period_end ?? "") - Date.parse(v1.body?.me?.subscription?.current_period_end ?? "");
+  check(checks, "paying again adds another month on top (prepaid, no auto-debit)", Math.abs(added - 30 * 86_400_000) < 60_000, `+${Math.round(added / 86_400_000)} days`);
 
   if (api.rt) {
-    const secret = "whsec_" + Buffer.from(`harness-${tag}-plans-key`).toString("base64");
-    process.env.DODO_PAYMENTS_WEBHOOK_SECRET = secret;
-    const raw = JSON.stringify({ business_id: "bus_x", type: "subscription.expired", timestamp: new Date().toISOString(), data: { payload_type: "Subscription", subscription_id: "sub_harness", status: "expired", metadata: { learner_id: pro } } });
-    const ts = String(Math.floor(Date.now() / 1000));
-    const sig = "v1," + createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`wh_expire.${ts}.${raw}`).digest("base64");
-    const hook = await api.postRaw("/api/payments/dodo/webhook", raw, { "webhook-id": "wh_expire", "webhook-timestamp": ts, "webhook-signature": sig });
+    const sub = api.rt.store.subscription(pro)!;
+    api.rt.store.saveSubscription({ ...sub, current_period_end: new Date(Date.now() - 1000).toISOString() });
     const v4 = await api.get(`/api/plans?learner_id=${pro}`);
-    check(checks, "a signed subscription.expired webhook puts the learner back on Free", hook.status === 200 && v4.body?.me?.plan === "free", `${hook.status} ${v4.body?.me?.plan}`);
-    delete process.env.DODO_PAYMENTS_WEBHOOK_SECRET;
+    const after = await api.get(`/api/rewards/${pro}/summary`);
+    check(checks, "Pro ends when the paid time runs out — back on Free", v4.body?.me?.plan === "free" && after.body?.plan === "free", `${v4.body?.me?.plan} / ${after.body?.plan}`);
   }
 
   const lead = await api.post("/api/plans/contact", { name: "Harness Teacher", email: "teacher@college.example", organisation: "Harness College", kind: "college", seats: 60, message: "Pro for one class." });
