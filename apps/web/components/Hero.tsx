@@ -22,7 +22,9 @@ import AppShowcase from "./landing/AppShowcase";
 import { DashboardPreview } from "./landing/DashboardPreview";
 import { HintWheelBox } from "./landing/HintWheelBox";
 import { LearnTogether } from "./landing/LearnTogether";
+import { LivingScene } from "./landing/LivingScene";
 import { MoreFeatures } from "./landing/MoreFeatures";
+import { Pricing } from "./landing/Pricing";
 import { ChatWidget } from "./chat/ChatWidget";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
@@ -221,6 +223,7 @@ export const Hero = () => {
       <section id="home" className="relative isolate overflow-hidden px-4 pb-14 pt-36 sm:min-h-[110vh] sm:pb-0 sm:pt-36">
         <div className="absolute inset-x-0 top-0 -z-10 h-screen overflow-hidden">
           <div className="h-full w-full bg-[url('/trendybg.png')] bg-cover bg-center" />
+          <LivingScene src="/trendybg.png" />
         </div>
         <div className="absolute inset-x-0 top-0 -z-10 h-64 bg-gradient-to-b from-white via-white/70 to-transparent" />
         {/* dark mode: the white headline needs a scrim over the bright sky */}
@@ -373,6 +376,8 @@ export const Hero = () => {
       <LearnTogether />
 
       <MoreFeatures />
+
+      <Pricing />
 
       <section id="preview" className="bg-neutral-50 py-16 md:py-24">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-center gap-5 px-4 sm:px-6 lg:px-8">
