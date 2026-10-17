@@ -59,7 +59,7 @@ export async function checkKey(): Promise<{ ok: boolean; message: string }> {
   const message = ok
     ? c.mode === "live"
       ? "Razorpay is LIVE — payments take real money."
-      : "Razorpay test mode is ready — pay with card 4111 1111 1111 1111 (any future expiry, any CVV) or UPI success@razorpay."
+      : "Razorpay test mode is ready — no real money: pick Netbanking, any bank, then Success on Razorpay's test bank page."
     : r?.status === 401
       ? "Razorpay rejected the key pair — check that RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are from the same key."
       : "Couldn't reach Razorpay to check the keys.";
