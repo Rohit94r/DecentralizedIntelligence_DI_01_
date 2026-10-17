@@ -2,10 +2,17 @@
 .env
 .env.*
 !.env.example
+.gitleaks.toml.bak
 *.pem
 *.key
 secrets.json
 service-account*.json
+
+# ---- local database (regenerate with `npm run seed`) ----
+apps/api/data/
+*.db
+*.db-wal
+*.db-shm
 
 # ---- dependencies / builds ----
 node_modules/

@@ -59,7 +59,7 @@ export async function checkKey(): Promise<{ ok: boolean; message: string }> {
   const message = ok
     ? c.mode === "live"
       ? "Razorpay is LIVE — payments take real money."
-      : "Razorpay test mode is ready — pay with Razorpay's test cards or success@razorpay."
+      : "Razorpay test mode is ready — pay with card 4111 1111 1111 1111 (any future expiry, any CVV) or UPI success@razorpay."
     : r?.status === 401
       ? "Razorpay rejected the key pair — check that RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are from the same key."
       : "Couldn't reach Razorpay to check the keys.";
@@ -126,7 +126,8 @@ export interface RazorpayPayment {
 
 /** `amount` is in the smallest unit: 34900 = ₹349, 400 = $4. */
 export function createOrder(o: { amount: number; currency: "INR" | "USD"; receipt: string; notes: Record<string, string> }): Promise<RazorpayOrder> {
-  return call<RazorpayOrder>("POST", "/orders", { amount: o.amount, currency: o.currency, receipt: o.receipt.slice(0, 40), notes: o.notes });
+  // payment_capture: 1 — capture automatically, so the money settles without a second call
+  return call<RazorpayOrder>("POST", "/orders", { amount: o.amount, currency: o.currency, receipt: o.receipt.slice(0, 40), payment_capture: 1, notes: o.notes });
 }
 
 export function getPayment(paymentId: string): Promise<RazorpayPayment> {
@@ -145,7 +146,10 @@ function sameHex(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-/** Checkout's success handler: signature = HMAC_SHA256(order_id + "|" + payment_id, key secret). */
+/**
+ * Checkout's success handler: signature = HMAC_SHA256(order_id + "|" + payment_id, key secret)
+ * — order id FIRST, as Razorpay documents it. (payment_id|order_id would reject every real payment.)
+ */
 export function verifyCheckoutSignature(orderId: string, paymentId: string, signature: string, secret = razorpayConfig().keySecret): boolean {
   if (!secret || !orderId || !paymentId || !/^[0-9a-f]{64}$/.test(signature)) return false;
   return sameHex(createHmac("sha256", secret).update(`${orderId}|${paymentId}`).digest("hex"), signature);

@@ -1,0 +1,11 @@
+# gitleaks ignore file — every entry is a verified FALSE POSITIVE.
+#
+# Deliberately fake credentials used as fixtures in unit tests. They are alphabet
+# sequences, not real keys, and the tests assert that our own secret-audit
+# feature masks them. Verified by hand on 17 Oct 2026.
+#
+# ⚠️ A real secret must NEVER be added here. If gitleaks fires on something you
+# did not expect, ROTATE that credential — never silence it.
+
+packages/core/test/unit.ts:aws-access-token:458
+packages/core/test/unit.ts:aws-access-token:466
