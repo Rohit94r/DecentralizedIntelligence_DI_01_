@@ -5,6 +5,7 @@ import Link from "next/link";
 import { GithubIcon } from "@/components/icons/github-icon";
 import { XIcon } from "@/components/icons/x-icon";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/Logo";
 import { useI18n } from "@/lib/i18n/context";
 
 const socialLinks = [
@@ -27,8 +28,8 @@ export function Footer() {
     <footer className="mx-auto max-w-5xl px-4 md:px-6">
       <div className="flex flex-col gap-6 py-6">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-lg font-bold tracking-wide transition-opacity hover:opacity-85 font-gothic">
-            {t("common.brand")}
+          <Link href="/" aria-label={t("common.brand")} className="transition-opacity hover:opacity-85">
+            <Logo className="h-9" />
           </Link>
           <div className="flex items-center gap-1">
             {socialLinks.map(({ href, label, icon }) => (

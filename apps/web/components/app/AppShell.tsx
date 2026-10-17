@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Logo } from "@/components/Logo";
 import { DEMO_LEARNERS, sanitizeLearner, useLearner } from "@/lib/learner";
 import { api, type RewardsSummary } from "@/lib/api";
 import { ChatWidget } from "@/components/chat/ChatWidget";
@@ -206,8 +207,7 @@ export function AppShell({ title, subtitle, actions, children, wide = false }: {
       >
         <div className="flex items-center justify-between px-5 py-5">
           <Link href="/" className="group flex items-center gap-2.5">
-            <div className="flex size-7 items-center justify-center rounded-[9px] bg-neutral-950 text-[11px] font-bold text-[#bbf451]">L</div>
-            <span className="font-gothic text-[15px] tracking-wide text-neutral-950">{t("common.brand")}</span>
+            <Logo className="h-8" />
             <ArrowUpRight className="size-3.5 text-neutral-300 transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-neutral-500" />
           </Link>
           <button onClick={() => setOpen(false)} className="flex size-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 md:hidden">

@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="16" fill="#0a0a0a"/>
-  <!-- Layerflow: stacked layers that narrow as they flow down to one point -->
-  <path d="M16 20h32" stroke="#bbf451" stroke-width="5" stroke-linecap="round"/>
-  <path d="M20 32h24" stroke="#bbf451" stroke-width="5" stroke-linecap="round" opacity="0.75"/>
-  <path d="M25 44h14" stroke="#bbf451" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
-  <circle cx="32" cy="52" r="3" fill="#bbf451"/>
+  <!-- LayerFlow: an isometric wall and floor resting on a second layer -->
+  <g transform="translate(13.12 10.88) scale(0.66)" fill="#b8f708">
+    <path d="M5.59 37.92Q3.98 37.08 3.98 35.27L3.98 15.44Q3.98 13.63 5.53 12.69L24.76 0.94Q26.31 0 26.31 1.81L26.31 25.97L28.85 24.56Q30.44 23.67 32.07 24.44L53.65 34.64Q55.28 35.41 53.69 36.27L30.2 49.03Q28.62 49.9 27.01 49.06Z"/>
+    <path d="M1.59 48.1Q0 49 1.61 49.84L26.88 63.15Q28.49 64 30.09 63.15L55.59 49.7Q57.2 48.85 55.61 47.97L50.01 44.82Q48.42 43.93 46.82 44.79L28.5 54.68L10.19 45.02Q8.58 44.18 7.01 45.07Z"/>
+  </g>
 </svg>

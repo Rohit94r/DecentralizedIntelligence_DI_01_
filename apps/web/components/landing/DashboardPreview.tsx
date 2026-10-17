@@ -10,6 +10,7 @@ import NumberFlow from "@number-flow/react";
 import { motion, AnimatePresence } from "motion/react";
 import { BarChart2, ListChecks, MapPin, MessageCircleQuestion, Play } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
+import { Logo } from "@/components/Logo";
 import { highlightLine } from "@/lib/python";
 import { LAST_K_STARTER, MODEL_LADDER } from "./landingData";
 
@@ -264,7 +265,7 @@ export function DashboardPreview() {
     <div className="mx-auto w-full max-w-[410px] overflow-hidden rounded-[22px] border border-white/20 bg-neutral-900 text-left shadow-2xl shadow-black/25 sm:max-w-none sm:rounded-2xl">
       <div className="flex flex-col sm:flex-row">
         <div className="flex w-full shrink-0 flex-row items-center justify-start gap-1 border-b border-neutral-700/40 bg-neutral-900/98 p-2 sm:w-44 sm:flex-col sm:items-stretch sm:border-b-0 sm:border-r sm:p-3">
-          <p className="hidden font-gothic text-lg tracking-wide text-white sm:mb-6 sm:block">{t("common.brand")}</p>
+          <Logo className="hidden h-8 text-white sm:mb-6 sm:block" />
           <nav className="flex flex-row gap-1 sm:flex-col">
             {items.map(({ id, label, Icon }) => (
               <button
