@@ -3,18 +3,18 @@
 /**
  * Withdraw points to UPI — the cash side of Rewards.
  *
- * Payouts are shown as going out through Dodo Payments. They run in one of two
+ * Payouts are shown as going out through Razorpay. They run in one of two
  * modes (LAYERFLOW_PAYOUTS on the server):
  *   demo   — the payout completes here, step by step, with a DEMO reference,
- *            and every screen says no real money moved (Dodo Payments' API
- *            takes payments in; it has no payouts to users)
+ *            and every screen says no real money moved (real UPI payouts need
+ *            the RazorpayX payouts product)
  *   manual — the request waits for the Layerflow team to pay it over UPI
  */
 import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowDownToLine, BadgeCheck, Building2, Check, CircleDollarSign, Clock, Copy, FlaskConical, LoaderCircle, ShieldCheck, Smartphone, Wallet, X } from "lucide-react";
 import { Card } from "@/components/app/bits";
-import { DodoBadge } from "@/components/payments/DodoCheckout";
+import { PaymentsBadge } from "@/components/payments/Checkout";
 import { Portal } from "@/components/app/Portal";
 import { api, timeAgo, type Redemption, type RewardsView } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -50,7 +50,7 @@ export function PayoutTracker({ p, onClose }: { p: PayoutResult; onClose: () => 
 
   const steps = demo
     ? [
-        { title: "Payout created on Dodo Payments", sub: `${p.redemption.points.toLocaleString("en-IN")} points left your wallet` },
+        { title: "Payout created on Razorpay", sub: `${p.redemption.points.toLocaleString("en-IN")} points left your wallet` },
         { title: "UPI ID verified", sub: p.redemption.upi ?? "" },
         { title: `Sending ${p.redemption.inr} over UPI`, sub: "Instant transfer to your bank" },
         { title: "Paid", sub: "Demo payout complete" },
@@ -68,7 +68,7 @@ export function PayoutTracker({ p, onClose }: { p: PayoutResult; onClose: () => 
         <motion.div initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <img src="/logos/dodopayments-wordmark.svg" alt="Dodo Payments" className="mb-3 h-[18px]" />
+              <span className="mb-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#0C2451]"><img src="/logos/razorpay.svg" alt="" className="size-4" /> Razorpay</span>
               <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-neutral-400">Payout</p>
               <p className="mt-1 text-[38px] font-medium leading-none tracking-[-0.04em] text-neutral-950 tabular-nums">{p.redemption.inr}</p>
               <p className="mt-1 font-mono text-[12.5px] text-neutral-500">to {p.redemption.upi}</p>
@@ -171,7 +171,7 @@ export function Withdraw({ r, ask, onPaid }: { r: RewardsView; ask: ReturnType<t
             <p className="text-[18px] font-medium tracking-[-0.02em] text-neutral-950">Withdraw to UPI</p>
             {demo ? <DemoBadge /> : <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-bold text-neutral-600">Paid by the Layerflow team</span>}
           </div>
-          {demo && <DodoBadge label="Payouts by" className="mt-2" />}
+          {demo && <PaymentsBadge label="Payouts by" className="mt-2" />}
           <p className="mt-1 text-[13px] leading-[1.5] text-neutral-500">
             Turn points into rupees: {rate * 10} points = ₹10. Withdraw from {min.toLocaleString("en-IN")} points ({rupee(min)}), in steps of {rupee(step)}.
           </p>
@@ -250,7 +250,7 @@ export function Withdraw({ r, ask, onPaid }: { r: RewardsView; ask: ReturnType<t
                 {busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowDownToLine className="size-4" />} Withdraw {rupee(points)}
               </button>
               <p className="flex items-center justify-center gap-1.5 text-[11.5px] text-neutral-400">
-                <ShieldCheck className="size-3.5" /> Confirmed with your wallet PIN{demo ? " · paid out by Dodo Payments" : ""}
+                <ShieldCheck className="size-3.5" /> Confirmed with your wallet PIN{demo ? " · paid out by Razorpay" : ""}
               </p>
             </div>
           )}
@@ -270,7 +270,7 @@ export function Withdraw({ r, ask, onPaid }: { r: RewardsView; ask: ReturnType<t
                 <span className="font-mono text-neutral-400">3.</span>
                 {demo ? (
                   <span>
-                    Dodo Payments sends the money to your UPI and you get a payout reference. <b className="text-[#96681c]">Demo mode: no real money is sent.</b>
+                    Razorpay sends the money to your UPI and you get a payout reference. <b className="text-[#96681c]">Demo mode: no real money is sent.</b>
                   </span>
                 ) : (
                   <span>The Layerflow team checks it and sends the money to your UPI — usually within 3 working days. You'll see the UPI reference (UTR) here.</span>

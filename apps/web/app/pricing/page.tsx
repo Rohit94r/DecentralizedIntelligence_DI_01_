@@ -1,25 +1,25 @@
 "use client";
 
 /**
- * Plans & billing — Free, Pro ($4 · ₹349 a month) and Custom.
+ * Plans & billing — Free, Pro (₹349 · $4 a month) and Custom.
  *
- *   • your plan today: what you've used of the Free limits, or when Pro renews
- *   • Go Pro: Dodo's hosted checkout in rupees or dollars (the in-app demo
- *     checkout when this server can't take real payments); Dodo sends you back
- *     here and the payment is checked with Dodo before Pro switches on
- *   • stop / restart renewing (wallet PIN), and "Talk to us" for the Custom plan
+ *   • your plan today: what you've used of the Free limits, or until when Pro runs
+ *   • Go Pro: Razorpay's checkout opens right here (UPI, cards, netbanking,
+ *     wallets); the server verifies the payment before Pro switches on. Pro is
+ *     prepaid — each payment adds 30 days, nothing is debited automatically
+ *   • the in-app demo checkout when this server has no Razorpay keys
+ *   • "Talk to us" for the Custom plan
  */
-import React, { Suspense, useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, BadgeCheck, CircleCheck, CircleX, Crown, LoaderCircle, Lock, Send } from "lucide-react";
 import { AppShell } from "@/components/app/AppShell";
 import { Card, PageHeading } from "@/components/app/bits";
-import { DodoCheckoutSheet } from "@/components/payments/DodoCheckout";
+import { DemoCheckoutSheet, PaymentsBadge } from "@/components/payments/Checkout";
 import { CurrencySwitch, FALLBACK_PLANS, PlanCards } from "@/components/plans/PlanCards";
-import { usePin } from "@/components/rewards/PinDialog";
 import { api, money, refreshPoints, type Currency, type DemoCheckout, type PlansView } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
+import { PaymentCancelled, payWithRazorpay } from "@/lib/razorpay";
 import { cn } from "@/lib/utils";
 
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -42,27 +42,10 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
   );
 }
 
-function YourPlan({ view, onChanged }: { view: PlansView; onChanged: () => void }) {
+function YourPlan({ view }: { view: PlansView }) {
   const me = view.me!;
-  const pin = usePin();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const sub = me.subscription;
   const limits = view.limits[me.plan];
-  const renew = async (on: boolean) => {
-    setError(null);
-    const p = await pin.ask(me.learner_id, me.has_pin, on ? "Turn renewal back on" : "Stop renewing Pro");
-    if (!p) return;
-    setBusy(true);
-    try {
-      await api.setRenewal(me.learner_id, p, on);
-      onChanged();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <Card className="mb-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
@@ -74,18 +57,9 @@ function YourPlan({ view, onChanged }: { view: PlansView; onChanged: () => void 
           </div>
           <p className="mt-1 text-[13px] leading-[1.5] text-neutral-600">
             {me.plan === "pro" && sub
-              ? sub.cancel_at_period_end
-                ? `Pro stays on until ${date(sub.current_period_end)}, then you're back on Free. Nothing more will be charged.`
-                : `${sub.price} a month · renews on ${date(sub.current_period_end)}.`
+              ? `Pro until ${date(sub.current_period_end)}. Nothing is debited automatically — pay again any time to add another month.`
               : "Daily limits reset at midnight. Earning points and cashing out work the same on every plan."}
           </p>
-          {me.plan === "pro" && sub?.can_manage && (
-            <button onClick={() => renew(sub.cancel_at_period_end)} disabled={busy} className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3.5 py-1.5 text-[12.5px] font-semibold text-neutral-700 hover:border-neutral-950 disabled:opacity-50">
-              {busy && <LoaderCircle className="size-3.5 animate-spin" />}
-              {sub.cancel_at_period_end ? "Keep Pro — turn renewal back on" : "Stop renewing"}
-            </button>
-          )}
-          {error && <p className="mt-2 text-[12.5px] text-[#a8401f]">{error}</p>}
         </div>
         <div className="grid gap-2 sm:grid-cols-3 lg:w-[34rem]">
           <Meter label="Chat with Priya today" used={me.usage.chat ?? 0} limit={me.limits_on ? limits.chat_per_day : null} />
@@ -93,7 +67,6 @@ function YourPlan({ view, onChanged }: { view: PlansView; onChanged: () => void 
           <Meter label="Analyses today" used={me.usage.analyse ?? 0} limit={me.limits_on ? limits.analyses_per_day : null} />
         </div>
       </div>
-      {pin.dialog}
     </Card>
   );
 }
@@ -177,15 +150,13 @@ function ContactForm({ learner }: { learner: string | null }) {
 
 const FAQ = [
   ["Do I need Pro to earn money?", "No. Streak points, bug-bounty points, goodies and UPI withdrawals work exactly the same on Free."],
-  ["Which currency will I pay in?", "Pick rupees for ₹349 a month (UPI or cards, for India) or dollars for $4 a month (cards, anywhere). Dodo Payments shows the final amount before you pay."],
-  ["How do I cancel?", "Press “Stop renewing” on this page. Pro stays on until the month you paid for ends, and nothing more is charged."],
-  ["Who handles the payment?", "Dodo Payments, on their own secure page. Layerflow never sees your card or UPI details."],
+  ["Is there an auto-debit?", "No. Each payment adds 30 days of Pro. When the time runs out you're simply back on Free — nothing is charged unless you pay again."],
+  ["Which currency will I pay in?", "Rupees: ₹349 a month with UPI, cards, netbanking or a wallet. Dollars: $4 a month with an international card. Razorpay shows the final amount before you pay."],
+  ["Who handles the payment?", "Razorpay, in its own secure window. Layerflow never sees your card, UPI or bank details — and Pro switches on only after the payment is verified."],
 ];
 
-function PricingInner() {
+export default function PricingPage() {
   const [learner] = useLearner();
-  const search = useSearchParams();
-  const router = useRouter();
   const [view, setView] = useState<PlansView | null>(null);
   const [currency, setCurrency] = useState<Currency>("INR");
   const [busy, setBusy] = useState(false);
@@ -202,45 +173,28 @@ function PricingInner() {
   }, [learner]);
   useEffect(load, [load]);
 
-  // back from Dodo's hosted checkout: ?payment=<ours>&payment_id=<dodo>&status=…
-  useEffect(() => {
-    const ours = search.get("payment");
-    if (!ours) return;
-    const dodoId = search.get("payment_id");
-    const clear = () => router.replace("/pricing");
-    if (search.get("cancelled")) {
-      setNotice({ ok: false, text: "Checkout cancelled — nothing was charged." });
-      clear();
-      return;
-    }
-    (dodoId ? api.syncPayment(ours, dodoId) : api.syncCheckout(ours))
-      .then((r) => {
-        setNotice(r.status === "succeeded" ? { ok: true, text: "Payment received — welcome to Pro!" } : { ok: false, text: `The payment is ${r.status}. If money left your account, Pro switches on as soon as Dodo confirms it.` });
-        load();
-      })
-      .catch((e) => setNotice({ ok: false, text: (e as Error).message }))
-      .finally(clear);
-  }, [search, router, load]);
-
   const goPro = async () => {
     if (!learner) return;
     setError(null);
+    setNotice(null);
     setBusy(true);
     try {
-      const r = await api.proCheckout(learner, currency, window.location.origin);
-      if (r.checkout_url) window.location.href = r.checkout_url;
-      else if (r.demo_checkout) {
-        setDemo(r.demo_checkout);
-        setBusy(false);
-      }
+      const r = await api.proCheckout(learner, currency);
+      if (r.razorpay) {
+        const status = await payWithRazorpay(r.payment, r.razorpay, { name: learner });
+        setNotice(status === "succeeded" ? { ok: true, text: "Payment received — welcome to Pro!" } : { ok: false, text: `The payment is ${status}. Pro switches on as soon as your bank confirms it.` });
+        load();
+      } else if (r.demo_checkout) setDemo(r.demo_checkout);
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof PaymentCancelled) setNotice({ ok: false, text: e.message });
+      else setError((e as Error).message);
+    } finally {
       setBusy(false);
     }
   };
 
   const me = view?.me ?? null;
-  const live = view ? view.checkout[currency] === "dodo" : true;
+  const real = view ? view.checkout.mode === "razorpay" : true;
 
   return (
     <AppShell title="Pricing" subtitle="Free · Pro · Custom">
@@ -257,13 +211,13 @@ function PricingInner() {
         )}
       </AnimatePresence>
 
-      {me && view && <YourPlan view={view} onChanged={load} />}
+      {me && view && <YourPlan view={view} />}
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <CurrencySwitch currency={currency} onChange={setCurrency} />
         <p className="flex items-center gap-1.5 text-[12.5px] text-neutral-500">
-          <Lock className="size-3.5" /> Checkout by <img src="/logos/dodopayments.svg" alt="" className="size-4" /> <b className="font-semibold text-neutral-700">Dodo Payments</b>
-          {!live && <span className="rounded-full bg-[#f59e0b]/15 px-2 py-0.5 text-[10.5px] font-bold text-[#96681c]">demo — nothing is charged</span>}
+          <Lock className="size-3.5" /> <PaymentsBadge label="Checkout by" />
+          {!real && <span className="rounded-full bg-[#f59e0b]/15 px-2 py-0.5 text-[10.5px] font-bold text-[#96681c]">demo — nothing is charged</span>}
         </p>
       </div>
 
@@ -285,22 +239,17 @@ function PricingInner() {
                 Talk to us <ArrowRight className="size-4" />
               </a>
             );
-          if (me?.plan === "pro" && !me.subscription?.cancel_at_period_end)
-            return (
-              <span className={cn(btn, "bg-white/10 text-white")}>
-                <Crown className="size-4" /> Your plan
-              </span>
-            );
+          const price = p.price ? money(p.price[currency], currency) : "";
           return (
             <button onClick={goPro} disabled={busy || !learner} className={cn(btn, "bg-[#bbf451] text-[#1a2e05] hover:bg-[#a8e23a]")}>
               {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Crown className="size-4" />}
-              {p.price ? `Go Pro · ${money(p.price[currency], currency)} / month` : p.cta}
+              {me?.plan === "pro" ? `Add a month · ${price}` : `Go Pro · ${price} / month`}
             </button>
           );
         }}
       />
       {error && <p className="mt-3 rounded-2xl bg-[#fdeee8] px-4 py-3 text-[13px] text-[#a8401f]">{error}</p>}
-      {live && view?.checkout.live && <p className="mt-3 text-center text-[12px] text-neutral-500">You'll pay on Dodo Payments' secure page, then come straight back here.</p>}
+      {real && view?.checkout.live && <p className="mt-3 text-center text-[12px] text-neutral-500">Razorpay opens right here — UPI, cards, netbanking or wallets. Pro switches on the moment the payment is verified.</p>}
 
       <div className="mt-8">
         <ContactForm learner={learner} />
@@ -316,7 +265,7 @@ function PricingInner() {
       </div>
 
       {demo && learner && (
-        <DodoCheckoutSheet
+        <DemoCheckoutSheet
           checkout={demo}
           ownerId={learner}
           doneText="You're on Pro — no daily limits."
@@ -330,13 +279,5 @@ function PricingInner() {
         />
       )}
     </AppShell>
-  );
-}
-
-export default function PricingPage() {
-  return (
-    <Suspense>
-      <PricingInner />
-    </Suspense>
   );
 }

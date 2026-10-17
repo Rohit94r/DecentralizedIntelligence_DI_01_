@@ -4,14 +4,15 @@
  * "Host a program" — a company (or an open-source maintainer) lists what
  * hunters may test, what's off-limits and what each severity pays. The free
  * Community plan pays reputation; Starter and Growth unlock a pool of reward
- * points and are paid through Dodo Payments' hosted checkout.
+ * points and are paid through Razorpay Checkout.
  */
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Building2, CreditCard, Globe, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/app/bits";
 import { usePin } from "@/components/rewards/PinDialog";
-import { DodoBadge, DodoCheckoutSheet } from "@/components/payments/DodoCheckout";
+import { DemoCheckoutSheet, PaymentsBadge } from "@/components/payments/Checkout";
+import { PaymentCancelled, payWithRazorpay } from "@/lib/razorpay";
 import { api, type BountyPlan, type BountySeverity, type DemoCheckout, type PaymentsStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { SEVERITY_STYLE } from "./bits";
@@ -74,10 +75,16 @@ export function HostForm({ plans, learner, onCreated }: { plans: BountyPlan[]; l
         out_of_scope: lines(outScope),
         rewards,
         plan,
-        return_base: window.location.origin,
       });
-      if (r.checkout_url) window.location.href = r.checkout_url;
-      else if (r.demo_checkout) setDemo(r.demo_checkout);
+      if (r.razorpay && r.payment) {
+        // Razorpay's popup; if it's closed, the program waits and can be paid from its page
+        try {
+          await payWithRazorpay(r.payment, r.razorpay, { name: company.trim() });
+        } catch (e) {
+          if (!(e instanceof PaymentCancelled)) throw e;
+        }
+        onCreated(r.id);
+      } else if (r.demo_checkout) setDemo(r.demo_checkout);
       else onCreated(r.id);
     } catch (e) {
       setError((e as Error).message);
@@ -175,13 +182,13 @@ export function HostForm({ plans, learner, onCreated }: { plans: BountyPlan[]; l
         ))}
         {paid && (
           <div className="rounded-2xl border border-neutral-200/80 bg-white px-4 py-3">
-            <DodoBadge label="Checkout by" />
+            <PaymentsBadge label="Checkout by" />
             <p className="mt-2 text-[12.5px] leading-[1.5] text-neutral-600">
               {!pay
                 ? "Checking payments…"
                 : pay.checkout === "demo"
-                  ? "Pay with UPI or a card in Dodo's checkout. This server runs it in demo mode, so nothing is charged."
-                  : `Pay with UPI or a card on Dodo's secure checkout page. ${pay.message}`}
+                  ? "Pay with UPI or a card in the checkout. This server runs it in demo mode (no Razorpay keys yet), so nothing is charged."
+                  : `Pay with UPI, a card, netbanking or a wallet in Razorpay's secure popup. ${pay.message}`}
             </p>
           </div>
         )}
@@ -196,7 +203,7 @@ export function HostForm({ plans, learner, onCreated }: { plans: BountyPlan[]; l
       </div>
       {pin.dialog}
       {demo && learner && (
-        <DodoCheckoutSheet
+        <DemoCheckoutSheet
           checkout={demo}
           ownerId={learner}
           onClose={() => {

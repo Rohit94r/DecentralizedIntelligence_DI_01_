@@ -688,13 +688,26 @@ export interface FileReportResult {
 }
 
 export interface PaymentsStatus {
+  provider?: "razorpay";
   enabled: boolean;
   ready: boolean;
   message: string;
+  /** "live" | "test" (from the Key ID) */
   mode: string | null;
   webhook: boolean;
-  /** dodo = Dodo's hosted checkout; demo = the in-app demo checkout (nothing is charged) */
-  checkout?: "dodo" | "demo";
+  /** razorpay = Razorpay Checkout; demo = the in-app demo checkout (nothing is charged) */
+  checkout?: "razorpay" | "demo";
+}
+
+/** What the browser needs to open Razorpay Checkout for an order the server created. */
+export interface RazorpayOptions {
+  key_id: string;
+  order_id: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  notes: Record<string, string>;
 }
 
 /** The in-app demo checkout: a bug-bounty plan (program_id, amount_inr) or Pro (amount + currency). */
@@ -736,14 +749,14 @@ export interface PlanLimits {
 export interface PlansView {
   plans: PlanCard[];
   limits: Record<"free" | "pro", PlanLimits>;
-  checkout: { USD: "dodo" | "demo"; INR: "dodo" | "demo"; live: boolean };
+  checkout: { mode: "razorpay" | "demo"; provider: "razorpay"; live: boolean };
   me: {
     learner_id: string;
     plan: "free" | "pro";
-    subscription: { status: "active" | "cancelled" | "expired"; provider: "dodo" | "demo"; currency: string; price: string; current_period_end: string; cancel_at_period_end: boolean; can_manage: boolean } | null;
+    /** Pro is prepaid: it lasts until current_period_end */
+    subscription: { status: "active" | "cancelled" | "expired"; provider: string; currency: string; price: string; current_period_end: string } | null;
     usage: Record<string, number>;
     limits_on: boolean;
-    has_pin: boolean;
   } | null;
 }
 
@@ -883,23 +896,20 @@ export const api = {
     out_of_scope: string[];
     rewards: Record<BountySeverity, number>;
     plan: BountyPlan["id"];
-    return_base: string;
-  }) => req<{ id: string; status: "open" | "awaiting_payment"; checkout_url: string | null; demo_checkout?: DemoCheckout | null }>("POST", "/api/bounty/programs", b),
-  programCheckout: (id: string, owner_id: string, pin: string, return_base: string) => req<{ payment: string; checkout_url: string | null; demo_checkout?: DemoCheckout | null }>("POST", `/api/bounty/programs/${encodeURIComponent(id)}/checkout`, { owner_id, pin, return_base }),
+  }) => req<{ id: string; status: "open" | "awaiting_payment"; payment?: string | null; razorpay?: RazorpayOptions | null; demo_checkout?: DemoCheckout | null }>("POST", "/api/bounty/programs", b),
+  programCheckout: (id: string, owner_id: string, pin: string) => req<{ payment: string; razorpay?: RazorpayOptions | null; demo_checkout?: DemoCheckout | null }>("POST", `/api/bounty/programs/${encodeURIComponent(id)}/checkout`, { owner_id, pin }),
   completeDemoPayment: (payment: string, owner_id: string) => req<{ status: "succeeded" | "failed"; payment_id: string | null }>("POST", "/api/payments/demo/complete", { payment, owner_id }),
   triageReport: (id: string, b: { actor_id: string; pin: string; status: "valid" | "duplicate" | "needs_info" | "invalid"; final_severity?: BountySeverity; note?: string }) =>
     req<{ report: BountyReport }>("POST", `/api/bounty/reports/${encodeURIComponent(id)}/triage`, b),
   explainer: (lang = "en") => req<{ lang: string; scenes: ExplainerScene[] }>("GET", `/api/bounty/explainer?lang=${encodeURIComponent(lang)}`),
 
-  // ── payments (Dodo) ──
+  // ── payments (Razorpay) ──
   paymentsStatus: () => req<PaymentsStatus>("GET", "/api/payments/status"),
-  syncPayment: (payment: string, payment_id: string) => req<{ status: string }>("POST", "/api/payments/sync", { payment, payment_id }),
-  syncCheckout: (payment: string) => req<{ status: string }>("POST", "/api/payments/sync-checkout", { payment }),
+  verifyRazorpay: (b: { payment: string; razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => req<{ status: string }>("POST", "/api/payments/razorpay/verify", b),
 
   // ── plans ──
   plans: (learner_id?: string | null) => req<PlansView>("GET", `/api/plans${learner_id ? `?learner_id=${encodeURIComponent(learner_id)}` : ""}`),
-  proCheckout: (learner_id: string, currency: Currency, return_base: string) => req<{ mode: "dodo" | "demo"; payment: string; checkout_url: string | null; demo_checkout: DemoCheckout | null }>("POST", "/api/plans/checkout", { learner_id, currency, return_base }),
-  setRenewal: (learner_id: string, pin: string, renew: boolean) => req<{ ok: boolean }>("POST", "/api/plans/renewal", { learner_id, pin, renew }),
+  proCheckout: (learner_id: string, currency: Currency) => req<{ mode: "razorpay" | "demo"; payment: string; razorpay: RazorpayOptions | null; demo_checkout: DemoCheckout | null }>("POST", "/api/plans/checkout", { learner_id, currency }),
   contactSales: (b: { name: string; email: string; organisation: string; kind: "college" | "company" | "other"; seats: number | null; message: string | null; learner_id: string | null }) => req<{ ok: boolean; id: string; message: string }>("POST", "/api/plans/contact", b),
   adminLeads: () => req<{ leads: PlanLead[] }>("GET", "/api/admin/leads"),
   adminLeadStatus: (id: string, status: PlanLead["status"]) => req<{ ok: boolean }>("POST", `/api/admin/leads/${encodeURIComponent(id)}`, { status }),

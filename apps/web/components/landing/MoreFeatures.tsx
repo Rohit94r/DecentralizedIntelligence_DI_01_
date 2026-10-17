@@ -2,7 +2,7 @@
 
 /**
  * Landing section: everything past practice — Bug Bounty, the daily streak,
- * goodies and UPI payouts (Dodo Payments), Website Analyse, the repo
+ * goodies and UPI payouts (Razorpay), Website Analyse, the repo
  * debugger, company programs and the three languages. Same pastel bento as
  * the feature boxes above; every box links to the real page.
  */
@@ -119,7 +119,7 @@ function RedeemMock() {
           <span className="block truncate font-mono text-[10.5px] text-neutral-500">khushi.s@okaxis</span>
         </span>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[10.5px] text-neutral-600">
-          <img src="/logos/dodopayments.svg" alt="" className="size-3.5" /> Dodo Payments
+          <img src="/logos/razorpay.svg" alt="" className="size-3.5" /> Razorpay
         </span>
       </div>
     </div>
@@ -214,9 +214,9 @@ function HostMock() {
         </div>
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <span className="inline-flex min-w-0 items-center gap-1 text-[10.5px] text-neutral-500">
-            <img src="/logos/dodopayments.svg" alt="" className="size-3.5" /> Checkout by <b className="font-semibold text-neutral-800">Dodo Payments</b>
+            <img src="/logos/razorpay.svg" alt="" className="size-3.5" /> Checkout by <b className="font-semibold text-neutral-800">Razorpay</b>
           </span>
-          <span className="shrink-0 rounded-lg bg-[#C6FE1E] px-2.5 py-1 text-[11px] font-semibold text-[#00160D]">Pay ₹1,999</span>
+          <span className="shrink-0 rounded-lg bg-[#3395FF] px-2.5 py-1 text-[11px] font-semibold text-white">Pay ₹1,999</span>
         </div>
       </div>
       <div className="rounded-2xl border border-neutral-200 bg-white/90 p-3">
@@ -278,7 +278,7 @@ export function MoreFeatures() {
           <Box i={4} href="/repo" tint="border-[#f3c8b8]/80 bg-[#fdeee8] lf-tint-orange" accent="#a8401f" accentDark="#f4895f" title="A debugger for your repo" body="50 bug rules read your GitHub project line by line — SQL injection, path traversal, leaked secrets — and pin each one with its fix.">
             <DebuggerMock />
           </Box>
-          <Box i={5} className="md:col-span-2" href="/bounty" tint="border-[#cfe9c8]/80 bg-[#eeffe8] lf-tint-green" accent="#359462" accentDark="#5fd08f" title="Companies host programs too" body="Post what hunters may test and what each bug is worth, pay for a plan through Dodo Payments, and triage the reports yourself. Or follow the links to real public programs.">
+          <Box i={5} className="md:col-span-2" href="/bounty" tint="border-[#cfe9c8]/80 bg-[#eeffe8] lf-tint-green" accent="#359462" accentDark="#5fd08f" title="Companies host programs too" body="Post what hunters may test and what each bug is worth, pay for a plan through Razorpay, and triage the reports yourself. Or follow the links to real public programs.">
             <HostMock />
           </Box>
           <Box i={6} href="/mentoring" tint="border-[#fbcfe8]/80 bg-[#fdf2f8] dark:border-white/10 dark:bg-white/[0.04]" accent="#be185d" accentDark="#f472b6" title="Speaks your language" body="The app, Priya's chat and the bug bounty walkthrough work in English, Hindi and Marathi.">

@@ -42,8 +42,8 @@ export function Pricing() {
         />
         <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-[12.5px] text-neutral-500">
           <Lock className="size-3.5" /> Payments are handled by
-          <img src="/logos/dodopayments.svg" alt="" className="size-4" />
-          <b className="font-semibold text-neutral-700">Dodo Payments</b> — UPI and cards in India, cards everywhere else.
+          <img src="/logos/razorpay.svg" alt="" className="size-4" />
+          <b className="font-semibold text-neutral-700">Razorpay</b> — UPI, cards, netbanking and wallets. No auto-debit.
         </p>
       </div>
     </section>

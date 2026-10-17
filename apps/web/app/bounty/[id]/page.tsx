@@ -9,7 +9,7 @@
  */
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowLeft, Check, ChevronDown, CircleAlert, CreditCard, ExternalLink, Globe, Lightbulb, LoaderCircle, PartyPopper, ShieldCheck, Trophy, X, Zap } from "lucide-react";
 import { GithubIcon } from "@/components/icons/github-icon";
@@ -17,12 +17,13 @@ import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { Card } from "@/components/app/bits";
 import { LogoTile, TechLogo } from "@/components/app/Logo";
 import { companyName } from "@/components/bounty/Directory";
-import { DodoBadge, DodoCheckoutSheet } from "@/components/payments/DodoCheckout";
+import { DemoCheckoutSheet, PaymentsBadge } from "@/components/payments/Checkout";
+import { PaymentCancelled, payWithRazorpay } from "@/lib/razorpay";
 import { CodeViewer, FileTree, type FoundMark } from "@/components/bounty/CodeViewer";
 import { ReportForm } from "@/components/bounty/ReportForm";
 import { SEVERITY_STYLE, SeverityChip, StatusPill } from "@/components/bounty/bits";
 import { usePin } from "@/components/rewards/PinDialog";
-import { api, refreshPoints, timeAgo, type BountyReport, type BountySeverity, type DemoCheckout, type FileReportResult, type HostedProgramDetail, type PlatformProgramDetail, type ProgramDetail } from "@/lib/api";
+import { api, timeAgo, type BountyReport, type BountySeverity, type DemoCheckout, type FileReportResult, type HostedProgramDetail, type PlatformProgramDetail, type ProgramDetail } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { cn } from "@/lib/utils";
 
@@ -469,9 +470,16 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
     if (!x) return;
     setPayBusy(true);
     try {
-      const r = await api.programCheckout(p.id, learner, x, window.location.origin);
-      if (r.checkout_url) window.location.href = r.checkout_url;
-      else if (r.demo_checkout) {
+      const r = await api.programCheckout(p.id, learner, x);
+      if (r.razorpay) {
+        try {
+          await payWithRazorpay(r.payment, r.razorpay, { name: p.company });
+          reload();
+        } catch (e) {
+          if (!(e instanceof PaymentCancelled)) throw e;
+        }
+        setPayBusy(false);
+      } else if (r.demo_checkout) {
         setDemo(r.demo_checkout);
         setPayBusy(false);
       }
@@ -526,9 +534,9 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
           <CreditCard className="size-5 shrink-0 text-[#96681c]" />
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-semibold text-[#151515]">Waiting for payment — only you can see this program</p>
-            <p className="text-[12.5px] text-[#6b5320] dark:text-neutral-300">It goes live for hunters as soon as Dodo Payments confirms the {p.plan_name} plan.</p>
+            <p className="text-[12.5px] text-[#6b5320] dark:text-neutral-300">It goes live for hunters as soon as the {p.plan_name} plan is paid.</p>
             {payErr && <p className="mt-1 text-[12px] font-medium text-[#a8401f]">{payErr}</p>}
-            <DodoBadge label="Checkout by" className="mt-2" />
+            <PaymentsBadge label="Checkout by" className="mt-2" />
           </div>
           <button onClick={pay} disabled={payBusy} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-neutral-950 px-5 text-[13px] font-semibold text-white disabled:opacity-50">
             {payBusy ? <LoaderCircle className="size-4 animate-spin" /> : <CreditCard className="size-4" />} Complete payment
@@ -598,7 +606,7 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
       )}
       {pin.dialog}
       {demo && learner && (
-        <DodoCheckoutSheet
+        <DemoCheckoutSheet
           checkout={demo}
           ownerId={learner}
           onClose={() => setDemo(null)}
@@ -616,11 +624,10 @@ function HostedView({ p, learner, reload, banner }: { p: HostedProgramDetail; le
 
 function ProgramPage() {
   const { id } = useParams<{ id: string }>();
-  const search = useSearchParams();
   const [learner] = useLearner();
   const [p, setP] = useState<ProgramDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [payNote, setPayNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [payNote] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = useCallback(() => {
     if (!learner) return;
@@ -633,26 +640,6 @@ function ProgramPage() {
       .catch((e) => setErr((e as Error).message));
   }, [id, learner]);
   useEffect(() => load(), [load]);
-
-  // back from Dodo's hosted checkout: ?payment=<ours>&payment_id=<dodo>&status=…
-  useEffect(() => {
-    const ours = search.get("payment");
-    if (!ours) return;
-    if (search.get("cancelled")) {
-      setPayNote({ ok: false, text: "Payment cancelled — your program is saved; complete the payment whenever you're ready." });
-      return;
-    }
-    const dodoId = search.get("payment_id");
-    if (!dodoId) return;
-    api
-      .syncPayment(ours, dodoId)
-      .then((r) => {
-        setPayNote(r.status === "succeeded" ? { ok: true, text: "Payment received — your program is live and its reward pool is unlocked. 🎉" } : { ok: false, text: `Payment status: ${r.status}. If you were charged, it will update shortly.` });
-        load();
-        refreshPoints();
-      })
-      .catch((e) => setPayNote({ ok: false, text: (e as Error).message }));
-  }, [search, load]);
 
   const banner = useMemo(
     () =>

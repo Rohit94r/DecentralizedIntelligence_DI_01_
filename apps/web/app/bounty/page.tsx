@@ -5,7 +5,7 @@
  * programs (real code, planted bugs, instant triage), company programs and
  * open-source programs (triaged by their owners). Confirmed bugs pay points,
  * and points are money (100 = ₹10). Companies can host a program here; paid
- * plans go through Dodo Payments.
+ * plans are paid through Razorpay.
  */
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";

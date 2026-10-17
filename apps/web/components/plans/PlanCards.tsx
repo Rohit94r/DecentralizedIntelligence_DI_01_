@@ -43,9 +43,9 @@ export const FALLBACK_PLANS: PlanCard[] = [
       "Unlimited Repo & Website Analyse",
       "Every practice bounty program — CampusConnect and PayLite too",
       "A Pro badge next to your name",
-      "Cancel any time — Pro stays on until the month you paid for ends",
+      "No auto-debit — each payment adds 30 days of Pro",
     ],
-    note: "Billed monthly through Dodo Payments. Pay in rupees (UPI, cards) in India, or in dollars anywhere else.",
+    note: "Paid through Razorpay — UPI, cards, netbanking or wallets in rupees, or a card in dollars from anywhere.",
   },
   {
     id: "custom",

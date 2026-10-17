@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Admin desk — the human side of rewards. Dodo Payments takes money in but
+ * Admin desk — the human side of rewards. Razorpay takes money in but
  * can't pay learners out, so cash-outs are paid here by a person over UPI
  * (and marked paid with the UTR), goodies are packed and shipped, and reports
  * on Layerflow-owned hosted programs are triaged. Protected by
@@ -239,7 +239,7 @@ export default function AdminPage() {
 
   return (
     <AppShell title="Admin desk" subtitle="Pay cash-outs · ship goodies · triage reports">
-      <PageHeading eyebrow="Admin" title="The admin desk." accent="Where points become rupees." body="Cash-outs are paid by a person over UPI — Dodo Payments only takes payments in, it can't send money to learners. Goodies are packed and shipped from here too. Rejecting a request returns the points automatically." />
+      <PageHeading eyebrow="Admin" title="The admin desk." accent="Where points become rupees." body="Cash-outs are paid by a person over UPI — Razorpay Checkout only takes payments in (sending money out needs RazorpayX). Goodies are packed and shipped from here too. Rejecting a request returns the points automatically." />
 
       {status?.open && (
         <Card tint="orange" className="mb-5 flex items-start gap-3 !p-4">
@@ -275,7 +275,7 @@ export default function AdminPage() {
           <Card className="flex flex-wrap items-center gap-3 !p-4">
             <CreditCard className="size-5 text-neutral-500" />
             <div className="min-w-0 flex-1">
-              <p className="text-[13.5px] font-semibold text-neutral-950">Dodo Payments {status.payments.mode ? `· ${status.payments.mode.replace("_", " ")}` : ""}</p>
+              <p className="text-[13.5px] font-semibold text-neutral-950">Razorpay {status.payments.mode ? `· ${status.payments.mode} mode` : ""}</p>
               <p className="text-[12.5px] text-neutral-500">{status.payments.message}</p>
             </div>
             <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-bold", status.payments.ready ? "bg-[#359462]/15 text-[#2f7c53]" : "bg-neutral-100 text-neutral-600")}>{status.payments.ready ? "ready" : "not ready"}</span>
