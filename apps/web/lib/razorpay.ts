@@ -36,6 +36,32 @@ export function loadRazorpay(): Promise<void> {
   return loading;
 }
 
+let logo: Promise<string> | null = null;
+
+/**
+ * The logo as a data URL: Razorpay's popup runs on api.razorpay.com, and
+ * browsers refuse it an image from localhost (Checkout accepts base64 images).
+ */
+function logoImage(): Promise<string> {
+  const url = `${window.location.origin}/brands/layerflow-256.png`;
+  logo ??= fetch(url)
+    .then((r) => (r.ok ? r.blob() : Promise.reject()))
+    .then(
+      (b) =>
+        new Promise<string>((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(String(fr.result));
+          fr.onerror = reject;
+          fr.readAsDataURL(b);
+        }),
+    )
+    .catch(() => {
+      logo = null;
+      return url;
+    });
+  return logo;
+}
+
 export class PaymentCancelled extends Error {
   constructor() {
     super("Payment cancelled — nothing was charged.");
@@ -48,7 +74,7 @@ export class PaymentCancelled extends Error {
  * confirms); rejects with PaymentCancelled if the popup is closed.
  */
 export async function payWithRazorpay(payment: string, o: RazorpayOptions, prefill?: { name?: string; email?: string; contact?: string }): Promise<string> {
-  await loadRazorpay();
+  const [, image] = await Promise.all([loadRazorpay(), logoImage()]);
   const result = await new Promise<{ razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }>((resolve, reject) => {
     const rz = new window.Razorpay!({
       key: o.key_id,
@@ -58,7 +84,7 @@ export async function payWithRazorpay(payment: string, o: RazorpayOptions, prefi
       name: o.name,
       description: o.description,
       notes: o.notes,
-      image: `${window.location.origin}/brands/layerflow-256.png`,
+      image,
       prefill: prefill ?? {},
       theme: { color: "#0a0a0a" },
       handler: (r: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => resolve(r),

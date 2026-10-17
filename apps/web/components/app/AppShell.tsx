@@ -32,20 +32,25 @@ const NAV: { section?: string; items: { href: string; key: string; Icon: typeof 
     ],
   },
   {
-    section: "app.learnTogether",
+    section: "app.learnBuild",
     items: [
       { href: "/repo", key: "app.repo", Icon: FolderTree },
-      { href: "/community", key: "app.community", Icon: MessagesSquare },
+      { href: "/taxonomy", key: "app.taxonomy", Icon: BookOpenText },
+      { href: "/judges", key: "app.judges", Icon: Gavel },
     ],
   },
   {
-    section: "app.tools",
+    section: "app.learnTogether",
     items: [
+      { href: "/community", key: "app.community", Icon: MessagesSquare },
       { href: "/rewards", key: "app.rewards", Icon: Gift },
-      { href: "/pricing", key: "app.pricing", Icon: Crown },
-      { href: "/taxonomy", key: "app.taxonomy", Icon: BookOpenText },
-      { href: "/judges", key: "app.judges", Icon: Gavel },
+    ],
+  },
+  {
+    section: "app.more",
+    items: [
       { href: "/admin", key: "app.admin", Icon: ShieldCheck },
+      { href: "/pricing", key: "app.pricing", Icon: Crown },
     ],
   },
 ];
