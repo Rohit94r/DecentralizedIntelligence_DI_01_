@@ -145,7 +145,7 @@ function PreviewHints() {
             >
               <div className="mb-1 flex items-center gap-2">
                 <span className="flex size-5 items-center justify-center rounded-full bg-white/10 font-mono text-[10px] text-white">{i + 1}</span>
-                <span className="font-poppins text-[10px] uppercase tracking-[0.16em] text-neutral-500">{["nudge", "specific", "mechanism", "built-in"][i]}</span>
+                <span className="font-poppins text-[10px] uppercase tracking-[0.16em] text-neutral-500">{["nudge", "your line", "why it breaks", "the answer"][i]}</span>
                 {shown && <span className="ml-auto font-poppins text-[10px] text-[#8fe3a6]">✓ {t("features.validated")}</span>}
               </div>
               <p className={`font-poppins text-[11px] leading-5 sm:text-sm sm:leading-6 ${shown ? "text-neutral-200" : "select-none text-neutral-600 blur-[3px]"}`}>{h}</p>

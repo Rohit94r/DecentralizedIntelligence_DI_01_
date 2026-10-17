@@ -12,7 +12,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 [Unit]
-Description=Debug Dojo (DI-01 · Kurukshetra 2026)
+Description=Layerflow — website + app API (DI-01 Debug Dojo · Kurukshetra 2026)
 After=network-online.target
 Wants=network-online.target
 
@@ -21,19 +21,40 @@ Type=simple
 User=deploy
 WorkingDirectory=/opt/debug-dojo
 
-# ⚠️ PORT is what Next binds to. The Fastify API stays on an internal port
-#    (LAYERFLOW_API_PORT) and Next proxies /api/* to it, so ONE public port is
-#    all the judges need.
+# ONE server for the website AND the app.
+#   website  → Next on PORT (3000)
+#   API      → Fastify on LAYERFLOW_API_PORT (4000), localhost only. The website
+#              reaches it through Next's /api proxy, the app through nginx's /api/
+#              (deploy/nginx.conf) — the API port itself is never public.
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=LAYERFLOW_API_PORT=4000
+Environment=LAYERFLOW_API_HOST=127.0.0.1
 Environment=NEXT_TELEMETRY_DISABLED=1
+# Once nginx + HTTPS are in front (needed for the app), keep the website off the
+# public internet too — only nginx can reach it. Leave commented while you still
+# use http://<vps-ip>:3000 directly.
+#Environment=WEB_HOST=127.0.0.1
 
-# Deterministic answers even if an API key dies mid-demo, and no daily caps so
-# the judges' red-team sweep can't get throttled.
-Environment=LAYERFLOW_RESEED=1
+# ⚠️ LAYERFLOW_RESEED=1 WIPES EVERY LEARNER, POST AND PAYMENT on every restart
+# and every deploy. Fine for a judging demo, wrong once real website/app users
+# exist — the demo learners are seeded automatically on the very first boot anyway.
+#Environment=LAYERFLOW_RESEED=1
+# No Free-plan daily caps (the per-device limits in the API still protect the keys).
 Environment=LAYERFLOW_LIMITS=off
 Environment=LAYERFLOW_CHECKOUT=demo
+# Per-device limits (requests per minute from one IP). Judges' test scripts send
+# hundreds of submits + hints from ONE laptop, so keep code runs generous while
+# judging; AI + voice stay at 60 to protect the Groq / ElevenLabs keys.
+Environment=LAYERFLOW_RATE_RUN=600
+Environment=LAYERFLOW_RATE_AI=60
+# During judging only: lets the Reset button on /judges work. Otherwise a reset
+# needs the admin token (LAYERFLOW_ADMIN_TOKEN in .env).
+#Environment=LAYERFLOW_ALLOW_RESET=1
+
+# For the app (also settable in .env):
+#Environment=LAYERFLOW_PUBLIC_URL=https://your.domain
+#Environment=LAYERFLOW_CORS_ORIGINS=https://app.your.domain,capacitor://localhost
 
 # Secrets live in this file only — never in git.
 #   chmod 600 /opt/debug-dojo/.env

@@ -10,6 +10,7 @@
  * An optional Tier-2 (LLM) rewrite happens in the API and must pass the same
  * secrecy check — if it fails, this text is what ships.
  */
+import { syntaxDiagnosis } from "./syntax-doctor.ts";
 import type { Challenge, LadderKey, LineMap, MistakeTag, TestResult } from "./types.ts";
 
 const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
@@ -89,6 +90,7 @@ export function mechanismSentence(
 }
 
 const DEFAULT_MECHANISMS: Record<LadderKey, string> = {
+  syntax: "Python can't read one of your lines, so no test could run.",
   unhandled_short_input: "Line {line} assumes the input is longer than it is on these cases.",
   print_not_return: "Your function prints the answer but hands back nothing, so the tests see None.",
   mutates_input: "Line {line} changes the caller's input instead of working on a copy.",
@@ -131,6 +133,12 @@ export function buildExplanation(x: ExplainInput): string {
     }
     if (moduleFail.outcome === "timeout") {
       return "Your file never finishes loading, so none of the tests could call your function. Look for a loop outside the function that never stops.";
+    }
+    if (moduleFail.run.excType === "SyntaxError") {
+      // name the exact mistake — the learner can't debug a test that never ran
+      const d = syntaxDiagnosis(x.code, moduleFail.run.excLine ?? x.lineMap?.culprit_line ?? null, moduleFail.run.excMessage ?? "");
+      const what = d ? d.what.charAt(0).toUpperCase() + d.what.slice(1) : "One line can't be read";
+      return `Python can't read your code, so none of the tests could run. ${what}. ${d?.fix ?? "Check that line for a missing colon or an unclosed bracket."}`;
     }
     const where = moduleFail.run.excLine ? ` on line ${moduleFail.run.excLine}` : "";
     return `Your file raises ${moduleFail.run.excType ?? "an error"}${where} before the tests can call ${x.challenge.fn} — code outside the function runs first. Fix or remove that line and submit again.`;

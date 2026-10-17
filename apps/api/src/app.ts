@@ -10,7 +10,7 @@
  * only knows those two keys for hidden rows (Fastify's serializer drops
  * anything else); and every outgoing text passed findLeak() in the engine.
  */
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import {
   CONCEPT_LABELS,
   HOSTILE_PROGRAMS,
@@ -41,8 +41,13 @@ import { replaySubmission } from "./learning.ts";
 import type { Ai } from "./lib/ai.ts";
 import { streakFor, syncStreakPoints } from "./rewards.ts";
 import { registerLearningRoutes } from "./routes-learning.ts";
+import { createHintWriter } from "./lib/hint-writer.ts";
+import { doAnswer } from "./answer.ts";
 import { registerRewardRoutes } from "./routes-rewards.ts";
 import { doHint, doSubmit } from "./service.ts";
+import { registerEdge, resetAllowed, trustProxySetting } from "./lib/edge.ts";
+import { voiceStatus } from "./lib/voice.ts";
+import { paymentsEnabled } from "./lib/razorpay.ts";
 
 export interface AppDeps {
   store: LayerflowStore;
@@ -134,8 +139,13 @@ function masteryTimeline(history: HistoryItem[], hints: { challenge_id: string; 
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const { store, sandbox, rewriter } = deps;
-  const app = Fastify({ logger: false, bodyLimit: 64 * 1024 });
+  // hints written for the learner's own code when a chat model is configured (always checked; hand-written rung otherwise)
+  const hintWriter = deps.ai ? createHintWriter(deps.ai) : null;
+  // trustProxy: behind nginx / the Next proxy, the real visitor IP comes from X-Forwarded-For
+  const app = Fastify({ logger: false, bodyLimit: 64 * 1024, trustProxy: trustProxySetting() });
   const started = Date.now();
+  // one server for the website AND the app: CORS for listed app origins + per-device limits
+  registerEdge(app);
 
   // A crash in one request must never take the server down.
   app.setErrorHandler((err, _req, reply) => {
@@ -161,6 +171,35 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     challenges: listedChallenges().length,
     language: "Python",
   }));
+
+  /* ── the app reads this once at start-up: what this server can do, and where things live ── */
+  app.get("/api/app/config", async () => {
+    const v = voiceStatus();
+    return {
+      name: "Layerflow",
+      api_version: 1,
+      min_app_version: process.env.LAYERFLOW_MIN_APP_VERSION ?? "1.0.0",
+      server_time: new Date().toISOString(),
+      api_base: "/api",
+      web_url: process.env.LAYERFLOW_PUBLIC_URL ?? null,
+      assets: { mentor_avatar: "/people/priya.jpg", teachers: ["/people/james.jpg", "/people/sarah.jpg", "/people/michael.jpg"] },
+      languages: ["en", "hi", "mr"],
+      features: {
+        practice: true,
+        hints: 3,
+        answer_after_hints: true,
+        mentor_ai: !!deps.ai,
+        chat_ai: !!deps.ai,
+        voice: v.tts,
+        listening: v.stt,
+        payments: paymentsEnabled() ? "razorpay" : "demo",
+        community: true,
+        bug_bounty: true,
+        rewards: true,
+      },
+      challenges: listedChallenges().length,
+    };
+  });
 
   /* ── challenges (never hidden tests) ── */
   app.get("/api/challenges", async (req) => {
@@ -223,7 +262,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         },
       },
     },
-    async (req) => doHint({ store, sandbox, rewriter }, req.body.submission_id, req.body.message),
+    async (req) => doHint({ store, sandbox, rewriter, hintWriter }, req.body.submission_id, req.body.message),
+  );
+
+  /* ── POST /api/answer — after all three hints: what's wrong + the learner's code, fixed and verified ── */
+  app.post<{ Body: { submission_id: string } }>(
+    "/api/answer",
+    { schema: { body: { type: "object", required: ["submission_id"], properties: { submission_id: { type: "string", maxLength: 32 } } } } },
+    async (req) => doAnswer({ store, sandbox, rewriter }, deps.ai ?? null, req.body.submission_id),
   );
 
   /* ── GET /api/learner/:id ── */
@@ -293,6 +339,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         .map((r) => ({ test: r.test, call: pub.visible[r.test - 1]?.call, expected: pub.visible[r.test - 1]?.expected, got: r.got ?? "", outcome: r.outcome })),
       hidden: sub.results.filter((r) => r.kind === "hidden").map((r) => ({ test: r.test, outcome: r.outcome })),
       hints: store.hintsFor(sub.id),
+      answer: store.answer(sub.id),
     };
   });
 
@@ -395,7 +442,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   }));
 
   /* ── judges: reset the seed data ── */
-  const reset = async () => {
+  const reset = async (req: FastifyRequest, reply: FastifyReply) => {
+    // wipes every learner, post and payment — never open on a public server by accident
+    if (!resetAllowed(req)) return reply.status(403).send({ ok: false, error: "Resetting the data is switched off on this server." });
     if (!deps.reseed) return { ok: false, error: "reset not available" };
     await deps.reseed();
     return { ok: true, learners: store.learners().length, stats: store.stats() };

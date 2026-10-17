@@ -23,6 +23,10 @@ Optional: free keys for **Groq**, **Gemini** and **ElevenLabs** in a git-ignored
 - `npm run dev` — the same with hot reload · `npm run url` — public URL via `ngrok http 3000`
 - `npm run seed` — reset the demo data · `npm run harness` — run the judges' checks on ourselves
 
+### One server for the website and the app
+
+One VPS serves both: `https://your.domain/` is the website and `https://your.domain/api/*` is the API that the website **and** the mobile/companion app use, so progress is shared between them. Setup files are in [`deploy/`](deploy/): `nginx.conf` (HTTPS, `/api` straight to the API), `debug-dojo.service` (systemd) and `deploy.sh` (pull → install → build → restart → health check). The app team's guide is [docs/APP-API.md](docs/APP-API.md). The app reads `GET /api/app/config` at start-up; web-based apps are allowed through `LAYERFLOW_CORS_ORIGINS`; the expensive endpoints have per-device limits; and on a production server, resetting the data needs the admin token.
+
 ## For the judges — a 15-minute tour
 
 | Where | What you can verify |
@@ -105,7 +109,8 @@ Browser ──/api/*──▶ Next.js (:3000) ──proxy──▶ Fastify API (
 - **Isolation, four layers:** Python policy → WebAssembly (no filesystem, no fork, JS bridge cut) → Node permission model + empty env → supervision (timeouts, memory, disposable processes). Details: [docs/architecture.md](docs/architecture.md).
 - **Hidden-test secrecy by construction:** the child never receives an expected value; responses are schema-filtered; every outgoing text passes a leak check; the DB has a CHECK constraint that refuses to store output for a hidden test.
 - **Deterministic diagnosis:** five detectors + the optional sixth, one primary tag per failure — [TAXONOMY.md](TAXONOMY.md).
-- **Hints:** hand-written ladders (the statement's own ladder for `last-k-total`, verbatim) + a validator that rejects code at storage time.
+- **Syntax errors are named exactly:** when Python can't read the code (a semicolon instead of a colon, a missing colon, `=` for `==`, an unclosed bracket or quote, a misspelt keyword, bad indentation) the explanation, the Line Map and all three hints say *what* is wrong on *which* line — no API key needed — and the answer changes only that line.
+- **Hints, then the answer:** three hints — nudge → your line → why it breaks. With a Groq/Gemini key each one is written for the learner's *own* code (so a bug written a different way still gets a hint that fits); every hint must pass the validator that rejects code + the leak check, with one retry, otherwise the hand-written rung ships. Asking for the answer still moves exactly one rung. **After the third hint the answer step unlocks** (`POST /api/answer`, never `/api/hint`): what's wrong in plain words and the learner's own code with the smallest fix, changed lines highlighted — and that fix is run against **every visible and hidden test** before it's shown (one retry if it fails, then a known-correct version, also verified).
 - **Learner model:** Beta mastery per concept; recurrence across *distinct* challenges; next challenge with a reason; Bug Factory generation.
 - **Three extras:** 🗺️ **Line Map** (AST of the learner's code → the culprit line) · ⏱️ **Time-Travel Replay** (`sys.settrace` on a public input, first wrong step flagged) · 🐛 **Bug Factory** (find the bug, then fix it).
 - **Learn together:** 🎥 **Mentoring** (Meet-style call + animated Summarise) · 💬 **Ask Priya** (chat on every page) · 🧱 **Repo Analyse** (architecture review of any repo) · 👥 **Community** (students + teachers, spoilers blurred).

@@ -104,7 +104,7 @@ export interface Challenge {
   /** Why this challenge fixes a given recurring mistake (the `reason` text). */
   targetReasons: Partial<Record<MistakeTag, string>>;
   /** Hand-written mechanism sentence per tag (Tier-1 explanation, last sentence). */
-  mechanisms: Partial<Record<MistakeTag | "generic" | "timeout" | "crash", string>>;
+  mechanisms: Partial<Record<LadderKey, string>>;
   /** Public replay inputs per edge kind — never equal to any hidden input. */
   probes: Record<string, PyValue[]>;
   /** Hand-written hint ladders keyed by tag (or "generic"/"timeout"/"crash"). */
@@ -117,7 +117,7 @@ export interface Challenge {
   source?: string;
 }
 
-export type LadderKey = MistakeTag | "generic" | "timeout" | "crash";
+export type LadderKey = MistakeTag | "generic" | "timeout" | "crash" | "syntax";
 
 /** What the sandbox reports for ONE test. The child never sees `expected`. */
 export interface RunResult {

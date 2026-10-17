@@ -44,9 +44,24 @@ export interface HintResult {
   hint_index: number;
   rung: number;
   rung_name?: string;
+  /** "ai" = written for this learner's code; "built-in" = the hand-written rung */
+  source?: "ai" | "built-in";
   hint: string;
   remaining: number;
   note?: string;
+}
+
+export interface AnswerResult {
+  submission_id: string;
+  whats_wrong: string;
+  what_changed: string;
+  fixed_code: string;
+  source: "ai" | "rule" | "reference";
+  model: string | null;
+  /** every visible + hidden test the fixed code passed before it was shown */
+  tests_passed: number;
+  diff: { type: "same" | "add" | "del"; text: string }[];
+  created_at: string;
 }
 
 export interface TraceStep {
@@ -820,6 +835,7 @@ export const api = {
   challenge: (id: string) => req<Challenge>("GET", `/api/challenges/${encodeURIComponent(id)}`),
   submit: (learner_id: string, challenge_id: string, code: string) => req<SubmitResult>("POST", "/api/submit", { learner_id, challenge_id, code }),
   hint: (submission_id: string, message?: string) => req<HintResult>("POST", "/api/hint", { submission_id, message }),
+  answer: (submission_id: string) => req<AnswerResult>("POST", "/api/answer", { submission_id }),
   replay: (submission_id: string, opts: { kind?: string; args_source?: string } = {}) => req<TraceResult>("POST", "/api/replay", { submission_id, ...opts }),
   learner: (id: string) => req<LearnerView>("GET", `/api/learner/${encodeURIComponent(id)}`),
   learners: () => req<{ learners: { id: string; submissions: number; passes: number; last_at: string | null }[] }>("GET", "/api/learners"),

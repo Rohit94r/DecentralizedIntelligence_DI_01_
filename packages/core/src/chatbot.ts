@@ -258,7 +258,7 @@ export function localReply(message: string, ctx: ChatContext = {}): ChatReply {
     const rung = Math.min((ctx.turn ?? 0) + 1, ladder.length);
     return {
       intent: "answer_request",
-      reply: `I won't write the answer for you — you'd lose the part that makes it stick. But here's a sharper push: ${ladder[rung - 1]}`,
+      reply: `I won't write the answer for you in chat — you'd lose the part that makes it stick. But here's a sharper push: ${ladder[rung - 1]} (After all three hints in the hint ladder, the answer step there shows the full fix.)`,
       suggestions: ["Which line should I look at?", "Explain the task simply", "What is an edge case?"],
     };
   }

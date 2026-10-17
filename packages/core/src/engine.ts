@@ -19,6 +19,8 @@ import { isAnswerRequest, ladderFor, ladderKeyFor, validateHint } from "./hints.
 import { hintDelta, submissionDelta, type MasteryDelta } from "./mastery.ts";
 import { nextChallenge, rollup } from "./recurrence.ts";
 import { findLeak } from "./secrecy.ts";
+import { acceptHint, type HintContext, type HintWriter } from "./hint-writer.ts";
+import { syntaxDiagnosis, syntaxLadder } from "./syntax-doctor.ts";
 import type {
   Challenge,
   HiddenRow,
@@ -186,6 +188,8 @@ export async function submit(
       timeout: failing.some((r) => r.outcome === "timeout"),
       crash: failing.some((r) => r.outcome === "runtime_error"),
     });
+    // Python couldn't read the file at all → the syntax ladder (built from the exact mistake)
+    if (results.some((r) => r.run.phase === "module" && r.run.excType === "SyntaxError")) ladderKey = "syntax";
     if (failing.length) {
       const excLines = (detection.evidence.length ? detection.evidence : failing)
         .map((r) => r.run.excLine)
@@ -194,6 +198,13 @@ export async function submit(
     }
   } finally {
     session.close();
+  }
+
+  // a syntax error: the Line Map names the exact mistake instead of "check brackets, colons and indentation"
+  if (ladderKey === "syntax") {
+    const se = results.find((r) => r.run.phase === "module" && r.run.excType === "SyntaxError");
+    const d = syntaxDiagnosis(code, se?.run.excLine ?? lineMap?.culprit_line ?? null, se?.run.excMessage ?? "");
+    if (d) lineMap = { culprit_line: d.line, confidence: "very likely", reason: `${d.what.charAt(0).toUpperCase() + d.what.slice(1)}. ${d.fix}` };
   }
 
   const passed = results.every((r) => r.outcome === "passed");
@@ -309,6 +320,8 @@ export interface HintInput {
   givenOnSubmission: number;
   lineMap: LineMap | null;
   message?: string;
+  /** What an AI hint writer may see — public material only (see hint-writer.ts). */
+  context?: Pick<HintContext, "tag" | "explanation" | "visible" | "failingKinds" | "previous">;
 }
 
 export interface HintOutput {
@@ -316,12 +329,18 @@ export interface HintOutput {
   text: string;
   remaining: number;
   note?: string;
+  /** "ai" = written for this learner's code by the configured model; "built-in" = the hand-written rung */
+  source: "ai" | "built-in";
   ledger: LedgerEntry[];
   masteryDeltas: MasteryDelta[];
 }
 
-export async function nextHint(x: HintInput, rewriter?: Rewriter | null): Promise<HintOutput> {
-  const ladder = ladderFor(x.challenge, x.ladderKey);
+/** Three hints, then the answer step unlocks (answer.ts — its own endpoint, never a hint). */
+export const HINT_RUNGS = 3;
+
+export async function nextHint(x: HintInput, rewriter?: Rewriter | null, writer?: HintWriter | null): Promise<HintOutput> {
+  const diag = x.ladderKey === "syntax" ? syntaxDiagnosis(x.code, x.lineMap?.culprit_line ?? null) : null;
+  const ladder = (diag ? syntaxLadder(diag) : ladderFor(x.challenge, x.ladderKey)).slice(0, HINT_RUNGS);
   // "give me the answer" → still exactly one rung up. Never a collapse.
   const rung = Math.min(Math.max(x.prevRung, 0) + 1, ladder.length);
   const base = ladder[rung - 1];
@@ -335,7 +354,7 @@ export async function nextHint(x: HintInput, rewriter?: Rewriter | null): Promis
 
   // Rung 2 ("specific") points at their line. If quoting it would put code in
   // the hint, the guardrail rejects the draft and we keep the prose.
-  if (rung === 2 && line && lineText) {
+  if (rung === 2 && line && lineText && !diag) {
     const draft = `${base} Look at line ${line}: \`${lineText}\`.`;
     const v = validateHint(draft, { fn });
     if (v.ok) text = draft;
@@ -345,19 +364,41 @@ export async function nextHint(x: HintInput, rewriter?: Rewriter | null): Promis
     }
   }
 
-  if (rewriter) {
+  let source: HintOutput["source"] = "built-in";
+  if (writer && x.context && !diag) {
+    // Written fresh for THIS learner's code. One retry if the checker rejects it; then the hand-written rung.
+    const hc: HintContext = { ...x.context, challenge: x.challenge, code: x.code, rung, ladderKey: x.ladderKey, lineMap: x.lineMap, draft: text };
+    let reason: string | undefined;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const r = await writer.write(hc, reason).catch(() => null);
+      if (!r) break;
+      const verdict = acceptHint(r.text, hc);
+      ledger.push({ kind: "hint", prompt: r.prompt, response: r.text, model: r.model ?? writer.model, rejected_for_code: !verdict.ok });
+      if (verdict.ok) {
+        text = verdict.text;
+        source = "ai";
+        break;
+      }
+      reason = verdict.reason;
+    }
+  } else if (rewriter) {
     const r = await rewriter.rewriteHint({ challenge: x.challenge, code: x.code, draft: text, rung }).catch(() => null);
     if (r) {
       const v = validateHint(r.text, { fn });
       const leak = findLeak(r.text, x.challenge, [], x.code);
       ledger.push({ kind: "hint", prompt: r.prompt, response: r.text, model: rewriter.model, rejected_for_code: !v.ok });
-      if (v.ok && !leak && r.text.length < 400) text = r.text;
+      if (v.ok && !leak && r.text.length < 400) {
+        text = r.text;
+        source = "ai";
+      }
     }
   }
 
   // Last line of defence: whatever we ship has passed the validator.
-  if (!validateHint(text, { fn }).ok) text = base;
-  if (findLeak(text, x.challenge, [], x.code)) text = base;
+  if (!validateHint(text, { fn }).ok || findLeak(text, x.challenge, [], x.code)) {
+    text = base;
+    source = "built-in";
+  }
 
   ledger.push({ kind: "hint", prompt, response: text, model: null, rejected_for_code: false });
   return {
@@ -367,11 +408,35 @@ export async function nextHint(x: HintInput, rewriter?: Rewriter | null): Promis
     note: isAnswerRequest(x.message)
       ? "I won't hand you the answer — but here is the next, sharper hint. You're closer than you think."
       : rung === ladder.length
-        ? "That's the last rung. Try the Replay to watch your code run step by step."
+        ? "That's the last hint. Try once more — or open the answer below to see exactly what's wrong and the fixed code."
         : undefined,
+    source,
     ledger,
     masteryDeltas: hintDelta(x.challenge.concepts),
   };
+}
+
+/* ─────────────────────────────── checking a program ─────────────────────────────── */
+
+/**
+ * Runs a program against every visible + hidden test and reports only pass/fail
+ * and the KIND of input that failed. Used to prove the answer's fixed code is
+ * correct before anyone sees it. Nothing is saved.
+ */
+export async function checkProgram(challenge: Challenge, code: string, sandbox: Sandbox): Promise<{ passed: boolean; total: number; failingKinds: string[] }> {
+  const cases = [...challenge.visible, ...challenge.hidden];
+  const session = sandbox.session();
+  try {
+    const runs = await session.runTests({ code, fn: challenge.fn, tests: cases.map((c) => ({ args: c.args })), timeoutMs: TEST_TIMEOUT_MS });
+    const failing = cases.filter((c, i) => classify(runs[i], c.expected, challenge).outcome !== "passed");
+    return {
+      passed: failing.length === 0,
+      total: cases.length,
+      failingKinds: [...new Set(failing.map((c) => (c.edge && challenge.edges[c.edge] ? challenge.edges[c.edge].one : "an ordinary input")))],
+    };
+  } finally {
+    session.close();
+  }
 }
 
 /* ─────────────────────────────── learner ─────────────────────────────── */

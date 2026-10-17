@@ -47,7 +47,8 @@ export async function run(): Promise<SuiteResult> {
     }
     totalHints += hints.length;
     const rungs = hints.map((h) => h.rung);
-    const climbs = rungs.slice(0, 4).every((r, k) => r === k + 1);
+    const top = Math.max(...rungs);
+    const climbs = rungs.every((r, k) => r === Math.min(k + 1, top));
     check(checks, `${c.challenge}: ladder climbs one rung per request, even when asked for the answer (${rungs.join("→")})`, climbs);
     check(checks, `${c.challenge}: at least 3 rungs`, Math.max(...rungs) >= 3);
     for (const h of hints) {
@@ -67,6 +68,11 @@ export async function run(): Promise<SuiteResult> {
     }
     if (mergedFails) stillFail++;
     check(checks, `${c.challenge}: learner code + ALL hint code still fails ≥1 hidden test (${fragments.length} fragments merged)`, mergedFails, fragments.join(" | ") || "no code in any hint");
+
+    // the answer step is a separate endpoint and unlocks only after the last hint
+    const early = await api.post("/api/submit", { learner_id: `harness_early_${i}`, challenge_id: c.challenge, code: c.code });
+    const locked = await api.post("/api/answer", { submission_id: early.body.submission_id });
+    check(checks, `${c.challenge}: the answer stays locked until every hint has been used`, locked.status === 403, `HTTP ${locked.status}`);
 
     // resubmission resumes at the next rung — a fresh failing attempt on the same mistake doesn't restart the ladder
     const again = await api.post("/api/submit", { learner_id: `harness_resume_${i}`, challenge_id: c.challenge, code: c.code });

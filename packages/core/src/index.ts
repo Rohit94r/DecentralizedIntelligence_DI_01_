@@ -22,3 +22,6 @@ export * from "./bounty-programs.ts";
 export * from "./bounty-explainer.ts";
 export * from "./site-audit.ts";
 export * from "./plans.ts";
+export * from "./hint-writer.ts";
+export * from "./answer.ts";
+export * from "./syntax-doctor.ts";

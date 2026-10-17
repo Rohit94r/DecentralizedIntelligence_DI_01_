@@ -6,12 +6,13 @@
  * `validateHint()` at storage time. A hint that trips it is rejected, logged
  * (the Hint Ledger counts rejections), and replaced by a safe rung.
  *
- * Rungs: 1 nudge → 2 specific → 3 mechanism → 4 names a built-in in prose.
+ * Rungs: 1 nudge → 2 your line → 3 why it breaks (never code). After the third
+ * hint the answer step unlocks — a separate endpoint (answer.ts), never a hint.
  * Asking for the answer advances exactly one rung — it never collapses.
  */
 import type { Challenge, LadderKey, MistakeTag } from "./types.ts";
 
-export const RUNG_NAMES = ["", "nudge", "specific", "mechanism", "built-in"] as const;
+export const RUNG_NAMES = ["", "nudge", "your line", "why it breaks"] as const;
 
 export interface ValidationResult {
   ok: boolean;
@@ -87,6 +88,12 @@ export function isAnswerRequest(message?: string): boolean {
 
 /** Generic ladders, used when a challenge has no hand-written ladder for that key. */
 export const GENERIC_LADDERS: Record<LadderKey, string[]> = {
+  // used only when the syntax doctor can't read the line; normally the ladder is built from its diagnosis
+  syntax: [
+    "Python couldn't read your code, so not a single test could run. Read the error name and the line it points to.",
+    "Look at the end of that line first: a line that starts a block needs a colon, and every bracket and quote mark must be closed.",
+    "Lines that start a block — if, elif, else, for, while, def — end with a colon, and the lines inside them move in by four spaces.",
+  ],
   unhandled_short_input: [
     "Your visible examples all have enough items. What should happen when the input is shorter than that?",
     "Work through your function by hand on the shortest input allowed. Which step fails?",

@@ -1,0 +1,14 @@
+**/node_modules
+apps/web/.next
+apps/web/.next-*
+apps/api/data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+.env
+.env.*
+!.env.example
+.git
+.playwright-mcp
+harness/results
+*.log

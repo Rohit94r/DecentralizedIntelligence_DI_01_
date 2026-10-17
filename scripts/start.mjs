@@ -116,7 +116,9 @@ const wait = async (url) => {
 
 // The web app starts once the API answers (first boot seeds the demo learners first).
 await wait(`http://127.0.0.1:${API_PORT}/api/health`);
-run("web", "36", [NEXT, dev ? "dev" : "start", "-p", WEB_PORT], webDir, { LAYERFLOW_API_URL: `http://127.0.0.1:${API_PORT}`, NEXT_TELEMETRY_DISABLED: "1" });
+// WEB_HOST=127.0.0.1 behind nginx, so only the proxy can reach the web server
+const WEB_HOST = process.env.WEB_HOST;
+run("web", "36", [NEXT, dev ? "dev" : "start", "-p", WEB_PORT, ...(WEB_HOST ? ["-H", WEB_HOST] : [])], webDir, { LAYERFLOW_API_URL: `http://127.0.0.1:${API_PORT}`, NEXT_TELEMETRY_DISABLED: "1" });
 
 // Banner once the API answers through the web proxy.
 const poll = setInterval(async () => {

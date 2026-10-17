@@ -9,6 +9,17 @@
 import assert from "node:assert/strict";
 import {
   CHALLENGES,
+  acceptHint,
+  syntaxDiagnosis,
+  syntaxFix,
+  syntaxLadder,
+  answerMessages,
+  lineDiff,
+  parseAnswer,
+  callString,
+  pyRepr,
+  hintMessages,
+  nextHint,
   allLadderTexts,
   analyzeRepo,
   auditSite,
@@ -36,8 +47,8 @@ import {
   type TestResult,
 } from "../src/index.ts";
 
-const tests: [string, () => void][] = [];
-const test = (name: string, fn: () => void) => tests.push([name, fn]);
+const tests: [string, () => void | Promise<void>][] = [];
+const test = (name: string, fn: () => void | Promise<void>) => tests.push([name, fn]);
 
 const ok = (ret: unknown, extra: Partial<RunResult> = {}): RunResult => ({ status: "ok", ret: ret as never, stdout: "", ms: 1, ...extra });
 const err = (excType: string): RunResult => ({ status: "error", excType, excMessage: "x", stdout: "", ms: 1, phase: "call" });
@@ -503,10 +514,136 @@ test("repo bugs: SQL injection, open CORS, open redirect, empty catch and debug 
   assert.ok(!hits.includes("sql-injection@src/server.js:5") && !r.bugs.some((b) => b.file === "app/main.py" && (b.also ?? []).includes(2)), hits.join(", "));
 });
 
+/* ── AI-written hints: the gate + what the model may see ── */
+
+test("AI hint gate: accepts a specific prose hint, rejects code, backticks, a hidden value and repeats", () => {
+  const c = getChallenge("last-k-total")!;
+  const x = { challenge: c, code: c.starter, previous: [] as string[] };
+  assert.equal(acceptHint("On line three, make the loop start at the larger of zero and the length of marks minus k.", x).ok, true);
+  assert.equal(acceptHint("Change line 3 to `for i in range(max(0, len(marks) - k), len(marks)):`", x).ok, false);
+  assert.equal(acceptHint("Just write total = sum(marks[-k:]) and return it.", x).ok, false);
+  assert.equal(acceptHint("```python\nreturn sum(marks)\n```", x).ok, false);
+  const hidden = c.hidden.find((t) => JSON.stringify(t.args[0]).length > 8)!;
+  assert.equal(acceptHint(`Try it with the marks ${JSON.stringify(hidden.args[0]).replace(/,/g, ", ")} and see what happens.`, x).ok, false);
+  const first = "Think about what your loop does when the student has fewer marks than k.";
+  assert.equal(acceptHint(first + " ", { ...x, previous: [first] }).ok, false);
+});
+
+test("AI hint prompt: built only from public facts and the learner's own code — no hidden value", () => {
+  for (const c of listedChallenges()) {
+    for (let rung = 1; rung <= 3; rung++) {
+      const { system, user } = hintMessages({
+        challenge: c,
+        code: c.starter,
+        rung,
+        ladderKey: c.targets[0],
+        tag: c.targets[0],
+        lineMap: { culprit_line: 2, confidence: "likely", reason: "Look at the loop." },
+        explanation: "All 3 visible tests pass, but 2 of the 6 hidden tests fail.",
+        visible: c.visible.map((t) => ({ call: callString(c.fn, t.args), expected: pyRepr(t.expected, { float: c.floatResult }), got: "?", outcome: "passed" })),
+        failingKinds: Object.values(c.edges).map((e) => e.one),
+        previous: [],
+        draft: ladderFor(c, c.targets[0])[rung - 1],
+      });
+      assert.equal(findLeak(system + "\n" + user, c, [], c.starter), null, `${c.id} rung ${rung}`);
+      assert.ok(user.includes(`hint level ${rung} of 3`));
+    }
+  }
+});
+
+test("hint engine: an AI writer's code-y draft is rejected, retried once, then the hand-written rung ships", async () => {
+  const c = getChallenge("count-passes")!;
+  let calls = 0;
+  const writer = { model: "test", write: async () => (calls++, { text: "Use `if m >= 40:` on line 4.", prompt: "p" }) };
+  const out = await nextHint(
+    { challenge: c, code: c.starter, ladderKey: "boundary_comparison", prevRung: 0, givenOnSubmission: 0, lineMap: null, context: { tag: "boundary_comparison", explanation: "x", visible: [], failingKinds: [], previous: [] } },
+    null,
+    writer,
+  );
+  assert.equal(calls, 2);
+  assert.equal(out.source, "built-in");
+  assert.equal(out.text, ladderFor(c, "boundary_comparison")[0]);
+  assert.equal(out.ledger.filter((e) => e.rejected_for_code).length, 2);
+});
+
+test("hint ladder: three rungs, then it stays at the top", async () => {
+  const c = getChallenge("last-k-total")!;
+  const rungs: number[] = [];
+  for (let prev = 0; prev < 5; prev++) {
+    const out = await nextHint({ challenge: c, code: c.starter, ladderKey: "unhandled_short_input", prevRung: Math.min(prev, 3), givenOnSubmission: prev, lineMap: null });
+    rungs.push(out.rung);
+  }
+  assert.deepEqual(rungs, [1, 2, 3, 3, 3]);
+});
+
+test("answer: parses the model's JSON, refuses imports / a renamed function, and diffs line by line", () => {
+  const ok = parseAnswer('Sure! {"whats_wrong": "Line 3 can go negative.", "what_changed": "Start at zero or later.", "fixed_code": "```python\ndef last_k_total(marks, k):\n    return sum(marks[max(0, len(marks) - k):])\n```"}', "last_k_total");
+  assert.ok(ok && ok.fixed_code.startsWith("def last_k_total(") && !ok.fixed_code.includes("```"));
+  assert.equal(parseAnswer('{"whats_wrong": "x", "fixed_code": "import os\ndef last_k_total(marks, k):\n    return 0"}', "last_k_total"), null);
+  assert.equal(parseAnswer('{"whats_wrong": "x", "fixed_code": "def total(marks, k):\n    return 0"}', "last_k_total"), null);
+  const d = lineDiff("a\nb\nc", "a\nB\nc\nd");
+  assert.deepEqual(d.map((x) => x.type), ["same", "del", "add", "same", "add"]);
+});
+
+test("answer prompt: public facts + the learner's own code only — no hidden value", () => {
+  for (const c of listedChallenges()) {
+    const { system, user } = answerMessages({
+      challenge: c,
+      code: c.starter,
+      tag: c.targets[0],
+      lineMap: { culprit_line: 2, confidence: "likely", reason: "Look at the loop." },
+      explanation: "All 3 visible tests pass, but 2 of the 6 hidden tests fail.",
+      visible: c.visible.map((t) => ({ call: callString(c.fn, t.args), expected: pyRepr(t.expected, { float: c.floatResult }), got: "?", outcome: "passed" })),
+      failingKinds: Object.values(c.edges).map((e) => e.one),
+      hints: ladderFor(c, c.targets[0]).slice(0, 3),
+    });
+    assert.equal(findLeak(system + "\n" + user, c, [], c.starter), null, c.id);
+  }
+});
+
+/* ── syntax doctor: name the exact mistake when Python can't read the code ── */
+
+test("syntax doctor: semicolon, missing colon, single =, brackets, quotes, typos, indentation", () => {
+  const cp = (line4: string) => `def count_passes(marks):\n    count = 0\n    for m in marks:\n${line4}\n            count += 1\n    return count\n`;
+  const semi = syntaxDiagnosis(cp("        if m >=40;"), 4, "invalid syntax");
+  assert.ok(semi && semi.line === 4 && semi.what.includes("semicolon") && semi.fix.includes("colon"), JSON.stringify(semi));
+  const colon = syntaxDiagnosis(cp("        if m >= 40"), 4, "expected ':'");
+  assert.ok(colon && colon.what.includes("doesn't end with a colon"), JSON.stringify(colon));
+  const eq = syntaxDiagnosis(cp("        if m = 40:"), 4, "invalid syntax");
+  assert.ok(eq && eq.what.includes("single equals sign"), JSON.stringify(eq));
+  const br = syntaxDiagnosis("def f(x):\n    return len(x\n", 2, "'(' was never closed");
+  assert.ok(br && br.line === 2 && br.what.includes("never closed"), JSON.stringify(br));
+  const q = syntaxDiagnosis("def f(x):\n    return 'abc\n", 2, "unterminated string literal");
+  assert.ok(q && q.what.includes("quote"), JSON.stringify(q));
+  const typo = syntaxDiagnosis("def f(x):\n    retrun x\n", 2, "invalid syntax");
+  assert.ok(typo && typo.fix.includes('"return"'), JSON.stringify(typo));
+  const ind = syntaxDiagnosis("def f(x):\nreturn x\n", 2, "expected an indented block after function definition on line 1");
+  assert.ok(ind && ind.what.includes("indented"), JSON.stringify(ind));
+});
+
+test("syntax ladder: three prose hints that name the line and the fix", () => {
+  const d = syntaxDiagnosis("def count_passes(marks):\n    count = 0\n    for m in marks:\n        if m >=40;\n            count += 1\n    return count\n", 4, "")!;
+  const ladder = syntaxLadder(d);
+  assert.equal(ladder.length, 3);
+  for (const h of ladder) assert.ok(validateHint(h, { fn: "count_passes" }).ok, h);
+  assert.ok(ladder[1].includes("line 4") && ladder[2].includes("colon"));
+});
+
+test("syntax fix: the smallest edit to the broken line only", () => {
+  const fixOf = (code: string, line: number, msg = "") => syntaxFix(code, syntaxDiagnosis(code, line, msg)!)?.code ?? null;
+  const cp = (line4: string) => `def count_passes(marks):\n    count = 0\n    for m in marks:\n${line4}\n            count += 1\n    return count\n`;
+  assert.equal(fixOf(cp("        if m >=40;"), 4), cp("        if m >=40:"));
+  assert.equal(fixOf(cp("        if m >= 40"), 4, "expected ':'"), cp("        if m >= 40:"));
+  assert.equal(fixOf(cp("        if m = 40:"), 4), cp("        if m == 40:"));
+  assert.equal(fixOf("def f(x):\n    return len(x\n", 2, "'(' was never closed"), "def f(x):\n    return len(x)\n");
+  assert.equal(fixOf("def f(x):\n    retrun x\n", 2), "def f(x):\n    return x\n");
+  assert.equal(fixOf("def f(x):\nreturn x\n", 2, "expected an indented block after function definition on line 1"), "def f(x):\n    return x\n");
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {
-    fn();
+    await fn();
     console.log(`  ✓ ${name}`);
   } catch (e) {
     failed++;

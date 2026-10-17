@@ -13,12 +13,14 @@ import { ArrowRight, Lightbulb, Loader2, MapPin, MessageCircleQuestion, Pause, P
 import { AppShell, SectionLabel } from "@/components/app/AppShell";
 import { CodeEditor } from "@/components/app/CodeEditor";
 import { Card, LEVEL_STYLE, MasteryBar, OutcomeChip, Prose, TagBadge } from "@/components/app/bits";
-import { api, refreshPoints, type Challenge, type HintResult, type LearnerView, type Outcome, type SubmitResult, type TraceResult } from "@/lib/api";
+import { api, refreshPoints, type AnswerResult, type Challenge, type HintResult, type LearnerView, type Outcome, type SubmitResult, type TraceResult } from "@/lib/api";
 import { useLearner } from "@/lib/learner";
 import { cn } from "@/lib/utils";
+import { highlightLine } from "@/lib/python";
 import { clearChatContext, openChat, setChatContext } from "@/lib/chat-context";
 
-const RUNG_NAMES = ["", "nudge", "specific", "mechanism", "built-in"];
+const RUNG_NAMES = ["", "nudge", "your line", "why it breaks"];
+const HINT_RUNGS = 3;
 
 function DrawCheck() {
   return (
@@ -46,6 +48,8 @@ function Workspace() {
   const [error, setError] = useState<string | null>(null);
   const [hints, setHints] = useState<HintResult[]>([]);
   const [hintBusy, setHintBusy] = useState(false);
+  const [answer, setAnswer] = useState<AnswerResult | null>(null);
+  const [answerBusy, setAnswerBusy] = useState(false);
   const [replay, setReplay] = useState<TraceResult | null>(null);
   const [replayBusy, setReplayBusy] = useState(false);
   const [step, setStep] = useState(0);
@@ -97,7 +101,8 @@ function Workspace() {
           explanation: s.explanation,
           debug: { culprit_line: s.analysis?.culprit_line ?? null, confidence: s.analysis?.confidence ?? null, reason: s.analysis?.reason ?? null, trace_ref: s.submission_id, passed: s.passed, detail: null, headline: s.passed ? "Every test passes. Beautiful." : "A past attempt — run it again or ask for a hint." },
         });
-        setHints(s.hints.map((h: { idx: number; rung: number; text: string }) => ({ submission_id: s.submission_id, hint_index: h.idx, rung: h.rung, hint: h.text, remaining: 4 - h.rung })));
+        setHints(s.hints.map((h: { idx: number; rung: number; text: string }) => ({ submission_id: s.submission_id, hint_index: h.idx, rung: h.rung, hint: h.text, remaining: HINT_RUNGS - h.rung })));
+        setAnswer(s.answer ? { submission_id: s.submission_id, ...s.answer } : null);
       })
       .catch(() => {});
   }, [search]);
@@ -126,6 +131,7 @@ function Workspace() {
       setError(null);
       setReplay(null);
       setHints([]);
+      setAnswer(null);
       setAfter(null);
       try {
         const r = await api.submit(learner, challenge.id, source ?? code);
@@ -150,6 +156,18 @@ function Workspace() {
       submit(challenge.starter);
     }
   }, [search, challenge, learner, submit]);
+
+  const showAnswer = async () => {
+    if (!result) return;
+    setAnswerBusy(true);
+    try {
+      setAnswer(await api.answer(result.submission_id));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setAnswerBusy(false);
+    }
+  };
 
   const askHint = async (message?: string) => {
     if (!result) return;
@@ -199,7 +217,11 @@ function Workspace() {
   const concepts = challenge?.concepts ?? [];
   const nextUp = after?.next_challenge;
   const lastHint = hints[hints.length - 1];
-  const remaining = lastHint ? lastHint.remaining : 4;
+  const remaining = lastHint ? lastHint.remaining : HINT_RUNGS;
+  const answerUnlocked = !!lastHint && lastHint.remaining <= 0;
+  /** hints 1–3, then the 4th step is the answer itself */
+  const nextStep = () => (answerUnlocked ? showAnswer() : askHint());
+  const stepLabel = answer ? "Answer shown" : answerUnlocked ? "Show the answer" : hints.length ? "Next hint" : "Get a hint";
 
   const masteryRows = useMemo(
     () =>
@@ -290,11 +312,11 @@ function Workspace() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => askHint()}
-                  disabled={!result || passed || hintBusy || remaining <= 0}
+                  onClick={nextStep}
+                  disabled={!result || passed || hintBusy || answerBusy || !!answer}
                   className="inline-flex h-11 items-center gap-2 rounded-full border border-lime-500/70 bg-lime-300 px-5 text-[14px] font-semibold text-black transition-colors hover:bg-lime-400 disabled:opacity-40"
                 >
-                  <Lightbulb className="size-4" /> Get a hint
+                  {hintBusy || answerBusy ? <Loader2 className="size-4 animate-spin" /> : <Lightbulb className="size-4" />} {stepLabel}
                 </button>
                 <button
                   type="button"
@@ -311,6 +333,7 @@ function Workspace() {
                     setResult(null);
                     setReplay(null);
                     setHints([]);
+                    setAnswer(null);
                   }}
                   className="ml-auto inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[13px] font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
                 >
@@ -425,8 +448,8 @@ function Workspace() {
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     {!passed && (
-                      <button onClick={() => askHint()} disabled={hintBusy || remaining <= 0} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-4 text-[13px] font-semibold text-neutral-800 hover:border-neutral-950 disabled:opacity-40">
-                        <Lightbulb className="size-3.5" /> Get a hint
+                      <button onClick={nextStep} disabled={hintBusy || answerBusy || !!answer} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-4 text-[13px] font-semibold text-neutral-800 hover:border-neutral-950 disabled:opacity-40">
+                        <Lightbulb className="size-3.5" /> {stepLabel}
                       </button>
                     )}
                     {!passed && (
@@ -460,11 +483,12 @@ function Workspace() {
               <Card tint="green">
                 <div className="flex items-center justify-between">
                   <h3 className="font-instrumental text-2xl leading-none text-[#151515]">Hint ladder</h3>
-                  <span className="font-poppins text-[10px] font-medium uppercase tracking-[0.18em] text-[#359462]">{hints.length ? `rung ${lastHint.rung} of 4` : "4 rungs · never the answer"}</span>
+                  <span className="font-poppins text-[10px] font-medium uppercase tracking-[0.18em] text-[#359462]">{answer ? "answer shown" : hints.length ? `hint ${lastHint.rung} of ${HINT_RUNGS}` : `${HINT_RUNGS} hints, then the answer`}</span>
                 </div>
                 <div className="mt-4 space-y-2.5">
-                  {[1, 2, 3, 4].map((r) => {
+                  {[1, 2, 3].map((r) => {
                     const got = hints.find((x) => x.rung === r);
+                    const writing = !got && hintBusy && r === (lastHint ? lastHint.rung + 1 : 1);
                     return (
                       <AnimatePresence key={r} mode="popLayout">
                         <motion.div
@@ -476,30 +500,103 @@ function Workspace() {
                           <div className="flex items-center gap-2">
                             <span className={cn("flex size-6 items-center justify-center rounded-full text-[11px] font-bold", got ? "bg-[#359462] text-white" : "bg-neutral-200 text-neutral-500")}>{r}</span>
                             <span className="font-poppins text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">{RUNG_NAMES[r]}</span>
-                            {got && <span className="ml-auto text-[10.5px] font-semibold text-[#2f7c53]">✓ prose only · validated</span>}
+                            {got && (
+                              <span className="ml-auto text-[10.5px] font-semibold text-[#2f7c53]">{got.source === "ai" ? "✨ written for your code · no code, checked" : "✓ prose only · checked"}</span>
+                            )}
                           </div>
-                          <p className={cn("mt-1.5 text-[13.5px] leading-[1.55]", got ? "text-neutral-800" : "select-none text-neutral-400 blur-[3px]")}>
-                            {got ? <Prose text={got.hint} /> : "Locked until you ask — try one more idea of your own first."}
+                          <p className={cn("mt-1.5 text-[13.5px] leading-[1.55]", got ? "text-neutral-800" : writing ? "text-[#2f7c53]" : "select-none text-neutral-400 blur-[3px]")}>
+                            {got ? (
+                              <Prose text={got.hint} />
+                            ) : writing ? (
+                              <span className="inline-flex items-center gap-2">
+                                <Loader2 className="size-3.5 animate-spin" /> Reading your code and writing this hint…
+                              </span>
+                            ) : (
+                              "Locked until you ask — try one more idea of your own first."
+                            )}
                           </p>
                           {got?.note && <p className="mt-1.5 text-[12px] font-semibold text-[#0586d2]">{got.note}</p>}
                         </motion.div>
                       </AnimatePresence>
                     );
                   })}
+                  {/* the answer — after all three hints: what's wrong + the learner's own code, fixed and tested */}
+                  <motion.div layout className={cn("rounded-2xl px-4 py-3", answer ? "bg-white shadow-sm ring-1 ring-[#359462]/40" : answerUnlocked ? "bg-white shadow-sm" : "bg-white/50")}>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("flex size-6 items-center justify-center rounded-full text-[11px] font-bold", answer ? "bg-neutral-950 text-[#bbf451]" : answerUnlocked ? "bg-[#359462] text-white" : "bg-neutral-200 text-neutral-500")}>4</span>
+                      <span className="font-poppins text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">the answer</span>
+                      {answer && <span className="ml-auto text-[10.5px] font-semibold text-[#2f7c53]">✓ tested on all {answer.tests_passed} tests</span>}
+                    </div>
+                    {!answer ? (
+                      answerUnlocked ? (
+                        <div className="mt-1.5">
+                          <p className="text-[13.5px] leading-[1.55] text-neutral-800">Still stuck after three hints? See exactly what&apos;s wrong and your code, fixed — checked against every visible and hidden test first.</p>
+                          <button onClick={showAnswer} disabled={answerBusy} className="mt-2.5 inline-flex h-9 items-center gap-1.5 rounded-full bg-neutral-950 px-4 text-[13px] font-semibold text-white hover:bg-neutral-800 disabled:opacity-60">
+                            {answerBusy ? (
+                              <>
+                                <Loader2 className="size-3.5 animate-spin" /> Checking the fix against every test…
+                              </>
+                            ) : (
+                              "Show me the answer"
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="mt-1.5 select-none text-[13.5px] leading-[1.55] text-neutral-400 blur-[3px]">Unlocks after all three hints — what&apos;s wrong, and your code fixed.</p>
+                      )
+                    ) : (
+                      <div className="mt-2 space-y-3">
+                        <div>
+                          <p className="font-poppins text-[10px] font-semibold uppercase tracking-[0.16em] text-[#c64e27]">What&apos;s wrong</p>
+                          <p className="mt-1 text-[13.5px] leading-[1.55] text-neutral-800">{answer.whats_wrong}</p>
+                        </div>
+                        <div>
+                          <p className="font-poppins text-[10px] font-semibold uppercase tracking-[0.16em] text-[#359462]">{answer.source === "reference" ? "A correct version" : "Your code, fixed"}</p>
+                          <pre className="lf-editor mt-1.5 overflow-x-auto rounded-xl bg-[#111214] py-2.5 text-[12.5px] leading-[1.7] text-[#e8eaed]">
+                            {answer.diff.map((d, i) => (
+                              <div key={i} className={cn("flex gap-3 px-3", d.type === "add" && "bg-[#bbf451]/15", d.type === "del" && "bg-[#f28b82]/15 opacity-75")}>
+                                <span className={cn("w-3 shrink-0 select-none text-center", d.type === "add" ? "text-[#bbf451]" : d.type === "del" ? "text-[#f28b82]" : "text-[#5f6368]")}>{d.type === "add" ? "+" : d.type === "del" ? "−" : " "}</span>
+                                {/* highlightLine escapes the source before wrapping tokens */}
+                                <code className={cn("whitespace-pre", d.type === "del" && "line-through decoration-[#f28b82]/70")} dangerouslySetInnerHTML={{ __html: highlightLine(d.text) }} />
+                              </div>
+                            ))}
+                          </pre>
+                        </div>
+                        {answer.what_changed && (
+                          <p className="text-[13px] leading-[1.55] text-neutral-700">
+                            <span className="font-semibold text-neutral-900">What changed: </span>
+                            {answer.what_changed}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => {
+                              saveDraft(answer.fixed_code);
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#359462] px-4 text-[13px] font-semibold text-white hover:bg-[#2c7a51]"
+                          >
+                            Put it in my editor
+                          </button>
+                          <span className="text-[11.5px] text-neutral-500">then press Submit — it counts as a hinted pass</span>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button onClick={() => askHint()} disabled={hintBusy || remaining <= 0} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#359462] px-4 text-[13px] font-semibold text-white hover:bg-[#2c7a51] disabled:opacity-40">
-                    {hintBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Lightbulb className="size-3.5" />} {hints.length ? "Next hint" : "First hint"}
+                  <button onClick={nextStep} disabled={hintBusy || answerBusy || !!answer} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#359462] px-4 text-[13px] font-semibold text-white hover:bg-[#2c7a51] disabled:opacity-40">
+                    {hintBusy || answerBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Lightbulb className="size-3.5" />} {stepLabel}
                   </button>
                   <button
-                    onClick={() => askHint("just tell me the answer")}
-                    disabled={hintBusy || remaining <= 0}
+                    onClick={() => (answerUnlocked ? showAnswer() : askHint("just tell me the answer"))}
+                    disabled={hintBusy || answerBusy || !!answer}
                     className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#359462]/40 bg-white/70 px-4 text-[13px] font-semibold text-[#2f7c53] hover:bg-white disabled:opacity-40"
                   >
                     Just tell me the answer
                   </button>
                 </div>
-                <p className="mt-2 text-[11.5px] text-[#4b6b55]">Each hint costs a little mastery — a pass without hints counts for almost three times as much.</p>
+                <p className="mt-2 text-[11.5px] text-[#4b6b55]">Each hint costs a little mastery — a pass without hints counts for almost three times as much. Step 4 is the answer: your code, fixed and tested.</p>
               </Card>
             )}
 

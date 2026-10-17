@@ -29,7 +29,7 @@
 | **0:00 – 0:07** | **You on camera**, laptop beside you. Cut in a 1-second screen shot of someone copying an AI answer. | "Every beginner has done this: stuck on a bug, ask AI, copy the answer… it passes. And next week? The same bug, all over again." | **Stuck → Ask AI → Copy → Same bug again** |
 | **0:07 – 0:13** | You on camera, then the Layerflow landing page fades in (hero: *"Find the bug. Keep the skill."*). | "The problem isn't that answers are hard to find. It's that they come too fast. So we built **Layerflow**." | **Layerflow: find the bug, keep the skill** |
 | **0:13 – 0:30** | Open `/challenge/last-k-total?learner=yash&fresh=1`. Press **Submit** on the starter code. Zoom into the results: the hidden-test chips, then **"What happened"**, then the yellow **Line Map** box pointing at line 3. | "You write Python and press Submit. Layerflow runs it safely and tells you, in plain words, what went wrong: *three hidden tests fail when k is bigger than the list*. It never shows you the hidden tests, but it points at the exact line to look at." | **Runs your code safely** · **Explains in plain words** · **Never reveals hidden tests** · **Points to the exact line** |
-| **0:30 – 0:40** | Click **Get a hint** twice; the rungs light up. Then click **"just tell me the answer"**: still only one more rung. | "Still stuck? The hints get sharper, step by step. Even if you ask for the answer, you only get the next hint. Never the code." | **Hints get sharper. Never the code.** |
+| **0:30 – 0:40** | Click **Get a hint** three times; each hint talks about *your* code. Then click **Show me the answer**: the fixed line lights up green with **"✓ tested on all 9 tests"**. | "Still stuck? Three hints, each one sharper, written for your own code. And if you still need it, see exactly what's wrong — and your code, fixed and tested against every case." | **3 hints, written for your code** · **Then the fix, tested on every case** |
 | **0:40 – 0:56** | Open `/mentoring?learner=riya&challenge=first-n-squares&join=1`. Click **Join now**. Show Priya's tile lighting up with captions for about 3 s. Click **✨ Summarise** and let it reach **"Here it breaks"** (use the scrubber to jump there): the code line in red, `squares` as a box, the variables. | "Need more help? Join a call with **Priya**, your AI mentor. She talks you through it, just like a real mentor. Press **Summarise**, and she replays *your own code*, step by step, right up to the moment it breaks." | **Talk it through with Priya, your AI mentor** · **✨ Summarise: watch your own code break** |
 | **0:56 – 1:06** | Open `/dashboard?learner=riya`. Hover over the two mistakes in **"Mistakes to watch"** (each says *"Seen in …"* two problems), then the **"Up next"** card and its reason. | "Layerflow also remembers your mistakes. When the same one shows up in two different problems, it picks your next problem to fix it, and tells you why." | **Remembers your mistakes** · **Picks your next problem, with the reason** |
 | **1:06 – 1:17** | **Fast montage, about 2.5 s each:** `/repo` → click **This project (works offline)** → the score ring and layer diagram · `/community` → a teacher's accepted answer and a blurred spoiler · `/bounty` → the program cards · `/rewards` → the streak and points. | "And there's more. Repo Analyse reviews your real projects. In the Community, teachers help you out. Bug Bounty teaches real security bugs. And daily streaks earn you points and rewards." | **Repo Analyse · Community · Bug Bounty · Rewards** |
@@ -45,7 +45,7 @@
 >
 > You write Python and press Submit. Layerflow runs it safely and tells you, in plain words, what went wrong: three hidden tests fail when k is bigger than the list. It never shows you the hidden tests, but it points at the exact line to look at.
 >
-> Still stuck? The hints get sharper, step by step. Even if you ask for the answer, you only get the next hint. Never the code.
+> Still stuck? Three hints, each one sharper, written for your own code. And if you still need it, see exactly what's wrong — and your code, fixed and tested against every case.
 >
 > Need more help? Join a call with Priya, your AI mentor. She talks you through it, just like a real mentor. Press Summarise, and she replays your own code, step by step, right up to the moment it breaks.
 >
@@ -67,7 +67,7 @@
 >
 > Aap Python likho, Submit dabao. Layerflow code ko safely chalata hai aur simple words mein batata hai kya galat hua: *jab k list se bada hota hai, teen hidden tests fail hote hain*. Hidden tests kabhi nahi dikhata, but exact line pe point karta hai.
 >
-> Phir bhi atke? Hints step by step sharp hote jaate hain. Answer maango, toh bhi sirf agla hint milega. Code kabhi nahi.
+> Phir bhi atke? Teen hints, har ek pehle se sharp, aapke apne code ke liye likhe hue. Aur phir bhi zaroorat ho, toh dekho exactly kya galat hai — aur aapka code, fix karke, har test pe check kiya hua.
 >
 > Aur help chahiye? **Priya** ke saath call join karo, aapki AI mentor. Woh ek real mentor ki tarah samjhaati hai. **Summarise** dabao, aur woh *aapka hi code* step by step replay karti hai, bilkul us moment tak jahan woh toot-ta hai.
 >

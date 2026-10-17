@@ -5,7 +5,7 @@
  * Anything averaging < 1.5 gets rewritten. Automated floor checks run too:
  * no hidden literal, names the kind of input, no code fence, ≤ 4 sentences.
  */
-import { findLeak, getChallenge } from "../packages/core/src/index.ts";
+import { HINT_RUNGS, findLeak, getChallenge } from "../packages/core/src/index.ts";
 import { P } from "../apps/api/src/fixtures.ts";
 import { check, connect, isMain, printSuite, type Check, type SuiteResult } from "./lib.ts";
 
@@ -38,9 +38,9 @@ export async function run(): Promise<SuiteResult> {
     }
     if (i < 4) {
       const ladder: string[] = [];
-      for (let k = 0; k < 4; k++) ladder.push((await api.post("/api/hint", { submission_id: r.body.submission_id, message: k === 2 ? "just tell me the answer" : undefined })).body.hint);
+      for (let k = 0; k < HINT_RUNGS; k++) ladder.push((await api.post("/api/hint", { submission_id: r.body.submission_id, message: k === 2 ? "just tell me the answer" : undefined })).body.hint);
       if (!quiet) ladder.forEach((h, k) => console.log(`│      rung ${k + 1}: ${h}`));
-      check(checks, `ladder ${i + 1} (${f.challenge}) — 4 distinct rungs`, new Set(ladder).size === 4);
+      check(checks, `ladder ${i + 1} (${f.challenge}) — ${HINT_RUNGS} distinct hints (≥ 3)`, HINT_RUNGS >= 3 && new Set(ladder).size === HINT_RUNGS);
     }
   }
   if (!quiet) console.log("└────────────────────────────────────────────────────────────────────────────────────────────");

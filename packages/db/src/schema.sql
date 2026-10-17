@@ -311,3 +311,13 @@ CREATE INDEX IF NOT EXISTS idx_reports_learner ON bounty_reports(learner_id, cre
 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at);
 CREATE INDEX IF NOT EXISTS idx_replies_post  ON replies(post_id);
 CREATE INDEX IF NOT EXISTS idx_repo_learner  ON repo_reports(learner_id, created_at);
+
+-- ── The answer step (after all three hints): what's wrong + the learner's code, fixed ──
+-- payload = AnswerPayload JSON; the fixed code was run against every test before it was stored.
+CREATE TABLE IF NOT EXISTS answers (
+  submission_id TEXT PRIMARY KEY,
+  learner_id    TEXT NOT NULL,
+  challenge_id  TEXT NOT NULL,
+  payload       TEXT NOT NULL,
+  created_at    TEXT NOT NULL
+);

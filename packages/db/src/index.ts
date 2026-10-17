@@ -720,7 +720,7 @@ export class LayerflowStore implements Store {
   }
 
   /** A ledger row that isn't tied to a submission (chat, mentor session, repo review). */
-  logEvent(e: { kind: "chat" | "mentor" | "repo"; learner_id: string | null; prompt: string; response: string; model: string | null; rejected: boolean }): void {
+  logEvent(e: { kind: "chat" | "mentor" | "repo" | "answer"; learner_id: string | null; prompt: string; response: string; model: string | null; rejected: boolean }): void {
     this.db
       .prepare("INSERT INTO ledger (ts, kind, learner_id, submission_id, prompt, response, model, rejected_for_code) VALUES (?, ?, ?, NULL, ?, ?, ?, ?)")
       .run(new Date().toISOString(), e.kind, e.learner_id, e.prompt.slice(0, 4000), e.response.slice(0, 4000), e.model, e.rejected ? 1 : 0);
@@ -1252,11 +1252,25 @@ export class LayerflowStore implements Store {
     return Number(this.db.prepare("UPDATE plan_leads SET status = ? WHERE id = ?").run(status, id).changes) > 0;
   }
 
+  /* ── the answer step ── */
+
+  answer(submissionId: string): unknown | null {
+    const r = this.db.prepare("SELECT payload FROM answers WHERE submission_id = ?").get(submissionId) as { payload: string } | undefined;
+    return r ? JSON.parse(r.payload) : null;
+  }
+
+  saveAnswer(a: { submission_id: string; learner_id: string; challenge_id: string; payload: unknown }): void {
+    this.db
+      .prepare("INSERT OR REPLACE INTO answers (submission_id, learner_id, challenge_id, payload, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(a.submission_id, a.learner_id, a.challenge_id, JSON.stringify(a.payload), new Date().toISOString());
+  }
+
   /* ── reset (judges' page / npm run seed) ── */
 
   wipe(): void {
     this.tx(() => {
       for (const t of [
+        "answers",
         "test_results",
         "hints",
         "ledger",
